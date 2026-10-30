@@ -266,7 +266,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -575,7 +575,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -583,11 +583,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "cd18df0e7796c3dc39ebca671b5b2593556ea19a3e550158bb655359844a148e",
+            "request_digest": "3c14a97f639a290a1482bb5bdc24097be0c63e9640406993a080a0cd15120e82",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1055,7 +1055,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -1140,7 +1140,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -1547,7 +1547,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -1555,11 +1555,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e1bad5775d16726690dda9e05b71a79fb2604600b5afb2acc80d571cd4584ec2",
+            "request_digest": "0fc81b5d28aba24f1c108a26443609ea1963c6bdda86ed880a83ae750ef13a24",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1772,7 +1772,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -1780,11 +1780,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "68ce5d5a9cd6a6e87040e7c5fbd68d70018ca90ec4439beb3826a4b2ae4f6fe7",
+            "request_digest": "9d50d8a5e8c17bdcff75007c7720e2d1e5c92126030edd6983b4d1c1f844610a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -2317,7 +2317,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -2389,7 +2389,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -2480,7 +2480,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -2900,7 +2900,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2908,11 +2908,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "66f35da2b8f4d73d170ffd8f79fb6fed4fe056d1cf2a9f048844c6e591d42108",
+            "request_digest": "429133bf0654a49ab0eaf1fa8072d01737d296e53c2ae4ac9699141731c7f5d0",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -3112,7 +3112,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3120,11 +3120,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "3113d7b31f5c579ef6e7b0c0a046b36ef2408e87ae0ef0ec426db985291fc724",
+            "request_digest": "d6c78252a27d1cf74aee915b500bcef920e471618a759bd5b8cdc9158935fe13",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -3357,7 +3357,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3365,11 +3365,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "0bbdb85fb94e8d235a3aadae7d4ac38fca66e23db3e5018d4a4b38ebb33b0d11",
+            "request_digest": "8edd316d83edec9c96f635fe7e18fc66871fb2c05625e41dd82955774a6ec2ec",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -3640,7 +3640,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+          "summary": "AI 已在 before_publish:system_job:title 边界停止。",
           "requires_user_confirmation": false,
           "chat_loop": {
             "rounds": 1,
@@ -3719,7 +3719,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "stopped",
-          "message": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+          "message": "AI 已在 before_publish:system_job:title 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -3737,7 +3737,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+                "summary": "AI 已在 before_publish:system_job:title 边界停止。",
                 "requires_user_confirmation": false,
                 "chat_loop": {
                   "rounds": 1,
@@ -3891,7 +3891,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -4072,7 +4072,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+          "message": "AI 已在 before_publish:system_job:title 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -4090,7 +4090,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+                "summary": "AI 已在 before_publish:system_job:title 边界停止。",
                 "requires_user_confirmation": false,
                 "chat_loop": {
                   "rounds": 1,
@@ -4246,7 +4246,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4254,11 +4254,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "547026e9064cd4cbbacb45bc038b72b9b94725f7982b0c4575661087bdde9082",
+            "request_digest": "4d855d36f0200aec8fb7ef3e556a1c9280d8cdf749389cd12052965d7ab150c6",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4849,7 +4849,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_finalize:assistant.chat_loop 边界停止。",
+          "summary": "AI 已在 before_finalize:assistant.chat_loop 边界停止。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -4911,7 +4911,7 @@
           "event_id": 5,
           "sequence": 5,
           "status": "stopped",
-          "message": "AgentRun 已在 before_finalize:assistant.chat_loop 边界停止。",
+          "message": "AI 已在 before_finalize:assistant.chat_loop 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -4929,7 +4929,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_finalize:assistant.chat_loop 边界停止。",
+                "summary": "AI 已在 before_finalize:assistant.chat_loop 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -5016,7 +5016,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -5160,7 +5160,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_finalize:assistant.chat_loop 边界停止。",
+          "message": "AI 已在 before_finalize:assistant.chat_loop 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -5178,7 +5178,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_finalize:assistant.chat_loop 边界停止。",
+                "summary": "AI 已在 before_finalize:assistant.chat_loop 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -5273,7 +5273,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5281,11 +5281,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "4757a856b655bcaed09da13227dd99cc6ebd71b3b36477d85505a8d037f283d7",
+            "request_digest": "a62c7cb56b82cfee2840f030cecdf886855cff4ff2943915ccbf97f894396d98",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5801,7 +5801,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -5877,7 +5877,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -6244,7 +6244,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6252,11 +6252,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "539648e544d6cabb413cf9cc4415da7e8e275c9f59ba16b077d4466e4cc2b421",
+            "request_digest": "a3b682bd99f153a32186afe82cad870ef44d00985bac46ecbe263889934bebd9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -6456,7 +6456,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6464,11 +6464,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "11889ee4b6f73a8a5be82df16a28bfeb53b46f6e7b6129d0dacbd3f2d211bfa6",
+            "request_digest": "7ed49111626815a645304553f9ebdfd27231fc606ef93de4be6a4b9b45b6eea6",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -6956,7 +6956,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -7651,7 +7651,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7659,11 +7659,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "547026e9064cd4cbbacb45bc038b72b9b94725f7982b0c4575661087bdde9082",
+            "request_digest": "4d855d36f0200aec8fb7ef3e556a1c9280d8cdf749389cd12052965d7ab150c6",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -8539,7 +8539,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -8631,7 +8631,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "paused",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -8649,7 +8649,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -8753,7 +8753,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -8938,7 +8938,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -8956,7 +8956,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -9062,7 +9062,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -9070,11 +9070,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "944da67ebab776a07e84f020efbbe306a86dd2c7a93c358d2fa5cbdedea218a3",
+            "request_digest": "f3b1b0d0752911aeb35ae27b9e7a60aeebca29660c1fc5221a9fa2be9c1c4d8e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -9278,7 +9278,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 after_model 边界停止。",
+          "summary": "AI 已在 after_model 边界停止。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -9340,7 +9340,7 @@
           "event_id": 5,
           "sequence": 5,
           "status": "stopped",
-          "message": "AgentRun 已在 after_model 边界停止。",
+          "message": "AI 已在 after_model 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -9358,7 +9358,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_model 边界停止。",
+                "summary": "AI 已在 after_model 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -9445,7 +9445,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -9589,7 +9589,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_model 边界停止。",
+          "message": "AI 已在 after_model 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -9607,7 +9607,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_model 边界停止。",
+                "summary": "AI 已在 after_model 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -9702,7 +9702,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -9710,11 +9710,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "19b6a4a6f4d204f5e3c2ae3aae39a878adc88a0c2639929578551e584a9a61a8",
+            "request_digest": "e44626204f92af17945ae52df64ccf74fd962b67fb6a172ef9f20a125629e9f5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -11499,7 +11499,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -11571,7 +11571,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -11903,7 +11903,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -11911,11 +11911,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1af6f9a9720799d8228cf574a5cdc1a0f55db35a70a0ebbc517f1b76277c24a6",
+            "request_digest": "b6cee69942edbb8a1abbfdf02d94ddebecde971c3bb9b9bb3185839080ab6034",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -12115,7 +12115,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -12123,11 +12123,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7e69d3f02f2492e3f75b5cfed95828cd09c3e0520aa67df682c47256860b2a7e",
+            "request_digest": "c2475565412fcbf066ebc7451d9a000608b6c03f7871bf0952c6faaee17bbabe",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -12918,7 +12918,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -13224,7 +13224,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -13232,11 +13232,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6a15fce36160eea43fecaa6d394b72306b728545d9eaa97c277080c96b75bf9f",
+            "request_digest": "7cce00d637ac8e53ae4839e7246ae3a5da19d9f555825106a888656d4d61b319",
             "redacted": false,
             "omissions": [],
             "prompt_version": "e86b54b83071329c8d2c747ea31aa35f6eeefe8ed14aa84574f3457bc06c4352",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -13452,7 +13452,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+          "summary": "AI 已在 before_publish:system_job:title 边界停止。",
           "requires_user_confirmation": false,
           "chat_loop": {
             "rounds": 1,
@@ -13519,7 +13519,7 @@
           "event_id": 5,
           "sequence": 5,
           "status": "stopped",
-          "message": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+          "message": "AI 已在 before_publish:system_job:title 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -13537,7 +13537,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+                "summary": "AI 已在 before_publish:system_job:title 边界停止。",
                 "requires_user_confirmation": false,
                 "chat_loop": {
                   "rounds": 1,
@@ -13630,7 +13630,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -13774,7 +13774,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+          "message": "AI 已在 before_publish:system_job:title 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -13792,7 +13792,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_publish:system_job:title 边界停止。",
+                "summary": "AI 已在 before_publish:system_job:title 边界停止。",
                 "requires_user_confirmation": false,
                 "chat_loop": {
                   "rounds": 1,
@@ -13892,7 +13892,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -13900,11 +13900,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f3d7ad6f58b78890ca700d38109f4035d69e0ce035ef22867281abfa81c8a8ab",
+            "request_digest": "be861ffb2ee19966752bcf3d2b0ca6bdbe87a27f2e5397685d8652d3d0a2c074",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -14261,7 +14261,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -14528,7 +14528,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -14536,11 +14536,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c3db758c0e9b4cb0e0ff242abd6ffe885b7cd37cf39969fdf271c0a9f21cfc3b",
+            "request_digest": "8bf101db072752daacddd5c5f692943d6958810c341f3fd3f020ce1ac89b5133",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -14880,7 +14880,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_fallback 边界停止。",
+          "summary": "AI 已在 before_fallback 边界停止。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -14918,7 +14918,7 @@
           "event_id": 3,
           "sequence": 3,
           "status": "stopped",
-          "message": "AgentRun 已在 before_fallback 边界停止。",
+          "message": "AI 已在 before_fallback 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -14936,7 +14936,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_fallback 边界停止。",
+                "summary": "AI 已在 before_fallback 边界停止。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -15027,7 +15027,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_fallback 边界停止。",
+          "message": "AI 已在 before_fallback 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -15045,7 +15045,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_fallback 边界停止。",
+                "summary": "AI 已在 before_fallback 边界停止。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -15327,7 +15327,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -15399,7 +15399,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -15790,7 +15790,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -15798,11 +15798,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b5fd5e57d4f5003c94b65a7fb27bb00ae0486982b8595b4b14a249ccbdddb75d",
+            "request_digest": "b1d20ed08cc6966b11636ae889b57dcd1c717b763956e2358a135747a6a0ceb9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -16002,7 +16002,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -16010,11 +16010,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "34de2d86ea0504520377190a12fb1227639db718066b2a1f763975f548323bfb",
+            "request_digest": "9957b8a7525d7466e1fc0ed5924aee937479c3b081a30b652066b6914ef6f1f6",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -16643,7 +16643,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -16985,7 +16985,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -16993,11 +16993,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "eb04e6029e187f92f8f54a7c4a70847be9bca31a48c53f862bc907fcbb7516fd",
+            "request_digest": "16392e2d23187326fbe47dc6579ebb25b932251d91f8aaf94ddd5c157598a1cf",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -17380,7 +17380,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -17690,7 +17690,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -17698,11 +17698,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e6135f32b3d5f0e1bd5679e54bc3cc7121c57e94b3261223acc62d7b61b8d18c",
+            "request_digest": "670cd3053196a476f9d918304c2c1342f5f8ac6f5c8ca2ff351420a05c3d19c7",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",

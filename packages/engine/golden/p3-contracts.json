@@ -18683,7 +18683,7 @@
       "args": {
         "control": "pause_run"
       },
-      "output": "作者已暂停 AgentRun。"
+      "output": "作者已暂停 AI。"
     },
     {
       "fn": "control_event_type",
@@ -18704,7 +18704,7 @@
       "args": {
         "control": "resume_run"
       },
-      "output": "作者已恢复 AgentRun。"
+      "output": "作者已恢复 AI。"
     },
     {
       "fn": "control_event_type",
@@ -18725,7 +18725,7 @@
       "args": {
         "control": "stop_run"
       },
-      "output": "作者已停止 AgentRun。"
+      "output": "作者已停止 AI。"
     },
     {
       "fn": "control_event_type",
@@ -18746,7 +18746,7 @@
       "args": {
         "control": "retry_from_checkpoint"
       },
-      "output": "作者要求从 checkpoint 重试 AgentRun。"
+      "output": "作者要求 AI 从 checkpoint 重试。"
     },
     {
       "fn": "control_event_type",

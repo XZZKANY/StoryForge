@@ -202,7 +202,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
     name: 'project.plan_update',
     description:
       '连载计划推进：按章序 upsert 章节计划（标题 / 目标 / 状态 / 备注）与全书主线、字数区间、弧线，原子写 .storyforge/serial-plan.json。' +
-      '绝不碰手稿正文，不落 DB。',
+      '绝不碰正文，不落 DB。',
     domain: 'project',
     input_schema: {},
     output_schema: {},
@@ -223,7 +223,7 @@ export const QUALITY_AND_PLAN_TOOL_SPECS = [
         '②作者给了大纲 → 一次传多章 {ordinal, title, goal} 建起计划。' +
         '**正文不存在的章标 done 会被拒绝**：起草出待确认修订不等于写完，修订要作者点接受才写进文件，此时标 done 等于让计划替作者做决定。' +
         "等接受之后再标。写不下去时标 status:'blocked' 并在 note 写明卡在哪，之后不会再被当成下一章。" +
-        '**只写计划文件，绝不写手稿正文**——正文仍须走 file_create / file_revise 的待确认修订。' +
+        '**只写计划文件，绝不写正文**——正文仍须走 file_create / file_revise 的待确认修订。' +
         '注意计划里的 status 只是声明，正文是否存在才是真相：块里报「计划与正文对不上」时，以正文为准把状态改对，不要照计划重写已有正文。',
       parameters: {
         type: 'object',

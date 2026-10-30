@@ -132,7 +132,7 @@ export function renderDossiersMarkdown(dossiers: readonly Dossier[]): string {
     '# Canon Dossier（派生缓存，勿手改）',
     '',
     '> 本文件由 project.canon 从 canon.json 声明 + 正文在场分布确定性重建，',
-    '> 是可弃缓存（删除后下次调用自愈），不是作者手稿。要改事实请改 canon.json。',
+    '> 是可弃缓存（删除后下次调用自愈），不是作者的正文。要改事实请改 canon.json。',
     '',
   ];
   if (!dossiers.length) {

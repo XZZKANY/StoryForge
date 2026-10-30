@@ -601,7 +601,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -914,7 +914,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -922,11 +922,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "cd18df0e7796c3dc39ebca671b5b2593556ea19a3e550158bb655359844a148e",
+            "request_digest": "3c14a97f639a290a1482bb5bdc24097be0c63e9640406993a080a0cd15120e82",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1832,7 +1832,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -1908,7 +1908,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -2275,7 +2275,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2283,11 +2283,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "539648e544d6cabb413cf9cc4415da7e8e275c9f59ba16b077d4466e4cc2b421",
+            "request_digest": "a3b682bd99f153a32186afe82cad870ef44d00985bac46ecbe263889934bebd9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -2487,7 +2487,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2495,11 +2495,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "11889ee4b6f73a8a5be82df16a28bfeb53b46f6e7b6129d0dacbd3f2d211bfa6",
+            "request_digest": "7ed49111626815a645304553f9ebdfd27231fc606ef93de4be6a4b9b45b6eea6",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4641,7 +4641,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -4717,7 +4717,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -5053,7 +5053,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5061,11 +5061,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1af6f9a9720799d8228cf574a5cdc1a0f55db35a70a0ebbc517f1b76277c24a6",
+            "request_digest": "b6cee69942edbb8a1abbfdf02d94ddebecde971c3bb9b9bb3185839080ab6034",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5265,7 +5265,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5273,11 +5273,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7e69d3f02f2492e3f75b5cfed95828cd09c3e0520aa67df682c47256860b2a7e",
+            "request_digest": "c2475565412fcbf066ebc7451d9a000608b6c03f7871bf0952c6faaee17bbabe",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5547,7 +5547,7 @@
           "event_id": 5,
           "sequence": 5,
           "status": "stopped",
-          "message": "AgentRun 已在 before_stream_read 边界停止。",
+          "message": "AI 已在 before_stream_read 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -5565,7 +5565,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                "summary": "AI 已在 before_stream_read 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -5608,7 +5608,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_stream_read 边界停止。",
+            "summary": "AI 已在 before_stream_read 边界停止。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -5745,7 +5745,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界停止。",
+              "message": "AI 已在 before_stream_read 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -5763,7 +5763,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                    "summary": "AI 已在 before_stream_read 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -5920,7 +5920,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -6068,7 +6068,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界停止。",
+          "message": "AI 已在 before_stream_read 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -6086,7 +6086,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                "summary": "AI 已在 before_stream_read 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -6181,7 +6181,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6189,11 +6189,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "19b6a4a6f4d204f5e3c2ae3aae39a878adc88a0c2639929578551e584a9a61a8",
+            "request_digest": "e44626204f92af17945ae52df64ccf74fd962b67fb6a172ef9f20a125629e9f5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7064,7 +7064,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -7140,7 +7140,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -7535,7 +7535,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7543,11 +7543,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b5fd5e57d4f5003c94b65a7fb27bb00ae0486982b8595b4b14a249ccbdddb75d",
+            "request_digest": "b1d20ed08cc6966b11636ae889b57dcd1c717b763956e2358a135747a6a0ceb9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7747,7 +7747,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7755,11 +7755,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "34de2d86ea0504520377190a12fb1227639db718066b2a1f763975f548323bfb",
+            "request_digest": "9957b8a7525d7466e1fc0ed5924aee937479c3b081a30b652066b6914ef6f1f6",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -8123,7 +8123,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "paused",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -8141,7 +8141,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -8198,7 +8198,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+            "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -8393,7 +8393,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -8411,7 +8411,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -8728,7 +8728,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -8746,7 +8746,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -8793,7 +8793,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -9451,7 +9451,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -9540,7 +9540,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -9644,7 +9644,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -9832,7 +9832,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -9850,7 +9850,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -9897,7 +9897,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -10210,7 +10210,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10218,11 +10218,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1c3772290aff63604a6799bafc15cf645fa8a201c1883e7d9cc2ac38d945ac1b",
+            "request_digest": "e955d12f71540aaa151c4d0a95e41f4e9510c82f738f3fbef1f80dd8e333e640",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -10435,7 +10435,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10443,11 +10443,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "861ce2d8ddc7ea518eda0fa30d07ff9e4fbbbb935bed9cb17a7d287ff0b66d6d",
+            "request_digest": "714f1dce3112e2fc396248c4dd7f1ce958267fb2b365748956ffcd59b6e9e624",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -10540,7 +10540,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "2b7ef1efecc19ac9e17894c0d850d6b9c34d645f4c9bf0b579b0c7a4ba173218",
+                  "sha256": "31a99cec70fa4cb205a9e208d3ffa7013158c54ce6211af130ea9b2fa67d9b56",
                   "omission_reason": null
                 },
                 {
@@ -10702,7 +10702,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10710,11 +10710,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "50f199dbcbabfc1eb2fc260cd512d67e475338babb5905143262621565cd9a4c",
+            "request_digest": "af16b25832640b7bc0e897f1142c7ada80a3b96dd9292be01ca894cb7c486f62",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -10821,7 +10821,7 @@
                   "message_indices": [
                     2
                   ],
-                  "sha256": "2b7ef1efecc19ac9e17894c0d850d6b9c34d645f4c9bf0b579b0c7a4ba173218",
+                  "sha256": "31a99cec70fa4cb205a9e208d3ffa7013158c54ce6211af130ea9b2fa67d9b56",
                   "omission_reason": null
                 },
                 {
@@ -11113,7 +11113,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "paused",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -11131,7 +11131,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -11188,7 +11188,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+            "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -11383,7 +11383,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -11401,7 +11401,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -11718,7 +11718,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -11736,7 +11736,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -12053,7 +12053,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -12071,7 +12071,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -12118,7 +12118,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -12156,7 +12156,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -12174,7 +12174,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -12485,7 +12485,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -12677,7 +12677,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -12695,7 +12695,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -12742,7 +12742,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -12780,7 +12780,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -12798,7 +12798,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -12912,7 +12912,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -12920,11 +12920,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1c3772290aff63604a6799bafc15cf645fa8a201c1883e7d9cc2ac38d945ac1b",
+            "request_digest": "e955d12f71540aaa151c4d0a95e41f4e9510c82f738f3fbef1f80dd8e333e640",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -13174,7 +13174,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "stopped",
-          "message": "AgentRun 已在 before_stream_read 边界停止。",
+          "message": "AI 已在 before_stream_read 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -13192,7 +13192,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                "summary": "AI 已在 before_stream_read 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -13235,7 +13235,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_stream_read 边界停止。",
+            "summary": "AI 已在 before_stream_read 边界停止。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -13313,7 +13313,7 @@
               "run_id": 1,
               "event_type": "stop_run",
               "actor": "desktop-ide",
-              "message": "作者已停止 AgentRun。",
+              "message": "作者已停止 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -13329,7 +13329,7 @@
               "run_id": 1,
               "event_type": "stop_run",
               "actor": "desktop-ide",
-              "message": "作者已停止 AgentRun。",
+              "message": "作者已停止 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -13404,7 +13404,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界停止。",
+              "message": "AI 已在 before_stream_read 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -13422,7 +13422,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                    "summary": "AI 已在 before_stream_read 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -13611,7 +13611,7 @@
               "run_id": 1,
               "event_type": "stop_run",
               "actor": "desktop-ide",
-              "message": "作者已停止 AgentRun。",
+              "message": "作者已停止 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -13627,7 +13627,7 @@
               "run_id": 1,
               "event_type": "stop_run",
               "actor": "desktop-ide",
-              "message": "作者已停止 AgentRun。",
+              "message": "作者已停止 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -13702,7 +13702,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界停止。",
+              "message": "AI 已在 before_stream_read 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -13720,7 +13720,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                    "summary": "AI 已在 before_stream_read 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -13753,7 +13753,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -13995,7 +13995,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -14084,7 +14084,7 @@
           "run_id": 1,
           "event_type": "stop_run",
           "actor": "desktop-ide",
-          "message": "作者已停止 AgentRun。",
+          "message": "作者已停止 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -14100,7 +14100,7 @@
           "run_id": 1,
           "event_type": "stop_run",
           "actor": "desktop-ide",
-          "message": "作者已停止 AgentRun。",
+          "message": "作者已停止 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -14175,7 +14175,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界停止。",
+          "message": "AI 已在 before_stream_read 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -14193,7 +14193,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                "summary": "AI 已在 before_stream_read 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -14226,7 +14226,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -14304,7 +14304,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -14312,11 +14312,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "19b6a4a6f4d204f5e3c2ae3aae39a878adc88a0c2639929578551e584a9a61a8",
+            "request_digest": "e44626204f92af17945ae52df64ccf74fd962b67fb6a172ef9f20a125629e9f5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -14540,7 +14540,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "paused",
-          "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -14558,7 +14558,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -14601,7 +14601,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+            "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -14679,7 +14679,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -14754,7 +14754,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -14772,7 +14772,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -14949,7 +14949,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -15024,7 +15024,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -15042,7 +15042,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -15075,7 +15075,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -15113,7 +15113,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -15131,7 +15131,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -15395,7 +15395,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -15484,7 +15484,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -15559,7 +15559,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -15577,7 +15577,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -15610,7 +15610,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -15648,7 +15648,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -15666,7 +15666,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -15766,7 +15766,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -15774,11 +15774,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b866903b5613e6f4b7e26ce1321cb88b5d154687141c2c73ab36c5d8861ea992",
+            "request_digest": "2c3e600f2b12b03b5270f15ba28afff89a1f3a0c1259c04c97cc64cdb211a35c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -16039,7 +16039,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -16057,7 +16057,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -16129,7 +16129,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+            "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -16356,7 +16356,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -16374,7 +16374,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -16714,7 +16714,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -16732,7 +16732,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -16794,7 +16794,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -16832,7 +16832,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -16850,7 +16850,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -17166,7 +17166,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -17375,7 +17375,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -17393,7 +17393,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -17455,7 +17455,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -17493,7 +17493,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -17511,7 +17511,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:knowledge.propose 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -17640,7 +17640,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -17648,11 +17648,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fd854c3c5578673ecb9f6c4abb150fbdefeebe8b423ac5adce3a271f803cdb0c",
+            "request_digest": "26fe4581c1fe8ae512eac361cdcbd239023a7544783a08c3441854a62e9e8298",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -18137,7 +18137,7 @@
               "run_id": 1,
               "event_type": "agent_run_completed",
               "actor": "root-agent",
-              "message": "权限已批准，AgentRun 已完成待确认步骤。",
+              "message": "权限已批准，AI 已完成待确认步骤。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -18406,7 +18406,7 @@
           "run_id": 1,
           "event_type": "agent_run_completed",
           "actor": "root-agent",
-          "message": "权限已批准，AgentRun 已完成待确认步骤。",
+          "message": "权限已批准，AI 已完成待确认步骤。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -19796,7 +19796,7 @@
               "run_id": 1,
               "event_type": "agent_run_failed",
               "actor": "permission-gate",
-              "message": "作者拒绝权限请求，AgentRun 已停止。",
+              "message": "作者拒绝了权限请求，AI 已停止。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -19871,7 +19871,7 @@
                 "event_type": "agent_run_failed",
                 "manual_restart_required": true,
                 "resume_strategy": "manual_restart_required",
-                "message": "作者拒绝权限请求，AgentRun 已停止。"
+                "message": "作者拒绝了权限请求，AI 已停止。"
               },
               "latest_control": {
                 "event_id": 5,
@@ -20072,7 +20072,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "permission-gate",
-          "message": "作者拒绝权限请求，AgentRun 已停止。",
+          "message": "作者拒绝了权限请求，AI 已停止。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -20355,7 +20355,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -20603,7 +20603,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -20728,7 +20728,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -20842,7 +20842,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -20858,7 +20858,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -20897,7 +20897,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 worker_settled 边界停止。",
+              "message": "AI 已在 worker_settled 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -20909,7 +20909,7 @@
                   "plan": [],
                   "tool_trace": [],
                   "agent_result": {
-                    "summary": "AgentRun 已在 worker_settled 边界停止。",
+                    "summary": "AI 已在 worker_settled 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -21146,7 +21146,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -21162,7 +21162,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -21201,7 +21201,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 worker_settled 边界停止。",
+          "message": "AI 已在 worker_settled 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -21213,7 +21213,7 @@
               "plan": [],
               "tool_trace": [],
               "agent_result": {
-                "summary": "AgentRun 已在 worker_settled 边界停止。",
+                "summary": "AI 已在 worker_settled 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -21953,7 +21953,7 @@
             "type": "error",
             "session_id": "sess-other",
             "run_id": "run-1",
-            "detail": "AgentRun 不存在。"
+            "detail": "找不到这次 AI 运行。"
           }
         }
       ],
@@ -22039,7 +22039,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -22352,7 +22352,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -22360,11 +22360,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b60bbe59135c329e6000463744e1df8974385491563e09db391b4238d4d18c7b",
+            "request_digest": "dc893c22a220f9d803aad9388189a340493675490805faac0c03367dc9782d16",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -23198,7 +23198,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -23410,7 +23410,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -23661,7 +23661,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -23740,7 +23740,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -23748,11 +23748,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "38c0c04675d56a49a142bd1147bdbd9f8f59d26243640958e9c613fcced5f671",
+            "request_digest": "b7dc84ed68acbdc81fd54c0b20524c699a5b3244261187c3c3146391616562e7",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -24011,7 +24011,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "paused",
-          "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -24029,7 +24029,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -24072,7 +24072,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+            "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -24150,7 +24150,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -24166,7 +24166,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -24241,7 +24241,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -24259,7 +24259,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -24448,7 +24448,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -24464,7 +24464,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -24539,7 +24539,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -24557,7 +24557,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -24590,7 +24590,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -24628,7 +24628,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -24646,7 +24646,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -24938,7 +24938,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -25027,7 +25027,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -25043,7 +25043,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -25118,7 +25118,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -25136,7 +25136,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -25169,7 +25169,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -25207,7 +25207,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -25225,7 +25225,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_stream_read 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -25325,7 +25325,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -25333,11 +25333,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "08d76bda9689282491ac8cc7346b4415a6ce6ebe0521878ea3607ebcafd1df16",
+            "request_digest": "1d7ad43eddfe19c924d4315e82999c88116acaea87a1a70b6fd6d1ea383110a2",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -26482,7 +26482,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -26585,7 +26585,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             },
             "stream": true,
             "stream_options": {
@@ -27066,7 +27066,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -27074,11 +27074,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e7a1e4423c373cc52e6468b7f07ce6401ca4a93898c40471ca27678c6eb0465f",
+            "request_digest": "42f3d17b50cead246af0defa1c02de2d1a1bb22770fe22f79f17a516a13bdc85",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -27423,7 +27423,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -27431,11 +27431,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7af29a1b79328376604e6c32c0b218f85f46837802d94902391d01c26837be99",
+            "request_digest": "cb0c72bcca19244aa3ca56ab7e22e0528fe378352c05f0878615ffc11b125db5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -28916,7 +28916,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -29019,7 +29019,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             },
             "stream": true,
             "stream_options": {
@@ -29497,7 +29497,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -29505,11 +29505,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e7a1e4423c373cc52e6468b7f07ce6401ca4a93898c40471ca27678c6eb0465f",
+            "request_digest": "42f3d17b50cead246af0defa1c02de2d1a1bb22770fe22f79f17a516a13bdc85",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -29854,7 +29854,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -29862,11 +29862,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7af29a1b79328376604e6c32c0b218f85f46837802d94902391d01c26837be99",
+            "request_digest": "cb0c72bcca19244aa3ca56ab7e22e0528fe378352c05f0878615ffc11b125db5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -30469,7 +30469,7 @@
           "event_id": 9,
           "sequence": 9,
           "status": "paused",
-          "message": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_review_role 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -30487,7 +30487,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -30543,7 +30543,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+            "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -30660,7 +30660,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -30780,7 +30780,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_review_role 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -30798,7 +30798,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -31078,7 +31078,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -31237,7 +31237,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -31357,7 +31357,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_review_role 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -31375,7 +31375,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -31483,7 +31483,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -31491,11 +31491,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6bd55435e711d64dcfe6ec7ec11716057505ed81f5be7cd859adfe5c2f7db165",
+            "request_digest": "8bf63204b8fdc0aba27816a21a3443ae67d970b03a29ac896dd8ad52460f7189",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -32038,7 +32038,7 @@
           "event_id": 4,
           "sequence": 4,
           "status": "paused",
-          "message": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_plan 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -32066,7 +32066,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_plan 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -32119,7 +32119,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+            "summary": "AI 已在 after_plan 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -32254,7 +32254,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_plan 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -32282,7 +32282,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_plan 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -32481,7 +32481,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_plan 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -32509,7 +32509,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_plan 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -32542,7 +32542,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -32581,7 +32581,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 worker_settled 边界停止。",
+              "message": "AI 已在 worker_settled 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -32609,7 +32609,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 worker_settled 边界停止。",
+                    "summary": "AI 已在 worker_settled 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -32916,7 +32916,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_plan 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -32944,7 +32944,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_plan 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_plan 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -32977,7 +32977,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -33016,7 +33016,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 worker_settled 边界停止。",
+          "message": "AI 已在 worker_settled 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -33044,7 +33044,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 worker_settled 边界停止。",
+                "summary": "AI 已在 worker_settled 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -33188,7 +33188,7 @@
           "event_id": 6,
           "sequence": 6,
           "status": "paused",
-          "message": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -33216,7 +33216,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -33295,7 +33295,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+            "summary": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -33533,7 +33533,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -33561,7 +33561,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -33936,7 +33936,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -33964,7 +33964,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -34023,7 +34023,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -35687,7 +35687,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -35715,7 +35715,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool:context.load 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool:context.load 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -35774,7 +35774,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -37431,7 +37431,7 @@
           "event_id": 5,
           "sequence": 5,
           "status": "stopped",
-          "message": "AgentRun 已在 after_tool:context.load 边界停止。",
+          "message": "AI 已在 after_tool:context.load 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -37459,7 +37459,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool:context.load 边界停止。",
+                "summary": "AI 已在 after_tool:context.load 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -37538,7 +37538,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool:context.load 边界停止。",
+            "summary": "AI 已在 after_tool:context.load 边界停止。",
             "requires_user_confirmation": false,
             "runtime_interrupted": true,
             "writeback_blocked_until_user_confirms": false
@@ -37755,7 +37755,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool:context.load 边界停止。",
+              "message": "AI 已在 after_tool:context.load 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -37783,7 +37783,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool:context.load 边界停止。",
+                    "summary": "AI 已在 after_tool:context.load 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -38113,7 +38113,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool:context.load 边界停止。",
+              "message": "AI 已在 after_tool:context.load 边界停止。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -38141,7 +38141,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool:context.load 边界停止。",
+                    "summary": "AI 已在 after_tool:context.load 边界停止。",
                     "requires_user_confirmation": false,
                     "runtime_interrupted": true,
                     "writeback_blocked_until_user_confirms": false
@@ -38200,7 +38200,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -38568,7 +38568,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool:context.load 边界停止。",
+          "message": "AI 已在 after_tool:context.load 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -38596,7 +38596,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool:context.load 边界停止。",
+                "summary": "AI 已在 after_tool:context.load 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -38655,7 +38655,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -38884,7 +38884,7 @@
           "event_id": 15,
           "sequence": 15,
           "status": "paused",
-          "message": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -38912,7 +38912,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "review_report": {
                   "kind": "review_report",
@@ -39178,7 +39178,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+            "summary": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "review_report": {
               "kind": "review_report",
@@ -39835,7 +39835,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -39863,7 +39863,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "review_report": {
                       "kind": "review_report",
@@ -40704,7 +40704,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+              "message": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -40732,7 +40732,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "review_report": {
                       "kind": "review_report",
@@ -40978,7 +40978,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -42647,7 +42647,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+          "message": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -42675,7 +42675,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
+                "summary": "AI 已在 after_tool:subagent.character_reviewer 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "review_report": {
                   "kind": "review_report",
@@ -42921,7 +42921,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -50858,7 +50858,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -50876,7 +50876,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -50919,7 +50919,7 @@
             }
           ],
           "agent_result": {
-            "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+            "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
             "requires_user_confirmation": false,
             "writeback_blocked_until_user_confirms": false,
             "runtime_interrupted": true
@@ -51196,7 +51196,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -51214,7 +51214,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "writeback_blocked_until_user_confirms": false,
                     "runtime_interrupted": true
@@ -51627,7 +51627,7 @@
               "run_id": 1,
               "event_type": "agent_run_interrupted",
               "actor": "agent-runtime",
-              "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+              "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
               "payload": {
                 "execution_result": {
                   "type": "agent_result",
@@ -51645,7 +51645,7 @@
                     }
                   ],
                   "agent_result": {
-                    "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                    "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                     "requires_user_confirmation": false,
                     "writeback_blocked_until_user_confirms": false,
                     "runtime_interrupted": true
@@ -51678,7 +51678,7 @@
               "run_id": 1,
               "event_type": "resume_run",
               "actor": "desktop-ide",
-              "message": "作者已恢复 AgentRun。",
+              "message": "作者已恢复 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -52296,7 +52296,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -52314,7 +52314,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -52347,7 +52347,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -52822,7 +52822,7 @@
         {
           "error": {
             "type": "AgentRunNotFoundError",
-            "message": "AgentRun 不存在。"
+            "message": "找不到这次 AI 运行。"
           }
         }
       ],
@@ -52855,7 +52855,7 @@
         {
           "error": {
             "type": "AgentRunNotFoundError",
-            "message": "AgentRun 不存在。"
+            "message": "找不到这次 AI 运行。"
           }
         }
       ],
@@ -52892,7 +52892,7 @@
         {
           "error": {
             "type": "AgentRunNotFoundError",
-            "message": "AgentRun 不存在。"
+            "message": "找不到这次 AI 运行。"
           }
         }
       ],
@@ -53411,7 +53411,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -53724,7 +53724,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -53732,7 +53732,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a20f6d3e795177d4a394366e072e3a99199a0d71b4deae8e0d15cc01f637de59",
+            "request_digest": "c2c4a4de1bc45a27ab31f7b1170f4198ca6803a00a547aa2a5f77db51c8b7074",
             "redacted": true,
             "omissions": [
               {
@@ -53741,7 +53741,7 @@
               }
             ],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -54441,7 +54441,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -54755,7 +54755,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -54763,11 +54763,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "32187b47ee221be730ecb2c00ce058385713ed64dde376f4b59bc7543034cfd9",
+            "request_digest": "04c1d87f96de79204cbd99c7ca36e3ef11a35d4ac6df28ffa0443836efbc8d76",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -56157,7 +56157,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -56477,7 +56477,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -56797,7 +56797,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -57117,7 +57117,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -57437,7 +57437,7 @@
               "run_id": 1,
               "event_type": "pause_run",
               "actor": "desktop-ide",
-              "message": "作者已暂停 AgentRun。",
+              "message": "作者已暂停 AI。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -57591,7 +57591,7 @@
             "type": "error",
             "session_id": "sess-1",
             "run_id": "run-404",
-            "detail": "AgentRun 不存在。"
+            "detail": "找不到这次 AI 运行。"
           }
         },
         {
@@ -57622,7 +57622,7 @@
             "type": "error",
             "session_id": "sess-other",
             "run_id": "run-1",
-            "detail": "AgentRun 不存在。"
+            "detail": "找不到这次 AI 运行。"
           }
         }
       ],
@@ -57708,7 +57708,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             },
             "stream": true,
             "stream_options": {
@@ -57959,7 +57959,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -58037,7 +58037,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -58045,11 +58045,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "38c0c04675d56a49a142bd1147bdbd9f8f59d26243640958e9c613fcced5f671",
+            "request_digest": "b7dc84ed68acbdc81fd54c0b20524c699a5b3244261187c3c3146391616562e7",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",

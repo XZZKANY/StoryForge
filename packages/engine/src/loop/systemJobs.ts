@@ -124,7 +124,7 @@ function summaryJob(sessionId: number, records: MessageRecord[], result: Obj): S
   const toolTrace = Array.isArray(result.tool_trace) ? result.tool_trace : [];
   const report = isObj(agent.review_report) ? agent.review_report : {};
   const issues = Array.isArray(report.issues) ? report.issues : [];
-  const summary = strippedText(agent.summary) ?? 'AgentRun 已完成。';
+  const summary = strippedText(agent.summary) ?? 'AI 已完成。';
   const payload: Obj = {
     kind: SYSTEM_SUMMARY_ARTIFACT_KIND,
     job_name: SUMMARY_JOB_NAME,

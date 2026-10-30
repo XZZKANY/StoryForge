@@ -370,7 +370,7 @@ test('resumed stopped run tells the author it stopped, not the runner boundary',
     tool_trace: [],
     proposed_patch: null,
     agent_result: {
-      summary: 'AgentRun 已在 before_stream_yield 边界停止。',
+      summary: 'AI 已在 before_stream_yield 边界停止。',
       requires_user_confirmation: false,
       runtime_interrupted: true,
     },
@@ -617,7 +617,7 @@ test('scope warning is extracted from agent_result for the patch panel', () => {
       summary: '已修订。',
       scope_warning: {
         message:
-          '本次定向修订改动了约 100% 的原文行（4/4 行），可能超出指定范围，请在 diff 面板逐块核对后再接受。',
+          '本次定向修订改动了约 100% 的原文行（4/4 行），可能超出指定范围，请在对比里逐块核对后再接受。',
         drift_ratio: 1.0,
       },
     },

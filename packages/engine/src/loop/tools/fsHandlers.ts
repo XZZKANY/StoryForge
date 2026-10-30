@@ -205,7 +205,7 @@ export function fsToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
       context.args._knowledge_proposal_group_created === true ||
       (await deps.artifacts.runHasArtifact(context.run.public_id, KNOWLEDGE_PROPOSAL_ARTIFACT_KIND))
     )
-      throw new FsToolError('每个 AgentRun 最多生成一组 Project Knowledge 提议。');
+      throw new FsToolError('每次 AI 运行最多生成一组 Project Knowledge 提议。');
     const root = requiredString(payload, 'project_root');
     const group = (await buildKnowledgeProposalGroup(reader, root, payload as JsonObject, {
       ...deps.proposals,

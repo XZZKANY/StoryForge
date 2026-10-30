@@ -41789,7 +41789,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -41926,7 +41926,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -41944,7 +41944,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -42299,7 +42299,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -42317,7 +42317,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -42350,7 +42350,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -42825,7 +42825,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -42962,7 +42962,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -42980,7 +42980,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -43335,7 +43335,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -43353,7 +43353,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -43386,7 +43386,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -43861,7 +43861,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -44181,7 +44181,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -44199,7 +44199,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -44626,7 +44626,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -44644,7 +44644,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -44677,7 +44677,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -46150,7 +46150,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -46287,7 +46287,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -46305,7 +46305,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -46660,7 +46660,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -46678,7 +46678,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -46711,7 +46711,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -47186,7 +47186,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -47323,7 +47323,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -47341,7 +47341,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -47696,7 +47696,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -47714,7 +47714,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -47747,7 +47747,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -57998,7 +57998,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "chapter_brief": {
             "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -58185,7 +58185,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -58218,7 +58218,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "chapter_brief": {
                   "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -58629,7 +58629,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -58662,7 +58662,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_finalize:chapter.brief 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "chapter_brief": {
                   "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -61582,7 +61582,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -61733,7 +61733,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -61751,7 +61751,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -62134,7 +62134,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -62152,7 +62152,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -62185,7 +62185,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -65700,7 +65700,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -65837,7 +65837,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -65855,7 +65855,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -66210,7 +66210,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -66228,7 +66228,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -66261,7 +66261,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -66736,7 +66736,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -66873,7 +66873,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -66891,7 +66891,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -67246,7 +67246,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -67264,7 +67264,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -67297,7 +67297,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -68290,7 +68290,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -68635,7 +68635,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -68653,7 +68653,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -69081,7 +69081,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -69099,7 +69099,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -69132,7 +69132,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -70625,7 +70625,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "writeback_blocked_until_user_confirms": false,
           "runtime_interrupted": true
@@ -70970,7 +70970,7 @@
           "event_id": 8,
           "sequence": 8,
           "status": "paused",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -70988,7 +70988,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -71415,7 +71415,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -71433,7 +71433,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_tool:chapter.draft 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "writeback_blocked_until_user_confirms": false,
                 "runtime_interrupted": true
@@ -71466,7 +71466,7 @@
           "run_id": 1,
           "event_type": "resume_run",
           "actor": "desktop-ide",
-          "message": "作者已恢复 AgentRun。",
+          "message": "作者已恢复 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",

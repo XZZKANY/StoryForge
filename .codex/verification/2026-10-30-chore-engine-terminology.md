@@ -12,3 +12,19 @@
   - `npx eslint packages/engine`：EXIT=0；`npx prettier --check "packages/engine/src/**/*.ts"`：全部符合。
   - 行尾：`git diff --numstat` 与 `git diff --ignore-all-space --numstat` 一致（90 个文件）。
 - 未覆盖：没跑真模型（改了喂给模型的词，模型实际怎么说未验）；没跑完整 `pnpm verify`、Rust 测试、Tauri 冒烟与真宿主探针（`verify-engine-p0-native.mjs` 只改了断言原话，没跑）；p5 影子档样本里录的旧 prompt 没改（已无测试消费）。
+
+## 2026-10-30 第二轮：合进 master，补 AgentRun / 手稿，前端替身跟原话
+
+- 改动：
+  - 合进 origin/master（`38a5bb85`，含 #532 插件技能、#534 界面第二批用词、写章拟完章纲直接起草）：引擎源码自动合并；冲突只在 p3-chapter-writing、p3-host 两份 golden，取 master 样本再套第一轮变换（master 代码回放导出原文，第一轮表）。合并后引擎全套 106 个文件 14074 passed。master 新进的引擎代码（`specs/skill.ts`、`skillHandlers.ts` 等）按同一套映射扫过，没有要改的中文。
+  - 会显示给作者或进对话检查点的运行原话，AgentRun → AI：权限批准 / 拒绝的终态原话（`runControlChannel.ts`，拒绝改为「作者拒绝了权限请求，AI 已停止。」）、找不到运行的报错（`runEvents.ts`，「找不到这次 AI 运行。」，控制失败与读事件 / 存档点时显示）、中断摘要「AI 已在 … 边界暂停 / 停止 / 中断」（进对话检查点；界面另有翻译）、完成兜底「AI 已完成。」（`runEvents.ts`、`systemJobs.ts`）、暂停 / 恢复 / 停止 / 重试的控制原话（`runPayloads.ts`）、「每次 AI 运行最多生成一组 Project Knowledge 提议。」（工具报错，`fsHandlers.ts`）。
+  - 「手稿」只当左栏视图名：工具说明里指章节文字的 7 处改「正文」（`specs/projectCanon.ts`、`specs/projectQuality.ts`），dossier 头注「不是作者的正文。」（`canonDossier.ts`，写进派生文件）。
+  - 留着不改的（只给开发看）：`Root Agent …` 运行日志（产出 artifact、接收目标、创建计划三条事件原话，不进检查点、界面不显示）、角色目录与校验报错、`Agent intent / skill / Runtime …` 与 `Agent user_message 不能为空。` 这类只有程序传错参数才会出现的报错、`Agent 用户请求` 占位标题。产字 / 评稿提示词照旧不动，「Desktop」不改。
+  - 测试跟着改：`agentHost.test.ts` 断言找不到运行的原话；前端照抄引擎原话的输入数据改成新原话——`agent-progress-panel:147`、`assistant-suggestions:7`、`chat-window`（对比提示与中断摘要两处）、`agent-text-stream`（中断摘要三处）。
+- 验证：
+  - golden：相对 origin/master，31 份样本有变化，p5 两份与帧 schema 逐字节不变。证明脚本同上（第一轮表 160 条、第二轮表 19 条依次套用；基线换成 master 样本与 master 代码回放导出）：T(master golden) 与新样本逐字节相等；改动过的 761 个哈希在新代码回放导出里逐字核对；第二轮 18 个去重旧句全部在 golden 里命中。两次挂在 `kernel/sha256.ts` 的导出钩子用完都已从 HEAD 还原。
+  - `pnpm run test:engine`：类型检查通过，106 个文件 14074 passed / 2 skipped，EXIT=0。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0；`apps/desktop/frontend` 下 `npx vitest run`：254 个文件 2575 passed，EXIT=0。
+  - `npx eslint packages/engine` 与改过的 4 个前端测试：EXIT=0；`npx prettier --check "packages/engine/src/**/*.ts"`：全部符合。
+  - 行尾：本轮 `git diff --numstat` 与 `--ignore-all-space --numstat` 一致（31 个文件）。
+- 未覆盖：同上一节——没跑真模型、完整 `pnpm verify`、Rust 测试、Tauri 冒烟与真宿主探针。

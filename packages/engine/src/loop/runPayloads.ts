@@ -228,10 +228,10 @@ export function controlEventType(controlType: string): string {
 const CONTROL_MESSAGES: Readonly<Record<string, string>> = {
   [APPROVE_PERMISSION_COMMAND]: '作者已批准权限请求。',
   [DENY_PERMISSION_COMMAND]: '作者已拒绝权限请求。',
-  [PAUSE_RUN]: '作者已暂停 AgentRun。',
-  [RESUME_RUN]: '作者已恢复 AgentRun。',
-  [STOP_RUN]: '作者已停止 AgentRun。',
-  [RETRY_FROM_CHECKPOINT]: '作者要求从 checkpoint 重试 AgentRun。',
+  [PAUSE_RUN]: '作者已暂停 AI。',
+  [RESUME_RUN]: '作者已恢复 AI。',
+  [STOP_RUN]: '作者已停止 AI。',
+  [RETRY_FROM_CHECKPOINT]: '作者要求 AI 从 checkpoint 重试。',
 };
 export const controlEventMessage = (controlType: string): string =>
   Object.prototype.hasOwnProperty.call(CONTROL_MESSAGES, controlType)

@@ -511,7 +511,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -610,7 +610,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -1087,7 +1087,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -1095,11 +1095,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e7a1e4423c373cc52e6468b7f07ce6401ca4a93898c40471ca27678c6eb0465f",
+            "request_digest": "42f3d17b50cead246af0defa1c02de2d1a1bb22770fe22f79f17a516a13bdc85",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1444,7 +1444,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -1452,11 +1452,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7af29a1b79328376604e6c32c0b218f85f46837802d94902391d01c26837be99",
+            "request_digest": "cb0c72bcca19244aa3ca56ab7e22e0528fe378352c05f0878615ffc11b125db5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -2373,7 +2373,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -2472,7 +2472,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -2946,7 +2946,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2954,11 +2954,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e7a1e4423c373cc52e6468b7f07ce6401ca4a93898c40471ca27678c6eb0465f",
+            "request_digest": "42f3d17b50cead246af0defa1c02de2d1a1bb22770fe22f79f17a516a13bdc85",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -3303,7 +3303,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3311,11 +3311,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7af29a1b79328376604e6c32c0b218f85f46837802d94902391d01c26837be99",
+            "request_digest": "cb0c72bcca19244aa3ca56ab7e22e0528fe378352c05f0878615ffc11b125db5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4038,7 +4038,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -4110,7 +4110,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -4475,7 +4475,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4483,11 +4483,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f59ee54e8ac08915aa08401af7d028eac61d75f1e643916d6051f0c97d3ef1e7",
+            "request_digest": "f7d1fcc4fb29a6537c3135c7f1561dd437f1fb53d04ecfc677ba0d0778581957",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4687,7 +4687,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4695,11 +4695,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "678227c389a67e377187755a669c53fdb0c74fa69210a9d67c348ad9e70ce257",
+            "request_digest": "d166cd42a6d21c5a5e1e581b04b14d77a9b4aedd346289917a7966f54a2e1f14",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5420,7 +5420,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -5492,7 +5492,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -5610,7 +5610,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -6157,7 +6157,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6165,11 +6165,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ed9a6652fcdddae05e1dc43a53fa33e3ac55133969044a187649aea76242f199",
+            "request_digest": "152db97e6b10adc0c956a07e2bd1b593b6469b2fba6f28a15d8cce7586c3ab7e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -6369,7 +6369,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6377,11 +6377,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "60dd55c6878278add6a136d96b836992d62a56d3529a362a38f89f73ff78f2d2",
+            "request_digest": "95539eaf3e18905975d5149f01373d16c6ddd6130ba87bdbe3866cf66d95abce",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -6788,7 +6788,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6796,11 +6796,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1a8aa6eace06666d3745507604d6bdc5de2ccd89a3483138e04e3a1a44be2e7b",
+            "request_digest": "e496259717e40fb78f26d61533a93e8d7614fd9448545df27d018d2bbb0f782f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7782,7 +7782,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -7885,7 +7885,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -8379,7 +8379,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -8387,11 +8387,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1ad2642fe0daa418bd0c3006640548148aabf227451c8b4faa5c8d03ca4c8c77",
+            "request_digest": "8258cbd3cc149c6584b05d6d139a09af8b4f2129503b75aad4bede8b3809863e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "70337ac313d67968404055f609fa9a28ca841d3594436a95718ccff6ca13e7bd",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -8779,7 +8779,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -8787,11 +8787,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a7a9741bc72467af010787dc4e664fc7efd434472cba3f08e554fab81378a5de",
+            "request_digest": "acb2b26085abf6d70b9d221b0824f7a52f52ed5196c926e06c28835192ef220a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "70337ac313d67968404055f609fa9a28ca841d3594436a95718ccff6ca13e7bd",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -9703,7 +9703,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -9844,7 +9844,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -10365,7 +10365,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10373,11 +10373,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6bd55435e711d64dcfe6ec7ec11716057505ed81f5be7cd859adfe5c2f7db165",
+            "request_digest": "8bf63204b8fdc0aba27816a21a3443ae67d970b03a29ac896dd8ad52460f7189",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -11012,7 +11012,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -11020,11 +11020,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "d3e0ccb5b6d7bc7dbbe847ff3452f926a6836ce57250434816838a07ed0cd429",
+            "request_digest": "004241dc544846bb498e31318c289e5d40af771c99d91f504b9cef02df130a08",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -11757,7 +11757,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -11898,7 +11898,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -12437,7 +12437,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -12445,11 +12445,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6bd55435e711d64dcfe6ec7ec11716057505ed81f5be7cd859adfe5c2f7db165",
+            "request_digest": "8bf63204b8fdc0aba27816a21a3443ae67d970b03a29ac896dd8ad52460f7189",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -13084,7 +13084,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -13092,11 +13092,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f22e1515bfd94fd08d9d060b7ae66c8ffa2fd177b394a73ca3d0a6eb6707c102",
+            "request_digest": "0c550b5cb7ebef1e4438fed5a14039ef90b773518fd5e6bd42ecf393792b579b",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -14084,7 +14084,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -14225,7 +14225,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -14346,7 +14346,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -15043,7 +15043,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -15051,11 +15051,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c40cd4a6d8a350b7aa07d13d0c4a2e7c19e2bf947cb259eb4d68e850a4e7546f",
+            "request_digest": "bf9d4bcd1a3a3f8f032d3bab641b0b829a98036433503c5898f0fd3cbcad9979",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -15690,7 +15690,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -15698,11 +15698,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fc1a561f9dcb20f766664fd5aaa0d4c3be43eef265dad7b5714deabc6c1df0be",
+            "request_digest": "6ac8004146e33805be9bc37e4cffe664a2559d5796d31a9f08c5f76698eb827e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -16132,7 +16132,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -16140,11 +16140,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "cf26ad3dc5ecedba336e379dc58954268d49834c1123170bccb72481f8ad7459",
+            "request_digest": "b896163ae6d4f05f7c1d1bf7a1345c5d857c2120899f93ba8d686a5b9fbeeb2c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -17208,7 +17208,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -17314,7 +17314,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -17841,7 +17841,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -17849,11 +17849,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9392c8e84b77bdfadf8d168fd222e177c35d38f16f90cee49ccc6258a879e6bd",
+            "request_digest": "0492eed8859ab7ee65ff7cc3e759e285b07abd42376fd62f71e2c49bf644e0b1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -18257,7 +18257,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -18265,11 +18265,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "24079753e1dc59529cbf87891ea443373583e6b820b76c34c68eceffed78a89c",
+            "request_digest": "ae68ee5fec5893456079fbf6d091cc89214001bbb8dfa3de5005a86eb6e4ae30",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -19016,7 +19016,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -19095,7 +19095,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -19502,7 +19502,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -19510,11 +19510,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e8832be0e84d9a42fa14c1365a320de850053cc586a31c7540313d5c5f745be0",
+            "request_digest": "18d1381e6eda6ad82bb105ca8f4088f2315be8ba57f4c90d583fda848b808bd5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "7e9f36d628a6e0c52aa3180fc7f1b0b6d268e89e13155688e649474cef221d3e",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -19730,7 +19730,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -19738,11 +19738,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "e5045c23807e8e0db2e8fdbaa83bf083de044503d526820594a54ed9e8e2eb6a",
+            "request_digest": "a5c8ccb4f8182c53a024bebed346166e3211398f2613366bd885385c80e76b60",
             "redacted": false,
             "omissions": [],
             "prompt_version": "7e9f36d628a6e0c52aa3180fc7f1b0b6d268e89e13155688e649474cef221d3e",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -20221,7 +20221,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -20322,7 +20322,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -20700,7 +20700,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -20708,11 +20708,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fac0c2705fe2aa91c19dd220cd42bc38387f978f6df4986074e678bbf8437bbc",
+            "request_digest": "2f24e55ce5111a03a9f225cf5a8af78221e2650884a429bcec92abea9fb0afb1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -21059,7 +21059,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -21067,11 +21067,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "4fdd8be7b6af5693e14680e4f4a52bded17b4e5d3a398904f2f08fa6c780f1dc",
+            "request_digest": "4f8d5849865321dba38dfca55489f6e093c2a42ce2e729c9494a5b88d85ee47c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -21744,7 +21744,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -21816,7 +21816,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -22181,7 +22181,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -22189,11 +22189,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "00bbc376f67d86d50af7d5c5fb2ffbd4b13d0e6450ac74a43fcc0f7e884ce235",
+            "request_digest": "4e3d019b7e45346b90b0e4962eaf4868dd20c4985cd0f1443f2cfb85723eaf49",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -22393,7 +22393,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -22401,11 +22401,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a37d1d9fb30aa46f9a9a35b5d6c8749239c3e65de5a0d2a351bd4bf8e01275eb",
+            "request_digest": "201fddef5c0586a9ec70416058f4ad3304cbaf4853f396ec2ce9dc7a20aa9588",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -22858,7 +22858,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -22930,7 +22930,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -23295,7 +23295,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -23303,11 +23303,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "21ed76bc9b3b6d96b944d7df41292f5a961dfb7501597d3e2e58190f7f78b3d7",
+            "request_digest": "b259d6ea786ca43c44db9e61faa098b6ca44fd7683f9fca9a231398ead67e02e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -23507,7 +23507,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -23515,11 +23515,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ca1454c3823269f911b77a360984b8721f3646f8ac46e0073730780133b6ca37",
+            "request_digest": "25be543fc8fc19fc2c720e94755c1df52cb12f069436cde79856dfd45d15a4c2",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -24177,7 +24177,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -24276,7 +24276,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -24760,7 +24760,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -24768,11 +24768,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a5b8e9541166d7430e3acbd445b4b1607eab425fd77851495b46f7192c63dc03",
+            "request_digest": "dbfbd43b20a0fc4e70a6e75e08473e8d63822f8a2bfa71f731322ffe07a1fa04",
             "redacted": false,
             "omissions": [],
             "prompt_version": "e0d66d08118f5599b7482136e656c14d2ed85c7e1e41d7dd64328e82df1173f6",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -25117,7 +25117,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -25125,11 +25125,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "53616687ef0f24094d973dc397381f989618ee2c8d2f50fb8defce182e39b819",
+            "request_digest": "9d8fec1510815efeba121ba323f142bd335114c3752f59272c742831ca365cf2",
             "redacted": false,
             "omissions": [],
             "prompt_version": "e0d66d08118f5599b7482136e656c14d2ed85c7e1e41d7dd64328e82df1173f6",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -25876,7 +25876,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -25948,7 +25948,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -26313,7 +26313,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -26321,11 +26321,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c0fad020d1ddc4c8c148b18d741fb164b50f7e68d9c16045765cf1b061813a42",
+            "request_digest": "b174a4b465dd6acb74512a3adc9f168023c0cb0e10115e5c874c2348b182d6b9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3554b9fe4cb66b72949af19f6e2fc52ed638489842f6beed85b043f4ed3440f6",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -26525,7 +26525,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -26533,11 +26533,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6f9507467fcdf040ee8079771a3564a8e60f55942ba9df15418ac1e0fd1f1dd9",
+            "request_digest": "943ef8d5075db9b9035c2f79908b1cfc6a883bb94a7274b03817e87c0349c6b8",
             "redacted": false,
             "omissions": [],
             "prompt_version": "3554b9fe4cb66b72949af19f6e2fc52ed638489842f6beed85b043f4ed3440f6",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -26779,7 +26779,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_stream_read 边界停止。",
+          "summary": "AI 已在 before_stream_read 边界停止。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -26889,7 +26889,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "stopped",
-          "message": "AgentRun 已在 before_stream_read 边界停止。",
+          "message": "AI 已在 before_stream_read 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -26907,7 +26907,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                "summary": "AI 已在 before_stream_read 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -27017,7 +27017,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -27249,7 +27249,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_stream_read 边界停止。",
+          "message": "AI 已在 before_stream_read 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -27267,7 +27267,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_stream_read 边界停止。",
+                "summary": "AI 已在 before_stream_read 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -27376,7 +27376,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -27384,11 +27384,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fac0c2705fe2aa91c19dd220cd42bc38387f978f6df4986074e678bbf8437bbc",
+            "request_digest": "2f24e55ce5111a03a9f225cf5a8af78221e2650884a429bcec92abea9fb0afb1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -27965,7 +27965,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+          "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -28103,7 +28103,7 @@
           "event_id": 9,
           "sequence": 9,
           "status": "paused",
-          "message": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_review_role 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -28121,7 +28121,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -28233,7 +28233,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -28388,7 +28388,7 @@
           "run_id": 1,
           "event_type": "pause_run",
           "actor": "desktop-ide",
-          "message": "作者已暂停 AgentRun。",
+          "message": "作者已暂停 AI。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -28508,7 +28508,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+          "message": "AI 已在 before_review_role 边界暂停，等待继续指令。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -28526,7 +28526,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_review_role 边界暂停，等待继续指令。",
+                "summary": "AI 已在 before_review_role 边界暂停，等待继续指令。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -28634,7 +28634,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -28642,11 +28642,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6bd55435e711d64dcfe6ec7ec11716057505ed81f5be7cd859adfe5c2f7db165",
+            "request_digest": "8bf63204b8fdc0aba27816a21a3443ae67d970b03a29ac896dd8ad52460f7189",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -29567,7 +29567,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -29679,7 +29679,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -30199,7 +30199,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -30207,11 +30207,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "aa96341c89b15110ebfa8f67f24930984c9ae747f5beeb06b8af8c6ee4a5973d",
+            "request_digest": "10f6590870debd1855890669152922ffda6ba0a16edad2a1f0432c93f103e129",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -30569,7 +30569,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -30577,11 +30577,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "92dac1f9136f13984471a99c18189442c6f8ae4ce3eb6901f4bfd618e7033f86",
+            "request_digest": "d6fb27b758b92dce4f614f44e4a6a0daf33d7d10d4952c0347d3a1825fe970ea",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -31476,7 +31476,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -31572,7 +31572,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -32036,7 +32036,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -32044,11 +32044,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "63b942df80dc720358f868b7d72844ba768845bbbdcd2a23385b97224a59cb9d",
+            "request_digest": "fb04ee27110c7e13760f0a3dbdfa7b555286eda50d76e5410e2fab03dad4f06f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -32390,7 +32390,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -32398,11 +32398,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c26fc3e6f2fe0a92a057e3b0cbf2dc36106de07d9e3d80b11d1558fc608164b1",
+            "request_digest": "b8243e893c7445311366402ba3221ea28c7f53df2212d9300f3d5828239ca905",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -33330,7 +33330,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -33426,7 +33426,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -33890,7 +33890,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -33898,11 +33898,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6a8a37f3a9144ac48c48af538dc4134a126640e6f5647e1ad516c550659bc9a0",
+            "request_digest": "1da0fce91516aeaa56b9d1b86c79ff9be95bc350647280f25146b4349e5d3374",
             "redacted": false,
             "omissions": [],
             "prompt_version": "ab19fe1aac1d5d624c811f9f1f9422b9e1355d7d222be1b9a8bdd6fea4ff2a55",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -34244,7 +34244,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -34252,11 +34252,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "b8a42fed1a9cae2e8f11896462e2799235f70975cba6c40727358775d9477fac",
+            "request_digest": "bfbc935df78fef36634c278e813eea3e260e110324aaf720f9b908ca59286972",
             "redacted": false,
             "omissions": [],
             "prompt_version": "ab19fe1aac1d5d624c811f9f1f9422b9e1355d7d222be1b9a8bdd6fea4ff2a55",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -35048,7 +35048,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -35120,7 +35120,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -35485,7 +35485,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -35493,11 +35493,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "44a7282249e2378f73c812f4f07251cdd64a47af7c134bddc362c1009bd72034",
+            "request_digest": "493baa44a273b688f840928bb457c38e91b35e65a02e7f2e2ca3920edcdfe658",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -35697,7 +35697,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -35705,11 +35705,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "20820f525cf87cd4247bd0859131ebdf32ece6ae2c2f1fa572ef361dffb08ab8",
+            "request_digest": "a231d7db34a4a85882f3b11884a8aa305945fe60dc30d77dbcbbb6795f4ea93c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -36162,7 +36162,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -36234,7 +36234,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -36599,7 +36599,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -36607,11 +36607,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "59ffb983f0f09dcd8a0416d1260ab0c21d1a8400dfb088882c8f5a7f800130de",
+            "request_digest": "aa61c0818305387f1c273141166a74c38125baaa87490ab2406374c9af8ea4de",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -36811,7 +36811,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -36819,11 +36819,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "10039ba1c3a5cca9c3c264a19085fc06c9417691437a55aa3375e90f5438f88e",
+            "request_digest": "6bbdae5e12c28a4155110efc25ea362f3ea0130556ebdc2a22128309de2e7d8e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -37458,7 +37458,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -37554,7 +37554,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -38044,7 +38044,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -38052,11 +38052,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "afd6d3fc959bf3bb0a6233f3429cbd5e978f726cea7f98620071ee1e2a362f38",
+            "request_digest": "53f19bd09c92a5b52fe9e5bc92abf487644efe0f4868774c4739861753bfbc4c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -38398,7 +38398,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -38406,11 +38406,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "befe4c63e7ed2138fa091285126e8a3bc5bc5b969512b91585b254de3aa51acc",
+            "request_digest": "adc9a2baea7cf675dd9946a165b160f1e21a83c9139fd88724e8d50e3d3ccb63",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -39406,7 +39406,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -39502,7 +39502,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -39986,7 +39986,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -39994,11 +39994,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "20e2c0bda877ab3438ac7d644bb4766b7decc6e5234c4cef68519e5611131831",
+            "request_digest": "85788376a7b0843cf362e804f4a87d5f33dfd228ae69d6fe02ba66766bb12eaa",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -40340,7 +40340,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -40348,11 +40348,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c852ba93fa0d3aab7ab7d21ca0894df3c85e1a95f8152f875ba448ed3d4530f8",
+            "request_digest": "16cf2dae61a6d51ff212fee496cfc1d940e0c14abb33cfdb93a4745de0de5aa9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -41346,7 +41346,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -41442,7 +41442,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -41932,7 +41932,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -41940,11 +41940,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a61e937c1dd28760b6514985ddc8bdf01670b2e2aa37365b3ee549e7b4e3b3da",
+            "request_digest": "9f887d38e1106478aa16dfc9cde5502ae73919faf50c4e36246a5494ec8102ec",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -42286,7 +42286,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -42294,11 +42294,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "33eeef98adbdf42f9f5fda9cf7e9eb1b42de72bd7924a3c0538c69bfbf4ae329",
+            "request_digest": "365f13e0ccbdd004522834e6eb7d02cbe3e998e7837938583c5ded4454453031",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -43182,7 +43182,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -43283,7 +43283,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -43673,7 +43673,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -43681,11 +43681,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "afd6d3fc959bf3bb0a6233f3429cbd5e978f726cea7f98620071ee1e2a362f38",
+            "request_digest": "53f19bd09c92a5b52fe9e5bc92abf487644efe0f4868774c4739861753bfbc4c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -44032,7 +44032,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -44040,11 +44040,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "bdd0c3aa69a27d7588fd53379bba9842b97982c3f5ceaf83c5075244fad6dc15",
+            "request_digest": "92ec19f6bfed9afc6772b9617a1eeb40eb6c6ae1bda2bfb75eb8004f0cc3c00a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -44809,7 +44809,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -44881,7 +44881,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -45246,7 +45246,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -45254,11 +45254,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "afd6d3fc959bf3bb0a6233f3429cbd5e978f726cea7f98620071ee1e2a362f38",
+            "request_digest": "53f19bd09c92a5b52fe9e5bc92abf487644efe0f4868774c4739861753bfbc4c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -45458,7 +45458,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -45466,11 +45466,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a554106a62b5bf9f1fbe88e9461a856a67d89317d08d34d28a08345e5440764e",
+            "request_digest": "ec30350491b78e208ccea0f362cbf053d5e9b9d7a321302f719f8b5c13734570",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -46105,7 +46105,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -46201,7 +46201,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -46685,7 +46685,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -46693,11 +46693,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ade935a9555043cf443d168c6453745c73b0f8434749e14e5c28ad46f09b0869",
+            "request_digest": "65e757acd1047916e234790c9250c8255e0cdc1299f42cdb37bf3328171e5f5c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "584fad0e10c65b2c704243de1d5a00f4e4bf60b6b3e0756dd13b6ff4395085c0",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -47039,7 +47039,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -47047,11 +47047,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6b24c8e185915bcab87dd787738105a50c176e0aa21e47c261e1909fc52fc799",
+            "request_digest": "57c357f08c9541e0293dba00cc2d0f83bc5319d290a219ac86b925395aecff2e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "584fad0e10c65b2c704243de1d5a00f4e4bf60b6b3e0756dd13b6ff4395085c0",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -47959,7 +47959,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -48055,7 +48055,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -48481,7 +48481,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -48489,11 +48489,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c82ce831a4e2e8a8bc1ce043fae5cd9e38d50abb17bcc98c38650638bbc94c34",
+            "request_digest": "30eb727b70d8050b1d138271b7ee9841240c5f760c78b964790ac205ccac6163",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -48780,7 +48780,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -48788,11 +48788,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ce7b8115d718e911a60b0ceb83a42280542f8ea7e00c5a57df2630d64731743a",
+            "request_digest": "fbac166f420a85c7fecb9ab35e678c834338dee4d1697bb875114b9522381c3e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -49547,7 +49547,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -49643,7 +49643,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -50061,7 +50061,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -50069,11 +50069,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "19b90d80bf3fcf2094d72a943e44b2366a5d1c9c77bf5268ed46b5d3a082e1c6",
+            "request_digest": "761e1618c55bb2ca12755ec253ecf50bc202cc1f47f852723981f4dd606c7936",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -50360,7 +50360,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -50368,11 +50368,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "14d657486871a485041f14748aa84d2ed6a862d1fb03a3bfa1191d9ff310cff5",
+            "request_digest": "67da3c78fa51509289f2777d0314c440b7584df02f3d86a846b24c9f4345fa3f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -51062,7 +51062,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -51134,7 +51134,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -51499,7 +51499,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -51507,11 +51507,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "57d1a6ed0bc5e805fbea87bc57290ebdb9a9b2396d2a3839a4d7307b8dc1855e",
+            "request_digest": "bdf5b12c86db0b160791748d00e3cba7c0e3788f557d59487286f4ec51ea4027",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -51711,7 +51711,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -51719,11 +51719,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "bd49ecf6f9610842717e4fb5918520eb3b1de8f1b39f0ef3add84ff8231b4a8f",
+            "request_digest": "c96a125cf3ab9e936c5f011076dd5cd6b7991727b3a8e7bf1836cb8f4b4f1431",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -52351,7 +52351,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -52492,7 +52492,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -53024,7 +53024,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -53032,11 +53032,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "bf2f15635762aae1baa4da4c94c745ab382a2d1e9ea1771380c69784ae0dd44b",
+            "request_digest": "3a56e67ce4fbc54d2dec10800ead029fd70e8f24f95af5a2152394926997cd5a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "d22b13cc7a9a5b9b5d30d130928db009aab0580ca1125438f82e5fe3b01c9458",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -53671,7 +53671,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -53679,11 +53679,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "5cd9618c093eda1bd8d79e0c1bd0b48779bd27d9dcc357f0e8e1ff941a08075a",
+            "request_digest": "9f3cd78f9842448350feb93f77dedf0e9c8b1a8728786935fdfffd3788fc4447",
             "redacted": false,
             "omissions": [],
             "prompt_version": "d22b13cc7a9a5b9b5d30d130928db009aab0580ca1125438f82e5fe3b01c9458",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -54742,7 +54742,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -54896,7 +54896,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -55021,7 +55021,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -55772,7 +55772,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -55780,11 +55780,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "32f6b302293c3d1ee616aed13749adf2db6c55b658f94730d409194ede2f986d",
+            "request_digest": "f7b87858b563416bb2a30d3a69762ce820a520ee811ff755665ea78b4ff45e4b",
             "redacted": false,
             "omissions": [],
             "prompt_version": "70337ac313d67968404055f609fa9a28ca841d3594436a95718ccff6ca13e7bd",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -56537,7 +56537,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -56545,11 +56545,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "15eb936c5bc1b090b054bb9241b992f9dce013dd5880ec403a9a22991ab83673",
+            "request_digest": "ff6837d6c36512d0d3b102b96553e746901816514f2bdb9f3d385b22ede6fb6f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "70337ac313d67968404055f609fa9a28ca841d3594436a95718ccff6ca13e7bd",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -57023,7 +57023,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -57031,11 +57031,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7d332d63df727ba63e4f7abd3b4f0fe6c733d4bd139c6b4f9ea8cc1ca36193f9",
+            "request_digest": "37fe1a1e3693fbab3220489faedf7c3b18b9004181cfedd72d1018ecbc1e94f8",
             "redacted": false,
             "omissions": [],
             "prompt_version": "70337ac313d67968404055f609fa9a28ca841d3594436a95718ccff6ca13e7bd",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -57927,7 +57927,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -57999,7 +57999,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -58364,7 +58364,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -58372,11 +58372,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "699001dea7b6ec1b62a57483863692b6c2821f11e9970a760525f38c59c0c167",
+            "request_digest": "cb9ce12b29109984395b268a0167156c93803cd02053d5984a05a93e6ad2b67c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -58576,7 +58576,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -58584,11 +58584,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "80c8a3708d581dce90ca0c34939a3b26281944d59b5cc5189fa772401f83cc1e",
+            "request_digest": "31ce5cd0b5f95f2e54ffa5dc56dc670f7142332a28d42ec3a93456ffd01063f0",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -59258,7 +59258,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -59399,7 +59399,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -59493,7 +59493,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -60070,7 +60070,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -60078,11 +60078,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ed8a24758a6ca1e6aaefb60092a10dedb9bd762c41d9836fe180931c426e5142",
+            "request_digest": "15c4196f2d4f1fe43253ec7a9f98fe0c497cd81440aa40aba8ca1b041c30b98f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -60717,7 +60717,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -60725,11 +60725,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "955262fd5f6b5b3b9b50899953b77aaf8ba81772e0ba7b0c234debb45e7daf49",
+            "request_digest": "41d2d5b22c8be4bc53f4ad8e9fda5f2ee1130428d590e3e09dc300a65145e6c1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -60965,7 +60965,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -60973,11 +60973,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "bcbc0c1204a17abd9c3a54258482bb99ffb160d14afb36c1a1de4eb6ee446e2f",
+            "request_digest": "b13f54914b92b610d32e1f4d229eef9d33861fc8b0f91ea6a8918453adcd1b4b",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -61767,7 +61767,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -61866,7 +61866,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -62355,7 +62355,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -62363,11 +62363,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fac0c2705fe2aa91c19dd220cd42bc38387f978f6df4986074e678bbf8437bbc",
+            "request_digest": "2f24e55ce5111a03a9f225cf5a8af78221e2650884a429bcec92abea9fb0afb1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -62758,7 +62758,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -62766,11 +62766,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "eeb4eacb777606b8a47a48e7366fa54094b144dd5065342a744050810a3eb559",
+            "request_digest": "e0e2444b3b60197794608530be04f2d4425dd5e66d8c363c8971c10030718829",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -63742,7 +63742,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -63841,7 +63841,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -64343,7 +64343,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -64351,11 +64351,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "2d570cdb9f8385adb6c32a6149f6bc8ac906b5710a5602e0b931714f6fb23486",
+            "request_digest": "99ef20b79df9d83817efcf48c2367a86272e85d74ba8692ec5a6bf2a727a5fc3",
             "redacted": false,
             "omissions": [],
             "prompt_version": "b7cedb68d7fad8622df37ef57a189267b465298584be0c1e83ff10c8addae8b0",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -64729,7 +64729,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -64737,11 +64737,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c1406983c394763badfe0b69f4ed269e2c6e44f9ec63dc45c054491376f74e63",
+            "request_digest": "7bd41fbf78850c04741b87eece9c3b36c7a09055944ef140110d3eea814ac55f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "b7cedb68d7fad8622df37ef57a189267b465298584be0c1e83ff10c8addae8b0",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -65631,7 +65631,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -65727,7 +65727,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -66191,7 +66191,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -66199,11 +66199,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "63b942df80dc720358f868b7d72844ba768845bbbdcd2a23385b97224a59cb9d",
+            "request_digest": "fb04ee27110c7e13760f0a3dbdfa7b555286eda50d76e5410e2fab03dad4f06f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -66545,7 +66545,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -66553,11 +66553,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "bc7a7a91eb6ab9d54764e3ef334384608f5257b4f04f6a19b3ad0bfbba6451b6",
+            "request_digest": "9963cdedbf346fa4bbca61220637eb607996a789fa77bf9c7f5236a40b365892",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -67519,7 +67519,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -67615,7 +67615,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -68091,7 +68091,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -68099,11 +68099,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "afd6d3fc959bf3bb0a6233f3429cbd5e978f726cea7f98620071ee1e2a362f38",
+            "request_digest": "53f19bd09c92a5b52fe9e5bc92abf487644efe0f4868774c4739861753bfbc4c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -68445,7 +68445,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -68453,11 +68453,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fa9ec1bf6344360a3c459567d8cbb816f0721527901f57baaf7498fa4365dbad",
+            "request_digest": "e83d818bfdaed600838940d9ecd9a68c951ee8ef57eb4030de0a8d36db0bc495",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -69330,7 +69330,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -69426,7 +69426,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -69852,7 +69852,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -69860,11 +69860,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "c82ce831a4e2e8a8bc1ce043fae5cd9e38d50abb17bcc98c38650638bbc94c34",
+            "request_digest": "30eb727b70d8050b1d138271b7ee9841240c5f760c78b964790ac205ccac6163",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -70151,7 +70151,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -70159,11 +70159,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "421488225ba2be582f747b6ac78fa70dca0fafa23807e0608b0b463553d4ded3",
+            "request_digest": "7a5caa7a18470abeaccda8122a29e2ba052444e8dabf900d0af01f1a9d41c73f",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -70851,7 +70851,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -70923,7 +70923,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -71288,7 +71288,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -71296,11 +71296,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fac0c2705fe2aa91c19dd220cd42bc38387f978f6df4986074e678bbf8437bbc",
+            "request_digest": "2f24e55ce5111a03a9f225cf5a8af78221e2650884a429bcec92abea9fb0afb1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -71500,7 +71500,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -71508,11 +71508,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "0ed5e16786d65ed72f9f77acd3deff4ac6613d792d8e1efb1b817849a2c127d8",
+            "request_digest": "7bf1c8b955a2485bfe4d595e1bc2031660c5b4ec245819451314acb1f3147813",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -72129,7 +72129,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -72270,7 +72270,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -72791,7 +72791,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -72799,11 +72799,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "f7e31ceef5138eb15b4f6eeb890de4cb8ca1fa739cc0830f778d958d51333578",
+            "request_digest": "9ba7bc43e635ffb05fc90a38dfd7765d0c9141fe4690db4851590c2807e93611",
             "redacted": false,
             "omissions": [],
             "prompt_version": "584fad0e10c65b2c704243de1d5a00f4e4bf60b6b3e0756dd13b6ff4395085c0",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -73438,7 +73438,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -73446,11 +73446,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "39b3c9991d9593a5740994b81acd281b66bb8143fa481b5011fedb7efcf10238",
+            "request_digest": "e5cf4ae0c1aba19349e3ce3102be88ef4552c7601794ecf0dd5a215982a55814",
             "redacted": false,
             "omissions": [],
             "prompt_version": "584fad0e10c65b2c704243de1d5a00f4e4bf60b6b3e0756dd13b6ff4395085c0",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -74184,7 +74184,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -74283,7 +74283,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -74760,7 +74760,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -74768,11 +74768,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "fac0c2705fe2aa91c19dd220cd42bc38387f978f6df4986074e678bbf8437bbc",
+            "request_digest": "2f24e55ce5111a03a9f225cf5a8af78221e2650884a429bcec92abea9fb0afb1",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -75117,7 +75117,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -75125,11 +75125,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "9591621c3347d4252931986989c28126e0ff940f880d5072f71b7e9470ec8667",
+            "request_digest": "84d8c4d3ac1a02109a881de5094e04374895bcba26b9a9dae7310416c3f8e29a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -76037,7 +76037,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -76133,7 +76133,7 @@
                 "file_review",
                 "project_hooks_delta"
               ],
-              "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+              "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
             }
           }
         }
@@ -76617,7 +76617,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -76625,11 +76625,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "afd6d3fc959bf3bb0a6233f3429cbd5e978f726cea7f98620071ee1e2a362f38",
+            "request_digest": "53f19bd09c92a5b52fe9e5bc92abf487644efe0f4868774c4739861753bfbc4c",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -76971,7 +76971,7 @@
                   "file_review",
                   "project_hooks_delta"
                 ],
-                "sha256": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012"
+                "sha256": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -76979,11 +76979,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "8177ebae2b1ad47329647c8f9001c9e7015167aba578c682c6b7ae687775f6da",
+            "request_digest": "2706e8f21dcfe9ad86ac394fb8197f6d58686dd99aa05f389f6cf8b7f459af90",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "b7a7993acd2a4e766b72cddb61740b5f23090237c54a48eedf25892537a9d012",
+            "tool_schema_version": "cba1e5dc57edf497107e5bc2dbde7d72a78def5910e469793c8a5826198a26a6",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -77790,7 +77790,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -77862,7 +77862,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -78226,7 +78226,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -78234,11 +78234,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "4cc8ca4e7b48afcc1d9c9f775711c9b32a3ea573a0a8ba7207f1c588828e6f8b",
+            "request_digest": "72b496ae7bfe5e5b32c3a64fa426f9ed779d889449e67edc5b990cb00c36232e",
             "redacted": false,
             "omissions": [],
             "prompt_version": "20d42d21d49d03dec4c312ad61ff0831ae51c38fdbdd148efdee696125b9878e",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -78438,7 +78438,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -78446,11 +78446,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "7562809f600e0eacd70ae5ebfb43a29900ac3a61453adbdd407dae11a09c1503",
+            "request_digest": "ab5c92ad879fd0595e8155e7636a2d60dd1127782d9c21c7d1b0ecf4a482eb08",
             "redacted": false,
             "omissions": [],
             "prompt_version": "20d42d21d49d03dec4c312ad61ff0831ae51c38fdbdd148efdee696125b9878e",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -78691,7 +78691,7 @@
           }
         ],
         "agent_result": {
-          "summary": "AgentRun 已在 before_review_role 边界停止。",
+          "summary": "AI 已在 before_review_role 边界停止。",
           "requires_user_confirmation": false,
           "runtime_interrupted": true,
           "writeback_blocked_until_user_confirms": false
@@ -78799,7 +78799,7 @@
           "event_id": 7,
           "sequence": 7,
           "status": "stopped",
-          "message": "AgentRun 已在 before_review_role 边界停止。",
+          "message": "AI 已在 before_review_role 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -78817,7 +78817,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_review_role 边界停止。",
+                "summary": "AI 已在 before_review_role 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -78926,7 +78926,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -79150,7 +79150,7 @@
           "run_id": 1,
           "event_type": "agent_run_interrupted",
           "actor": "agent-runtime",
-          "message": "AgentRun 已在 before_review_role 边界停止。",
+          "message": "AI 已在 before_review_role 边界停止。",
           "payload": {
             "execution_result": {
               "type": "agent_result",
@@ -79168,7 +79168,7 @@
                 }
               ],
               "agent_result": {
-                "summary": "AgentRun 已在 before_review_role 边界停止。",
+                "summary": "AI 已在 before_review_role 边界停止。",
                 "requires_user_confirmation": false,
                 "runtime_interrupted": true,
                 "writeback_blocked_until_user_confirms": false
@@ -79276,7 +79276,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -79284,11 +79284,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6bd55435e711d64dcfe6ec7ec11716057505ed81f5be7cd859adfe5c2f7db165",
+            "request_digest": "8bf63204b8fdc0aba27816a21a3443ae67d970b03a29ac896dd8ad52460f7189",
             "redacted": false,
             "omissions": [],
             "prompt_version": "49e30627191e5f91c02290914062cea434c2d2061f08421d65451b1340026767",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -79848,7 +79848,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         },
@@ -79920,7 +79920,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+              "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
             }
           }
         }
@@ -80284,7 +80284,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -80292,11 +80292,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "151b7861189eeec91b8799449cfe5e17106e56b098d81fbd8aba11f852769139",
+            "request_digest": "bc49d0a3fd73f7373359f77a2c0cc1d0b863dd9880dc0f44002f3cb1a9833dfc",
             "redacted": false,
             "omissions": [],
             "prompt_version": "b24160ae21226ed99e0c6d3791dba101778959c9c0ab77b766a4dcbdf0ae850b",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -80496,7 +80496,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4"
+                "sha256": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -80504,11 +80504,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "1c17bb9f12a4d939569f1280c533dba80e17ca28b4e9ed0cb05a579021cfea20",
+            "request_digest": "4316dfd012957b79535e13718844fe6a7ca5d947a214bd65dfa687c7eaf885d8",
             "redacted": false,
             "omissions": [],
             "prompt_version": "b24160ae21226ed99e0c6d3791dba101778959c9c0ab77b766a4dcbdf0ae850b",
-            "tool_schema_version": "de9f4092b068d6ada1442543fe12d48c3bd3c54a459cb8dc6225a9a16a09dac4",
+            "tool_schema_version": "b34967836693f4333a9326b51ffcab68f9a927fff4f299fd054d85d4ba7307ca",
             "sources": [
               {
                 "kind": "compiled_message",
