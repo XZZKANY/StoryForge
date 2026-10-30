@@ -95,6 +95,31 @@ describe('engine schema migrations', () => {
     ).toEqual([]);
   });
 
+  it('backs an existing database up before upgrading it and stops when the backup fails', async () => {
+    const calls: [number, number][] = [];
+    const backup = async (from: number, to: number) => {
+      calls.push([from, to]);
+    };
+    const fresh = { ...nodeSqliteDb(), backup };
+    await migrateEngineDb(fresh);
+    await migrateEngineDb(fresh);
+    expect(calls).toEqual([]);
+
+    const older = nodeSqliteDb();
+    await older.transaction([
+      { sql: 'CREATE TABLE schema_version (version INTEGER NOT NULL)' },
+      ...ENGINE_MIGRATIONS[0].map((sql) => ({ sql })),
+      { sql: 'INSERT INTO schema_version VALUES (1)' },
+    ]);
+    const full = async () => {
+      throw new Error('磁盘已满');
+    };
+    await expect(migrateEngineDb({ ...older, backup: full })).rejects.toThrow('磁盘已满');
+    expect(await older.select('SELECT version FROM schema_version')).toEqual([{ version: 1 }]);
+    expect(await migrateEngineDb({ ...older, backup })).toBe(ENGINE_MIGRATIONS.length);
+    expect(calls).toEqual([[1, ENGINE_MIGRATIONS.length]]);
+  });
+
   it('refuses a newer or corrupt version table', async () => {
     const newer = nodeSqliteDb();
     await newer.transaction([

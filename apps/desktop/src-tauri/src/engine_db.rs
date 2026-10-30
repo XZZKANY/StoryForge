@@ -11,7 +11,7 @@ use sqlx::sqlite::{
 use sqlx::{
     Column, ConnectOptions, Connection, Row, Sqlite, SqlitePool, Transaction, TypeInfo, ValueRef,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::{AppHandle, State};
 use tokio::sync::OnceCell;
@@ -19,6 +19,10 @@ use tokio::sync::OnceCell;
 pub const ENGINE_DB_FILE: &str = "storyforge-engine.sqlite3";
 /// The Python sidecar's database, next to the engine database (read once by the P4-3 import).
 pub const PYTHON_DB_FILE: &str = "storyforge.sqlite3";
+/// 升级前的整库副本与引擎库并排，名字里的时间戳让字典序就是先后序。
+const BACKUP_PREFIX: &str = "storyforge-engine.backup-";
+const BACKUP_SUFFIX: &str = ".sqlite3";
+const BACKUPS_KEPT: usize = 3;
 
 type Rows = Vec<Map<String, Value>>;
 type Query<'q> = sqlx::query::Query<'q, Sqlite, SqliteArguments<'q>>;
@@ -141,6 +145,45 @@ pub(crate) async fn transaction(pool: &SqlitePool, steps: &[EngineDbStep]) -> Re
     }
 }
 
+/// 引擎升级库结构前的整库副本。`VACUUM INTO` 写出一致的副本（含还没 checkpoint 的 WAL 行），
+/// 先写到 `.pending` 再改名：写到一半崩掉的副本不会顶着备份的名字。
+pub(crate) async fn backup(pool: &SqlitePool, dir: &Path, label: &str) -> Result<PathBuf, String> {
+    let target = dir.join(format!("{BACKUP_PREFIX}{label}{BACKUP_SUFFIX}"));
+    let pending = dir.join(format!("{BACKUP_PREFIX}{label}{BACKUP_SUFFIX}.pending"));
+    let _ = std::fs::remove_file(&pending);
+    let pending_text = pending.to_str().ok_or("备份引擎库失败：路径不是合法文本")?;
+    sqlx::query("VACUUM INTO $1")
+        .bind(pending_text)
+        .execute(pool)
+        .await
+        .map_err(|error| format!("备份引擎库失败：{error}"))?;
+    std::fs::rename(&pending, &target).map_err(|error| format!("备份引擎库失败：{error}"))?;
+    Ok(target)
+}
+
+/// 只留最新的 `kept` 份副本，顺手清掉崩溃留下的 `.pending`。
+pub(crate) fn prune_backups(dir: &Path, kept: usize) -> std::io::Result<()> {
+    let mut backups = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let name = entry?.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if !name.starts_with(BACKUP_PREFIX) {
+            continue;
+        }
+        if name.ends_with(".pending") {
+            std::fs::remove_file(dir.join(name))?;
+        } else if name.ends_with(BACKUP_SUFFIX) {
+            backups.push(name.to_string());
+        }
+    }
+    backups.sort();
+    let excess = backups.len().saturating_sub(kept);
+    for name in &backups[..excess] {
+        std::fs::remove_file(dir.join(name))?;
+    }
+    Ok(())
+}
+
 async fn read_all(
     connection: &mut SqliteConnection,
     queries: &[String],
@@ -225,3 +268,34 @@ pub async fn engine_python_db_snapshot(
     let dir = runtime_paths::app_local_data_dir(&app).map_err(|error| error.to_string())?;
     python_snapshot(&dir.join(PYTHON_DB_FILE), &queries).await
 }
+
+/// 引擎把已有的库从 `from_version` 升到 `to_version` 之前调用；失败时引擎不迁移。
+#[tauri::command]
+pub async fn engine_db_backup(
+    app: AppHandle,
+    state: State<'_, EngineDbState>,
+    from_version: u32,
+    to_version: u32,
+) -> Result<(), String> {
+    if from_version == 0 || from_version >= to_version {
+        return Err(format!(
+            "引擎库备份的版本号不对：{from_version} → {to_version}"
+        ));
+    }
+    let pool = pool(&app, &state).await?;
+    let dir = runtime_paths::app_local_data_dir(&app).map_err(|error| error.to_string())?;
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S-%3f");
+    backup(
+        pool,
+        &dir,
+        &format!("{stamp}-v{from_version}-to-v{to_version}"),
+    )
+    .await?;
+    // 删旧副本失败只是多占点地方，不该挡住升级。
+    let _ = prune_backups(&dir, BACKUPS_KEPT);
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "engine_db_tests.rs"]
+mod tests;
