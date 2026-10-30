@@ -117,7 +117,11 @@ export function polishToolHandlers(deps: ToolDeps): Record<string, ToolHandler> 
       continuity_facts: continuityFacts.length,
       required_facts: requiredFacts.length,
     };
-    const preparedVoice = await buildGenerationSystemPrompt(reader, '', root, { platform });
+    const preparedVoice = await buildGenerationSystemPrompt(reader, '', root, {
+      platform,
+      pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+      secrets,
+    });
     let editPolicy;
     try {
       editPolicy = editPolicyFromGenerationPrompt(content, {

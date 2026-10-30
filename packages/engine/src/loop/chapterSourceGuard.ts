@@ -1,4 +1,8 @@
 import { buildGenerationSystemPrompt } from '../kernel/authorVoice';
+import {
+  loadAvailableWritingStyles,
+  writingStyleSourceKey,
+} from '../kernel/availableWritingStyles';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import {
   FsToolError,
@@ -13,7 +17,6 @@ import { PREVIOUS_FULL_MAX_CHARS, previousChapterTail } from '../kernel/previous
 import { ProjectTreeError } from '../kernel/projectTree';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import { collectSettingSources } from '../kernel/settingSources';
-import { loadWritingSkills } from '../kernel/writingSkills';
 import { sha256Hex } from '../kernel/sha256';
 import {
   writingContextFromGuardedBundle,
@@ -42,6 +45,8 @@ export type GuardDeps = {
   readonly reader: ProjectReader;
   readonly platform: 'windows' | 'posix';
   readonly secrets: SecretContext;
+  /** 本机插件库根目录；缺省或 null 是没有插件。拟章纲与起草两头必须给同一个，签名才对得上。 */
+  readonly pluginLibraryRoot?: string | null;
 };
 
 const identityOf = (deps: GuardDeps, root: string, target: string) =>
@@ -59,7 +64,8 @@ async function sourceSignature(
   target: string,
   paths: readonly string[],
 ): Promise<string> {
-  const { reader, platform } = deps;
+  const { reader, platform, secrets } = deps;
+  const pluginLibraryRoot = deps.pluginLibraryRoot ?? null;
   try {
     await resolveProjectRoot(reader, root);
     const files: [string, string | null][] = [];
@@ -87,13 +93,19 @@ async function sourceSignature(
         platform,
         maxChars: PREVIOUS_FULL_MAX_CHARS,
       }),
-      system: await buildGenerationSystemPrompt(reader, '', root, { platform }),
+      system: await buildGenerationSystemPrompt(reader, '', root, {
+        platform,
+        pluginLibraryRoot,
+        secrets,
+      }),
       scene: await buildSceneConstraintBlock(reader, root, absolute, { platform }),
     };
     const settings = await collectSettingSources(reader, root, { secrets: deps.secrets });
     if (settings !== null) values.settings = settings.block;
-    const skills = await loadWritingSkills(reader, root, deps.secrets);
-    if (skills.length) values.skills = skills.map((skill) => [skill.path, skill.sha256]);
+    // 插件写法排在作品写法之后；没有插件时这一项和以前一字不差，待确认的旧 Brief 不会因升级失效。
+    const skills = await loadAvailableWritingStyles(reader, root, pluginLibraryRoot, secrets);
+    if (skills.length)
+      values.skills = skills.map((skill) => [writingStyleSourceKey(skill), skill.sha256]);
     // 起草会带上台账里的已写事实；还没开始记账的书签名不变。
     if ((await reader.inspectProjectPath(root, FACTS_LEDGER)).targetKind !== 'missing') {
       const read = await reader.readProjectBytes(root, FACTS_LEDGER, MAX_SOURCE_BYTES);

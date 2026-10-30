@@ -169,6 +169,8 @@ export type AssistantDeps = {
   /** 每次请求解析一次配置源；配置文件坏了在这里抛 503。 */
   llm: () => Promise<AssistantLlm>;
   platform: Platform;
+  /** 本机插件库根目录；缺省或 null 是没有插件（产字不带插件指令）。 */
+  pluginLibraryRoot?: string | null;
 };
 
 // ---- 公共步骤 ----
@@ -415,7 +417,12 @@ export async function reviseFileContent(
       deps.reader,
       REVISION_SYSTEM_PROMPT,
       projectRoot,
-      { platform: deps.platform, capture: sources },
+      {
+        platform: deps.platform,
+        capture: sources,
+        pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+        secrets: llm.secrets,
+      },
     );
     revision = await reviseText(
       {
@@ -620,7 +627,12 @@ export async function streamContinueProse(
     deps.reader,
     CONTINUE_SYSTEM_PROMPT,
     projectRoot,
-    { platform: deps.platform, capture: sources },
+    {
+      platform: deps.platform,
+      capture: sources,
+      pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+      secrets: llm.secrets,
+    },
   );
   const userPrompt = buildContinuePrompt({
     tail,
@@ -790,7 +802,12 @@ export async function draftContinuation(
       deps.reader,
       CONTINUE_SYSTEM_PROMPT,
       projectRoot,
-      { platform: deps.platform, capture: sources },
+      {
+        platform: deps.platform,
+        capture: sources,
+        pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+        secrets: llm.secrets,
+      },
     );
     const userPrompt = buildContinuePrompt({
       tail,
@@ -927,7 +944,12 @@ export async function draftFileContent(
       deps.reader,
       DRAFT_SYSTEM_PROMPT,
       projectRoot,
-      { platform: deps.platform, capture: sources },
+      {
+        platform: deps.platform,
+        capture: sources,
+        pluginLibraryRoot: deps.pluginLibraryRoot ?? null,
+        secrets: llm.secrets,
+      },
     );
     const userPrompt = buildDraftPrompt(payload, constraints, previousChapter, {
       settings,

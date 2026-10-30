@@ -40,6 +40,8 @@ export interface FixedPipelineHost {
   readonly reader: ProjectReader;
   readonly platform: 'windows' | 'posix';
   readonly secrets: SecretContext;
+  /** 本机插件库根目录；缺省或 null 是没有插件。 */
+  readonly pluginLibraryRoot?: string | null;
   /** 补丁 id（Python 的 uuid4().hex）。 */
   newHex(): string;
   /** 先过中断边界与权限门，再在工具自己的模型操作范围里跑处理器。 */

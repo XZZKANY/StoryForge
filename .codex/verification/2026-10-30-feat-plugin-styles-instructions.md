@@ -1,0 +1,21 @@
+## 2026-10-30 插件第 4 刀：插件写法与指令片段接进起草与对话
+
+- 背景：插件分刀见 `docs/internal/TODO.md`「2026-10-30 当前入口」；前三刀 #530 / #532 / #535。本刀让作品启用的插件带来的写法与指令片段生效。**只在作品启用了插件时**往提示词里加插件内容，不改任何默认提示词；没启用插件时所有提示词、来源签名、证据逐字不变。
+- 写法：
+  - `kernel/availableWritingStyles.ts`：`loadAvailableWritingStyles` = 作品 `写法/`（规则不变）+ 按启用顺序的插件写法（合计 ≤ 20），重名丢弃（作品优先、先启用优先）。
+  - 章纲目录插件行「- 名字（插件「id」）：…」；起草要点里插件写法标题「### 名字（插件「id」）」；**挑中的写法里有插件写法时**要点开头改为「作者选用的写法 skill」（只有作品写法时原句「作者审过的写法 skill」不变）；`pickWritingSkills` 也认带标签的名字。
+  - Chapter Brief 来源签名：插件写法记 `plugin:<id>/<路径>` 与 sha256、签名里的产字 system prompt 含插件段；插件在拟章纲与起草之间被改或移除 → 签名不符 → 现有「来源有变化」拒绝。拟章纲与起草两边用同一个插件库根（`FixedPipelineHost` 与循环内 assistant 补传，否则启用插件的书每次都会被拒——工作者发现并修了这处）。
+- 指令片段：
+  - `kernel/authorVoice.ts`：`readPluginInstructions` / `pluginInstructionsBlock`，按启用顺序拼，合计 ≤ 8000 码点，超出的插件整份不带并在段尾注明。**含 `GENERATION_PREFIX`、`CONVERSATION_PREFIX`（即 `AUTHOR_INSTRUCTIONS_PREFIX`）或「文风基线（」的插件整份丢弃**（连小节标题与末尾换行一起查，防拼接冒充）。
+  - 对话：`author_instructions` 段之前加 `plugin_instructions` 段，开头写明「不是作者本人写的……与作者本人的要求冲突时，以作者为准」；没有时不加段。
+  - 产字（`buildGenerationSystemPrompt`）：插件段插在 base 与文风基线之间，所以 `editPolicyFromGenerationPrompt` 切出的作者要求与文风基线都不含插件文本（测试以修订 prompt 与空 base 两种 base 证明 policy 与无插件时完全相同）。接到 Ctrl+K / 续写 / 修订（`assistant/service.ts` 四处，`AssistantDeps.pluginLibraryRoot`，前端 `lib/engine/assistant.ts` 传入）、章纲来源签名、整章润色。
+  - 证据：产字来源捕获记一条 `plugin_instructions`（每个插件的 id、路径、sha256、是否截断 / 丢弃原因，最多列 12 个）。续跑指纹：对话带上的插件指令记 `plugin:<id>/指令.md`（与 `loopMessages` 用同一函数判定带了哪些），被丢弃的不记。
+- 验证：
+  - 新测试 `kernel/pluginWriting.test.ts`、`assistant/pluginInstructions.test.ts`，并在 `loop/pluginSkills.test.ts`、`loop/chapterWritingSkills.test.ts`、前端 `tests/engine-agent-deps.test.ts` 加用例；回放支撑 `agentRunReplay.test-support.ts` 认 `spec.plugins` 与 `edit_plugin`。工作者两轮共 15 处变异（插件段放到基线之后、去掉标记检查、少末尾换行、管线不传库根、签名不含插件写法、8000 边界、去上限、记录被丢弃插件的指纹、不记指令指纹、措辞固定为旧句 / 新句等）均被抓住，已按字节还原。
+  - **golden 零改动**：`git status --short packages/engine/golden` 为空。整套引擎 14108 passed + 2 skipped。
+  - `pnpm verify` EXIT=0：project-core 34、引擎 14108 passed + 2 skipped、前端 2575 passed、三个浏览器回归通过。
+  - 行尾：改动文件无 CR；`--numstat` 与 `--ignore-all-space --numstat` 一致。
+- 未覆盖：
+  - 没用真模型验证：模型拿到插件写法 / 指令后的实际写作表现；插件指令与作者指令冲突时模型是否以作者为准。
+  - 没在真宿主上点穿。
+  - 每次检查点保存都会重读一次启用插件（插件文件小；没有 `plugins.json` 时只是一次文件检查）。
