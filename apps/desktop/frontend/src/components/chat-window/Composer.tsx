@@ -7,11 +7,12 @@ import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus, Square } from '../icons/shell-icons';
 import { CHAT_COLUMN } from './column';
-import { matchSkillCommands, roleMentionQuery } from './display-utils';
+import { roleMentionQuery } from './display-utils';
 import { ModelProfileSelector } from './ModelProfileSelector';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 import { ReasoningEffortSelector } from './ReasoningEffortSelector';
 import { SkillCommandMenu } from './SkillCommandMenu';
+import { slashMenu } from './slash-menu';
 import type { QueuedChatMessage } from './useChatSubmission';
 import { useConversationSkills } from './useConversationSkills';
 
@@ -212,10 +213,12 @@ export function ComposerSurface({
   const [dismissedDraft, setDismissedDraft] = useState<string | null>(null);
   const skillMenuShown = skillQuery !== null && projectPath !== null && dismissedDraft !== value;
   const { view: skillsView } = useConversationSkills(skillMenuShown ? projectPath : null);
-  const skillItems =
-    skillMenuShown && skillsView.status === 'ready'
-      ? matchSkillCommands(skillsView.skills, skillQuery ?? '')
-      : [];
+  const menu = slashMenu(
+    value,
+    skillMenuShown ? skillQuery : null,
+    skillsView.status === 'ready' ? skillsView.skills : [],
+  );
+  const skillItems = menu.picks;
   const [skillCursor, setSkillCursor] = useState(0);
   const activeSkill = Math.min(skillCursor, Math.max(skillItems.length - 1, 0));
   const pickSkill = (name: string) => {
@@ -281,7 +284,7 @@ export function ComposerSurface({
         <SkillCommandMenu
           view={skillsView}
           query={skillQuery ?? ''}
-          items={skillItems}
+          menu={menu}
           activeIndex={activeSkill}
           onPick={pickSkill}
         />
@@ -389,7 +392,7 @@ export function ComposerSurface({
               }
               if (event.key === 'Enter' || event.key === 'Tab') {
                 event.preventDefault();
-                pickSkill(skillItems[activeSkill].name);
+                pickSkill(skillItems[activeSkill]);
                 return;
               }
             }

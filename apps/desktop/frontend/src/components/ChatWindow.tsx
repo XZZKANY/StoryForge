@@ -273,6 +273,8 @@ export function ChatWindow(props: ChatWindowProps) {
         opening={openingVisible ? handoff : null}
         onOpeningDraft={emitChapterWriteRequest}
         composerHint={composerHint}
+        writeBatch={submission.writeBatch}
+        onCloseWriteBatch={submission.closeWriteBatch}
       />
       <AppDialogHost
         dialog={dialogs.dialog}

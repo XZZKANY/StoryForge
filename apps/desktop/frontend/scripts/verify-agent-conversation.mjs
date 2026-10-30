@@ -245,6 +245,43 @@ try {
             },
           });
         }
+        if (requestPath === '/api/write-batch/plan') {
+          if (method !== 'POST' || requestBody.project_root !== projectPath) rejectRequest();
+          window.__STORYFORGE_WRITE_BATCH_PLANS__ = [
+            ...(window.__STORYFORGE_WRITE_BATCH_PLANS__ ?? []),
+            requestBody,
+          ];
+          const chapter = (ordinal, status) => ({
+            ordinal,
+            target_path: `正文/第${String(ordinal).padStart(3, '0')}章.md`,
+            title: `第${ordinal}章标题`,
+            goal: `第${ordinal}章目标`,
+            status,
+            written_path: status === 'skip_written' ? '正文/第三章.md' : null,
+          });
+          return json({
+            project_root: projectPath,
+            from: requestBody.from,
+            to: requestBody.to,
+            permission_profile: requestBody.permission_profile,
+            chapters: [chapter(1, 'skip_written'), chapter(2, 'write'), chapter(3, 'write')],
+            blockers: [],
+            can_start: true,
+            basis: 'history',
+            estimate: {
+              chapter_count: 2,
+              sample_count: 4,
+              average_tokens: 62000,
+              min_tokens: 48000,
+              max_tokens: 91000,
+              estimated_calls: 0,
+              unknown_calls: 0,
+              estimated_tokens: 124000,
+              cap_tokens: 186000,
+            },
+            note: null,
+          });
+        }
         if (requestPath === '/api/assistant/sessions') {
           if (method !== 'GET' || parsedUrl.searchParams.get('project_path') !== projectPath)
             rejectRequest();
@@ -598,6 +635,41 @@ try {
   if (bodyText.includes('你\n审一下第三章')) {
     throw new Error('Expected user bubble to omit user name label');
   }
+
+  // 打 `/写 1-3`：不发给 AI，对话里出批量写章确认卡，按作品存的档位排计划。
+  const agentMessagesBefore = payloads.length;
+  await input.fill('/写 1-3');
+  await page.getByTestId('composer-submit').click();
+  const batchCard = page.getByTestId('write-batch-card');
+  await batchCard.waitFor({ timeout: 5000 });
+  await batchCard.getByText('批量写第 1–3 章', { exact: true }).waitFor({ timeout: 5000 });
+  await batchCard
+    .getByText('按本书最近 4 章，每章平均 6.2 万（最少 4.8 万、最多 9.1 万）。', { exact: false })
+    .waitFor({ timeout: 5000 });
+  if ((await input.inputValue()) !== '') {
+    throw new Error('Expected the composer to be cleared after /写');
+  }
+  if (!(await page.getByTestId('write-batch-start').isDisabled())) {
+    throw new Error('Expected 开始写 to stay disabled until the scheduler is wired');
+  }
+  // 开发档 StrictMode 会把卡片的 effect 跑两遍，第一遍的结果被丢掉，所以只核每次请求的内容。
+  const batchPlans = await page.evaluate(() => window.__STORYFORGE_WRITE_BATCH_PLANS__ ?? []);
+  if (
+    batchPlans.length < 1 ||
+    batchPlans.some(
+      (request) => request.from !== 1 || request.to !== 3 || request.permission_profile !== 'ask',
+    )
+  ) {
+    throw new Error(`Expected write batch plan requests for 1-3: ${JSON.stringify(batchPlans)}`);
+  }
+  const agentMessagesAfter = await page.evaluate(
+    () => (window.__STORYFORGE_AGENT_MESSAGES__ ?? []).length,
+  );
+  if (agentMessagesAfter !== agentMessagesBefore) {
+    throw new Error('Expected /写 not to be sent to the AI');
+  }
+  await page.getByTestId('write-batch-close').click();
+  await batchCard.waitFor({ state: 'detached', timeout: 5000 });
 
   const unexpectedRequests = await page.evaluate(
     () => window.__STORYFORGE_UNEXPECTED_REQUESTS__ ?? [],
