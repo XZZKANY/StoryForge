@@ -64,3 +64,19 @@
   - 上一节 7 处在新代码上重跑：`..`、空段、剥顶层、大小写、`__MACOSX`、完全同名 6 处照旧恰有测试变红（剥顶层与 `__MACOSX` 现在还会让新的布局目录测试一起红）。**「去掉 `Collector::offer` 里按实际字节的大小检查」这一处现在不再变红**：zip 这边声明超限的已经预跳过，而 zip 9 解压时输出不会超过声明的大小，所以 zip 条目到不了这条检查；文件夹这边有元数据预检，只剩「读的过程中文件变大」这种竞态能到达。这条检查留作纵深防御，没有能稳定触发它的测试。
 - 行尾：四个改动文件仍是纯 LF（CRLF 0、CRCRLF 0）；本次 `git diff --numstat` 与 `--ignore-all-space --numstat` 完全一致。
 - 仍未覆盖：真宿主点穿、面板「选 zip」入口、Info-ZIP Unicode Path 字段与真实压缩工具打的包，同上一节。
+
+## 2026-10-30 再合 master：内置「起书基础包」#548
+
+- 对齐：`git pull --ff-only origin feat/plugin-zip-import` 已是最新（本地已含协调方的合并提交 `b0fa6065`）。`git fetch origin master` 得到 `5756667f`（#548 合并提交），`git merge origin/master` 单独提交为 `592ca465`。
+- 合并结果：`plugin_library.rs` / `plugin_library_tests.rs` 文本自动合并，两边原样保留——#548 的 `STARTER_PLUGIN_*` 常量与 `include_str!`、`bundled_marker` / `write_bundled_plugin` / `sync_bundled_plugins`、`remove_plugin` 拒绝带 `.storyforge-bundled` 标记的插件、`plugin_library_dir` 锁内同步；本分支的 `Collector` / `scan_zip` / `ScanLimits` 与报错措辞。唯一的语义冲突：两边测试各加了一个同名同义的 `files_under` 辅助函数（编译会报重复定义），删掉本分支那份、留 master 的。`Cargo.toml` / `Cargo.lock` 没有冲突；`git diff origin/master -- apps/desktop/src-tauri/Cargo.lock` 与上一节相同（45 行新增 + `tauri-plugin-updater` 依赖行 `"zip"` → `"zip 4.6.1"` 1 处，没有包换版本）。
+- 两者的交互（另一个提交）：
+  - zip 导入与文件夹导入最后都走 `commit_import`：同名已装的整个挪进 `.trash`（内置包连同标记一起进回收夹），暂存改名成插件文件夹，新的里面没有标记；`sync_bundled_plugins` 见到没有标记的同名文件夹不动，所以不会被盖回；没有标记也就能被 `remove_plugin` 移除。
+  - 压缩包（或文件夹）里自带的 `.storyforge-bundled` 冒充不了自带插件：`Path::extension()` 对点开头的文件名返回空，被当成非文本跳过，进不了暂存。
+  - 新测试 `zip_import_over_the_bundled_plugin_drops_the_marker_and_sync_keeps_the_import`：先同步出内置包；zip 里是 `起书基础包/技能/立项流程.md`（作者的版本）和 `起书基础包/.storyforge-bundled`；暂存只收 `技能/立项流程.md`，标记记「不是文本文件」；以「起书基础包」确认后插件文件夹里只有这一个文件，回收夹里是带标记的旧内置包；再调一次 `sync_bundled_plugins`（`plugin_library_dir` 锁内调的就是它；命令本身要 `AppHandle`，单测里不起 Tauri）内容仍是作者的版本、回收夹仍只有 1 份；最后 `remove_plugin` 能移除。
+- 验证（作者在用这台机器，四项依次跑、没有并行；环境照旧：占位 `dist/index.html`、`CARGO_TARGET_DIR=D:/StoryForge/apps/desktop/src-tauri/target`、没碰 node_modules）：
+  - `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml plugin_library`：37 passed（文件夹 17 + 基础包 8 + zip 12）。
+  - 全量 `cargo test`：204 passed，0 failed，1 ignored。
+  - `rustfmt --check --edition 2021 src/plugin_library.rs src/plugin_library_tests.rs` 通过。
+  - `cargo clippy --all-targets -- -D warnings`：仍只有 master 原有的 5 条（`shadow_git/core.rs:613`、`smoke_ui.rs:98`、`smoke_ui.rs:104`、`main.rs:1251`、`host_close_state.rs:148`），`plugin_library*.rs` 0 条。
+- 行尾：`plugin_library.rs`、`plugin_library_tests.rs`、`Cargo.toml`、`Cargo.lock` 仍是纯 LF。
+- 本节没有重跑变异：合并没有改动 zip 相关代码，新测试只钉住已有行为。

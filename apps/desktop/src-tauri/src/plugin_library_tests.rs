@@ -1334,3 +1334,53 @@ fn zip_sources_must_be_zip_files_outside_the_library() {
         "不能从插件库里面导入插件"
     );
 }
+
+// 与文件夹导入同一条路：同名覆盖、新的没有标记、之后的同步（plugin_library_dir 里调用）不会盖回。
+#[test]
+fn zip_import_over_the_bundled_plugin_drops_the_marker_and_sync_keeps_the_import() {
+    let fx = fixture();
+    ensure_library_root(&fx.root).unwrap();
+    sync_bundled_plugins(&fx.root).expect("sync");
+    let archive = zip_path(&fx);
+    write(
+        &archive,
+        &zip_bytes(&[
+            ZipEntry::File("起书基础包/技能/立项流程.md", "作者的版本".as_bytes()),
+            // 压缩包里带的标记不是文本文件，进不了暂存，导入的插件冒充不了自带插件。
+            ZipEntry::File(
+                "起书基础包/.storyforge-bundled",
+                STARTER_PLUGIN_VERSION.as_bytes(),
+            ),
+        ]),
+    );
+    let staged = stage_import(&fx.root, &archive).expect("stage zip");
+    assert_eq!(paths(&staged.files), vec!["技能/立项流程.md"]);
+    assert_eq!(
+        staged.skipped,
+        skipped(&[(BUNDLED_MARKER, REASON_NOT_TEXT)])
+    );
+    commit_import(&fx.root, &staged.stage_id, STARTER_PLUGIN_NAME).expect("commit");
+
+    assert_eq!(files_under(&starter(&fx.root)), vec!["技能/立项流程.md"]);
+    let trashed = trash_entries(&fx.root);
+    assert_eq!(trashed.len(), 1);
+    assert_trashed_as(&trashed[0], STARTER_PLUGIN_NAME);
+    assert!(fx
+        .root
+        .join(TRASH_DIR)
+        .join(&trashed[0])
+        .join(BUNDLED_MARKER)
+        .is_file());
+
+    sync_bundled_plugins(&fx.root).expect("sync after import");
+    assert_eq!(
+        fs::read_to_string(starter_file(&fx.root, "技能/立项流程.md")).unwrap(),
+        "作者的版本"
+    );
+    assert_eq!(files_under(&starter(&fx.root)), vec!["技能/立项流程.md"]);
+    assert_eq!(trash_entries(&fx.root).len(), 1);
+
+    remove_plugin(&fx.root, STARTER_PLUGIN_NAME).expect("an imported copy can be removed");
+    assert!(!starter(&fx.root).exists());
+    assert_eq!(trash_entries(&fx.root).len(), 2);
+}
