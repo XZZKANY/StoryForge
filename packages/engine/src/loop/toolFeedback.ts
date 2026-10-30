@@ -84,6 +84,14 @@ function rawToolOutputSummary(registryName: string, output: Obj): Obj {
         returned_chars: output.returned_chars,
         truncated: output.truncated,
       };
+    case 'skill.read':
+      return {
+        skill_name: output.name,
+        plugin: output.plugin,
+        path: output.path,
+        returned_chars: typeof output.content === 'string' ? points(output.content).length : 0,
+        truncated: output.truncated,
+      };
     case 'project.consistency':
       return {
         scanned_files: output.scanned_files,

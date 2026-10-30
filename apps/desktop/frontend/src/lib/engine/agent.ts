@@ -11,6 +11,7 @@ import {
   type RunReadDeps,
   type SqlAssistantStore,
 } from '@storyforge/engine';
+import { pluginLibraryDir } from '../plugin-library';
 import { clock, platform, wait } from './assistant';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';
@@ -43,10 +44,12 @@ export async function engineReadDeps(): Promise<RunReadDeps> {
  * ts 档的会话、消息、工具调用与标题都在引擎库（会话放哪个库跟着 `engine.agentLoop` 走）。
  */
 export async function engineAgentDeps(): Promise<AgentHostDeps> {
-  const [{ main, polish, secrets }, appVersion, runs] = await Promise.all([
+  const [{ main, polish, secrets }, appVersion, runs, pluginLibraryRoot] = await Promise.all([
     slots(),
     getVersion(),
     engineRuns(),
+    // 取不到插件库只是这一轮没有插件技能，对话照常。
+    pluginLibraryDir().catch(() => null),
   ]);
   return hostDeps({
     ...runs,
@@ -57,6 +60,7 @@ export async function engineAgentDeps(): Promise<AgentHostDeps> {
     writer: nativeProjectWriter,
     http: nativeHttpPort,
     wait,
+    pluginLibraryRoot,
   });
 }
 
@@ -71,10 +75,13 @@ export function hostDeps(parts: {
   writer: ProjectWriter;
   http: (slot: 'main' | 'polish') => HttpPort;
   wait: (seconds: number) => Promise<void>;
+  /** 本机插件库根目录；不给就是没有插件。 */
+  pluginLibraryRoot?: string | null;
 }): AgentHostDeps {
   const { store, sessions, reader, writer } = parts;
   const { main, polish, secrets } = parts.slots;
   const os = platform();
+  const pluginLibraryRoot = parts.pluginLibraryRoot ?? null;
   const tools = createAgentToolRegistry({
     reader,
     writer,
@@ -85,6 +92,7 @@ export function hostDeps(parts: {
     regex,
     clock,
     newHex: hex,
+    pluginLibraryRoot,
   });
   return {
     store,
@@ -111,5 +119,6 @@ export function hostDeps(parts: {
     tools,
     ids: { stream: () => crypto.randomUUID(), attempt: () => crypto.randomUUID(), hex },
     newRunId: hex,
+    pluginLibraryRoot,
   };
 }

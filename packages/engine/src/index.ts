@@ -235,8 +235,12 @@ export {
   MAX_INSTRUCTION_CHARS,
   readAuthorInstructions,
 } from './kernel/authorVoice';
-export { conversationSkillsBlock, loadConversationSkills } from './kernel/conversationSkills';
-export type { ConversationSkill } from './kernel/conversationSkills';
+export {
+  conversationSkillsBlock,
+  loadAvailableSkills,
+  loadConversationSkills,
+} from './kernel/conversationSkills';
+export type { AvailableSkill, ConversationSkill, SkillPlugin } from './kernel/conversationSkills';
 export {
   describePlugin,
   listInstalledPlugins,

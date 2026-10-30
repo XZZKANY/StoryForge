@@ -33,6 +33,7 @@ const skill = (name: string, when: string): ConversationSkillItem => ({
   path: `技能/${name}.md`,
   name,
   when,
+  plugin: null,
   filePath: `${PROJECT}\\技能\\${name}.md`,
 });
 
@@ -193,4 +194,24 @@ test('书里还没有技能时提示去上下文面板新建', async () => {
   await type('/');
   expect(options()).toEqual([]);
   expect(note()).toBe('这本书还没有技能。在对话头「上下文」里可以按模板新建。');
+});
+
+test('插件技能第二行带插件名，Enter 照样填入 /名字', async () => {
+  loadSkills.mockResolvedValue([
+    skill('立项流程', '作者问「下一步干什么」时'),
+    {
+      path: '技能/对白.md',
+      name: '对白打磨',
+      when: '改对白时',
+      plugin: '网文工具箱',
+      filePath: null,
+    },
+  ]);
+  await mount();
+  await type('/对白');
+  const option = host.querySelector<HTMLElement>('[data-testid="skill-command-option"]')!;
+  const lines = [...option.querySelectorAll('span')].map((node) => node.textContent);
+  expect(lines).toEqual(['/对白打磨', '插件「网文工具箱」 · 改对白时']);
+  await press('Enter');
+  expect(textarea().value).toBe('/对白打磨 ');
 });

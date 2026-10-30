@@ -1,5 +1,5 @@
 import type { AgentPlanStep } from '../../lib/api-client';
-import { traceLookup, traceReadSources } from './context-panel';
+import { traceLookup, traceReadSources, traceSkillRead } from './context-panel';
 import { formatElapsed } from './RunElapsed';
 import type {
   AgentStep,
@@ -42,6 +42,7 @@ const TOOL_LABELS: Record<string, string> = {
   'fs.list': '查看目录',
   'fs.read': '读取',
   'fs.search': '搜索',
+  'skill.read': '读技能',
   'project.knowledge': '查创作资料',
   'knowledge.propose': '提议记入创作资料',
   'file.review': '审稿',
@@ -106,10 +107,25 @@ function toolTarget(input: Record<string, unknown>): string | null {
   return null;
 }
 
+// skill.read 的目标是技能名，不是路径；没完成的调用 output 里没有名字，退回调用时点的名字。
+function skillReadTitle(label: string, trace: ChatWindowAgentToolTrace): string {
+  const read = traceSkillRead(trace);
+  const output = trace.output_summary ?? {};
+  const name =
+    read?.name ??
+    [output.skill_name, trace.input_summary?.name]
+      .find((value): value is string => typeof value === 'string' && value.trim() !== '')
+      ?.trim();
+  if (!name) return label;
+  const plugin = read?.plugin ?? (typeof output.plugin === 'string' ? output.plugin.trim() : '');
+  return `${label} ${name}${plugin ? `（插件 ${plugin}）` : ''}`;
+}
+
 /** 工具步骤的标题：中文动作 + 对象（文件路径或检索词）；不认识的工具照原名。 */
 export function toolStepTitle(trace: ChatWindowAgentToolTrace): string {
   const label = TOOL_LABELS[trace.tool_name] ?? trace.tool_name;
   const input = trace.input_summary ?? {};
+  if (trace.tool_name === 'skill.read') return skillReadTitle(label, trace);
   const target = toolTarget(input);
   if (target) return `${label} ${target}`;
   if (typeof input.query === 'string' && input.query.trim())
@@ -192,6 +208,7 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
   const sources = traceReadSources(trace);
   const lookup = traceLookup(trace);
   const model = toolTraceModel(trace);
+  const skill = traceSkillRead(trace);
   return {
     id: `tool-${index}-${trace.tool_name}`,
     title: toolStepTitle(trace),
@@ -202,6 +219,7 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
     ...(model !== undefined ? { model } : {}),
     ...(sources.length ? { sources } : {}),
     ...(lookup !== undefined ? { lookup } : {}),
+    ...(skill ? { skill } : {}),
   };
 }
 
