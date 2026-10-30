@@ -36,8 +36,9 @@ vi.mock('../src/lib/serial-plan', async (load) => ({
   markChapterWrittenInPlan: effects.mark,
 }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-const PROJECT = 'D:/disk-contract';
-const FILE = PROJECT + '/chapter.md';
+let PROJECT: string;
+let FILE: string;
+let projectSequence = 0;
 let files: Map<string, string>;
 let writes: string[];
 let proposalSequence = 0;
@@ -53,19 +54,30 @@ beforeEach(async () => {
     await original.recordRevisionLoop(record);
     return { recordPath: null, updatedBlueprintPath: null };
   });
-  files = new Map();
-  writes = [];
+  // 用例断言完就结束，接受动作的尾巴（闭环记录、恢复日志）可能晚于用例才落盘。每条用例换项目根、
+  // 盘只收本项目路径：晚到的尾巴写不进下一条用例的盘，也冒充不了同 id 补丁「已接受」的审计。
+  const project = `D:/disk-contract-${projectSequence++}`;
+  const disk = new Map<string, string>();
+  const log: string[] = [];
+  const own = (path: string) => {
+    if (!path.startsWith(project + '/')) throw new Error(`测试盘不收别的项目的路径：${path}`);
+    return path;
+  };
+  PROJECT = project;
+  FILE = project + '/chapter.md';
+  files = disk;
+  writes = log;
   proposalSequence = 0;
   window.__STORYFORGE_MOCK_FS__ = {
-    pathExists: (path) => files.has(path),
+    pathExists: (path) => disk.has(own(path)),
     readFile: (path) => {
-      const value = files.get(path);
+      const value = disk.get(own(path));
       if (value === undefined) throw new Error('file missing');
       return value;
     },
     writeFile: (path, content) => {
-      files.set(path, content);
-      writes.push(path);
+      disk.set(own(path), content);
+      log.push(path);
     },
   };
   host = document.createElement('div');
