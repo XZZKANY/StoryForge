@@ -15,6 +15,7 @@
   - **golden 零改动**：`git status --short packages/engine/golden` 为空。整套引擎 14108 passed + 2 skipped。
   - `pnpm verify` EXIT=0：project-core 34、引擎 14108 passed + 2 skipped、前端 2575 passed、三个浏览器回归通过。
   - 行尾：改动文件无 CR；`--numstat` 与 `--ignore-all-space --numstat` 一致。
+- 合并 master（#536 #537，无冲突）后：第一遍 `pnpm verify` EXIT=1，唯一红的是 `tests/editor-disk-writeback.test.tsx`「missing file cannot replace externally created」（满载下走错分支，master 上已知偶发、已有待查卡片，本分支不碰编辑器写盘）；单跑该文件 17 passed；整套重跑 EXIT=0：project-core 34、引擎 14109 passed + 2 skipped、前端 2577 passed、三个浏览器回归通过。
 - 未覆盖：
   - 没用真模型验证：模型拿到插件写法 / 指令后的实际写作表现；插件指令与作者指令冲突时模型是否以作者为准。
   - 没在真宿主上点穿。
