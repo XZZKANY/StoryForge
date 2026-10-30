@@ -336,7 +336,7 @@ export function EditorTabs({
           {permissionProfile === 'read' && (
             <span
               className="flex items-center whitespace-nowrap rounded-full border border-border px-2 text-3xs text-muted"
-              title="当前项目权限档位为「只读」：Agent 不会发起修订。可在对话栏档位切换处调整。"
+              title="当前作品权限档位为「只读」：AI 不会发起修订。可在对话栏档位切换处调整。"
               data-testid="editor-permission-read"
             >
               只读档
@@ -345,7 +345,7 @@ export function EditorTabs({
           {(permissionProfile === 'auto' || permissionProfile === 'full') && (
             <span
               className="flex items-center whitespace-nowrap rounded-full border border-agent/40 px-2 text-3xs text-agent"
-              title="当前项目权限档位为「自动」：补丁不经确认直接落盘（写前留快照，可撤销）。"
+              title="当前作品权限档位为「自动」：修订不经确认直接写进文件（写前留快照，可撤销）。"
               data-testid="editor-permission-auto"
             >
               自动档

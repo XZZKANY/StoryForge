@@ -92,6 +92,6 @@ test('overview activity exposes busy and session recovery without inventing a ru
   assert.equal(failed?.retryable, true);
   assert.equal(overviewActivityLabel('waiting_permission'), '等待权限确认');
   assert.equal(overviewActivityLabel('waiting_brief'), '等待章节 Brief 确认');
-  assert.equal(overviewActivityLabel('waiting_patch'), '等待修改确认');
+  assert.equal(overviewActivityLabel('waiting_patch'), '等待修订确认');
   assert.equal(overviewActivityActionLabel(failed!), '查看会话错误并重试');
 });

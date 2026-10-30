@@ -6,7 +6,7 @@ import type { StoryProjectInitializationPlan } from './types';
 
 const STORY_DIRS = ['正文', '大纲', '人物', '设定', '世界观', '时间线', '伏笔'];
 
-export const SAMPLE_STORY_PROJECT_NAME = 'StoryForge 示例项目';
+export const SAMPLE_STORY_PROJECT_NAME = 'StoryForge 示例作品';
 
 export function buildStoryProjectInitializationPlan(
   projectPath: string,
@@ -41,7 +41,7 @@ export function buildSampleStoryProjectFiles(
         '',
         '## 当前目标',
         '- 在正文里写出第一章的冲突。',
-        '- 让对话 agent 帮忙审稿、提出改法，再确认写回。',
+        '- 让对话 AI 帮忙审稿、提出改法，再确认写进文件。',
       ].join('\n'),
     },
     {

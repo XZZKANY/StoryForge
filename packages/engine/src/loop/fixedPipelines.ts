@@ -4,7 +4,11 @@ import type { ProjectReader } from '../readPort';
 import { pythonTruthy, type JsonValue } from '../kernel/json';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { RunRecord, RunStore } from '../store/runs';
-import { isChapterResume, resumeChapterWriting, startChapterBrief } from './chapterWritingPipeline';
+import {
+  isChapterResume,
+  resumeChapterWriting,
+  startChapterWriting,
+} from './chapterWritingPipeline';
 import type { ConversationSources } from './conversationHistory';
 import { currentConversationReview } from './reviewSources';
 import { planStep, runtimeInterruptedResponse, type AgentRunEventSink } from './runEvents';
@@ -53,6 +57,8 @@ export interface FixedPipelineHost {
     currentReviewReport?: Obj | null,
   ): Promise<ToolExecutionContext>;
   runtimeInterruption(run: RunRecord, boundary: string): Obj | null;
+  /** 本次调用的截止时间从现在起重新计满一份（暂停 / 停止事实不受影响）。 */
+  renewRunDeadline(): void;
   /** 送达前的中断检查（runtime_delivery.check_result_delivery）：被打断时返回改写后的结果。 */
   checkResultDelivery(result: Obj, boundary: string, eventsRecorded: boolean): Obj | null;
   baseResponse(fields: {
@@ -597,11 +603,11 @@ async function runChapterPolish(
   });
 }
 
-/** 写章：有待确认的 brief 就从确认后接着写，否则先整理 brief（chapter_writing_pipeline）。 */
+/** 写章：续跑时从起草前记下的断点接着写，否则从拟章纲一路写到补丁（chapter_writing_pipeline）。 */
 async function runChapterWriting(host: FixedPipelineHost, request: FixedPipelineRequest) {
   const pending = await latestRuntimePendingCall(host.store, request.run);
   if (isChapterResume(request.run, pending)) return resumeChapterWriting(host, request, pending);
-  return startChapterBrief(host, request);
+  return startChapterWriting(host, request);
 }
 
 /** 显式 intent 的固定管线分派（intent_fixed_pipeline_adapter）。 */

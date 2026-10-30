@@ -276,13 +276,13 @@ export function useSuggestionWriteback({
                   suggestionOpsRef.current === state
                 )
                   setSuggestionStatus(
-                    `原提案未持久保存，已阻止写回；请重新生成修订：${String(error)}`,
+                    `原提案未持久保存，没有写进文件；请重新生成修订：${String(error)}`,
                     'error',
                   );
               });
             } catch (error) {
               setSuggestionStatus(
-                `修订恢复信息未保存，写回前请重新生成：${String(error)}`,
+                `修订恢复信息未保存，写进文件前请重新生成：${String(error)}`,
                 'error',
               );
             }
@@ -444,7 +444,7 @@ export function useSuggestionWriteback({
             runStatus: 'failed',
           });
           if (current())
-            setSuggestionStatus('原运行已确认拒绝；未恢复旧补丁，已有正文修改保持不变');
+            setSuggestionStatus('原运行已确认拒绝；未恢复旧修订，已有正文修改保持不变');
           return;
         }
         const displayed = targetModel.getValue();
@@ -461,7 +461,7 @@ export function useSuggestionWriteback({
               filePath: path,
               status: 'completed',
               action: 'revision_accepted',
-              message: '已核验原写回并结算原运行；未再次写入正文',
+              message: '已核验原来那次写入并结算原运行；未再次写入正文',
               runId: descriptor.proposal.runId,
               projectPath: project,
               assistantSessionId: descriptor.proposal.assistantSessionId,
@@ -486,7 +486,7 @@ export function useSuggestionWriteback({
           recovery: { projectPath: project, descriptor, ready: Promise.resolve() },
         });
         updatePendingSuggestion(restored, { fresh: true });
-        setSuggestionStatus('已核验并恢复待确认修订；只保留原剩余修改，请确认后写回');
+        setSuggestionStatus('已核验并恢复待确认修订；只保留原剩余修改，请确认后写进文件');
       } catch (error) {
         if (!current()) return;
         emitToast(`修订恢复未完成：${error instanceof Error ? error.message : String(error)}`, {
@@ -540,7 +540,7 @@ export function useSuggestionWriteback({
         // Keep incomplete evidence; a cleanup error cannot undo the manuscript or retain the action lock.
         if (mountedRef.current && projectPathRef.current === recovery.projectPath)
           emitToast(
-            `恢复缓存未清理，原写回证据已保留：${String(error)}。请先核对或补记，勿重复应用。`,
+            `恢复缓存未清理，原写入证据已保留：${String(error)}。请先核对或补记，勿重复应用。`,
             {
               tone: 'info',
             },
@@ -574,14 +574,14 @@ export function useSuggestionWriteback({
       } = {},
     ) => {
       const projectRoot = projectPathRef.current;
-      if (!projectRoot) throw new Error('未打开项目，不能写入修订结果');
+      if (!projectRoot) throw new Error('未打开作品，不能写入修订结果');
       // 派生缓存由后端重建，写进去下次扫描即被覆盖。saveCurrentFile 一直有这道闸，
       // AI 写回这条路以前漏了；自动档下补丁不再经人眼，漏了就会静默写坏。
       if (isReadOnlyDerivedProjectPath(path)) {
         throw new Error('canon 派生缓存是只读的，不能写入修订结果');
       }
       const targetStateAtStart = modelCacheRef.current.get(path);
-      if (!targetStateAtStart) throw new Error('缺少补丁目标的磁盘基线，请重新读取后确认');
+      if (!targetStateAtStart) throw new Error('缺少修订目标的磁盘基线，请重新读取后确认');
       const branch = getActiveBranchSnapshot();
       const assistantSessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
       return enqueueWriteback(() =>
@@ -634,13 +634,13 @@ export function useSuggestionWriteback({
             repairCaches: () => TauriFileSystem.repairWritebackCanonCache(projectRoot, request),
             validate: () => {
               if (overrides.recoveredRecord)
-                throw new Error('原写回回执缺失，结果未知；审计记录不能授权再次写入');
+                throw new Error('原写入回执缺失，结果未知；审计记录不能授权再次写入');
               if (
                 !overrides.operationKind &&
                 isWholeFileDrifted(previous, suggestion.before, normalizeEol)
               ) {
                 throw new Error(
-                  '当前文件内容已变化，旧补丁不能直接写回。请重新生成修订，或手动处理冲突。',
+                  '当前文件内容已变化，旧修订不能直接写进文件。请重新生成修订，或手动处理冲突。',
                 );
               }
             },
@@ -680,7 +680,7 @@ export function useSuggestionWriteback({
               const owner = overrides.recoveryOwner ?? suggestionOperationStates.get(suggestion);
               if (owner) {
                 if (!owner.recovery || owner.recovery.projectPath !== projectRoot)
-                  throw new Error('原提案恢复信息未保存，已阻止写回；请重新生成修订');
+                  throw new Error('原提案恢复信息未保存，没有写进文件；请重新生成修订');
                 await owner.recovery.ready;
                 await rememberSuggestionRequest(
                   projectRoot,
@@ -759,7 +759,7 @@ export function useSuggestionWriteback({
           ) {
             const owner = suggestionOperationStates.get(suggestion)?.recovery;
             if (!owner || owner.projectPath !== projectRoot)
-              throw new Error('原修订恢复归属缺失，不能结算已写回结果');
+              throw new Error('原修订恢复归属缺失，不能结算已写进文件的结果');
             await owner.ready;
             await rememberSuggestionRequest(
               projectRoot,
@@ -770,23 +770,23 @@ export function useSuggestionWriteback({
             );
           }
           const settlementWarning = loopRecord.auditError
-            ? `正文已写入，但闭环记录未完成：${loopRecord.auditError}。请重试记录，不要重新应用补丁。`
+            ? `正文已写入，但闭环记录未完成：${loopRecord.auditError}。请重试记录，不要重新应用修订。`
             : !loopRecord.receipt.receiptPersisted
               ? '正文已写入，但结果回执未持久化；已保留操作意图，请核对文件与版本，勿重新应用。'
               : loopRecord.receipt.current === 'unreadable'
-                ? '此补丁已写入，但当前文件无法读取核对；本次未覆盖编辑器，请核对文件与版本。'
+                ? '此修订已写入，但当前文件无法读取核对；本次未覆盖编辑器，请核对文件与版本。'
                 : loopRecord.receipt.current !== 'after'
-                  ? '此补丁此前已写入，文件随后又发生变化；本次未覆盖当前文件。'
+                  ? '此修订此前已写入，文件随后又发生变化；本次未覆盖当前文件。'
                   : null;
           const warning = loopRecord.receipt.detail
-            ? `${settlementWarning ?? '正文已写入。'} 后续处理提示：${loopRecord.receipt.detail}。请核对项目状态，不要重新应用补丁。`
+            ? `${settlementWarning ?? '正文已写入。'} 后续处理提示：${loopRecord.receipt.detail}。请核对作品状态，不要重新应用修订。`
             : settlementWarning;
           const retryCaches =
             loopRecord.receipt.detail?.startsWith('canon 派生缓存未失效: ') &&
             loopRecord.receipt.receiptPersisted
               ? async () => {
                   if (projectPathRef.current !== projectRoot)
-                    throw new Error('请返回原项目后修复缓存');
+                    throw new Error('请返回原作品后修复缓存');
                   const repaired = await TauriFileSystem.repairWritebackCanonCache(
                     projectRoot,
                     request,
@@ -808,13 +808,13 @@ export function useSuggestionWriteback({
               loopRecord.auditError && loopRecord.receipt.receiptPersisted
                 ? async (onRepaired?: (receipt: WritebackReceipt) => void) => {
                     if (projectPathRef.current !== projectRoot)
-                      throw new Error('请返回原项目后补记写回记录');
+                      throw new Error('请返回原作品后补记写入记录');
                     const receipt = await TauriFileSystem.inspectWritebackReceipt(
                       projectRoot,
                       request,
                     );
                     if (receipt?.state !== 'applied')
-                      throw new Error('写回结果未知，不能自动补记成功记录');
+                      throw new Error('写入结果未知，不能自动补记成功记录');
                     await withNativeDelivery(projectRoot, (ticket) =>
                       recordReceipt(receipt, ticket),
                     );
@@ -822,7 +822,7 @@ export function useSuggestionWriteback({
                       const owner = suggestionOperationStates.get(suggestion)?.recovery;
                       const stored = await loadPendingSuggestion(projectRoot, path);
                       if (!owner || !stored || owner.descriptor.owner !== stored.owner)
-                        throw new Error('写回记录已补齐，但原恢复归属已变化；请核对原运行');
+                        throw new Error('写入记录已补齐，但原恢复归属已变化；请核对原运行');
                       const recovered = await recoverSuggestionOperations(projectRoot, stored);
                       if (
                         recovered.changeSet.operations.every((op) =>
@@ -836,8 +836,8 @@ export function useSuggestionWriteback({
                           status: 'completed',
                           action: 'revision_accepted',
                           message: retryCaches
-                            ? `原写回记录已补齐并结算运行；${loopRecord.receipt.detail}。未再次写入正文`
-                            : '原写回记录已补齐并结算运行；未再次写入正文',
+                            ? `原写入记录已补齐并结算运行；${loopRecord.receipt.detail}。未再次写入正文`
+                            : '原写入记录已补齐并结算运行；未再次写入正文',
                           ...(retryCaches ? { warning: loopRecord.receipt.detail } : {}),
                           runId: suggestion.runId,
                           projectPath: projectRoot,
@@ -854,12 +854,12 @@ export function useSuggestionWriteback({
                       if (repaired) onRepaired(repaired);
                     }
                     if (retryCaches) {
-                      emitToast(`写回记录已补齐；${loopRecord.receipt.detail}。正文未再次写入。`, {
+                      emitToast(`写入记录已补齐；${loopRecord.receipt.detail}。正文未再次写入。`, {
                         tone: 'info',
                         action: { label: '修复缓存（不重写正文）', run: retryCaches },
                       });
                     } else {
-                      emitToast('写回记录已补齐；未再次写入正文', { tone: 'success' });
+                      emitToast('写入记录已补齐；未再次写入正文', { tone: 'success' });
                     }
                   }
                 : null,
@@ -918,12 +918,12 @@ export function useSuggestionWriteback({
       const text = createdFile
         ? '新文件已写入，已留检查点'
         : step
-          ? `已写回分块修改（${step}），已留检查点`
-          : '修订已写回，已留检查点';
+          ? `分块修改已写进文件（${step}），已留检查点`
+          : '修订已写进文件，已留检查点';
       const undoLabel = createdFile
         ? '撤销（删除该文件）'
         : step
-          ? '撤销本次写回（回到该分块写回前）'
+          ? '撤销这次写入（回到该分块写进文件前）'
           : '撤销';
       emitToast(text, {
         tone: 'success',
@@ -938,7 +938,7 @@ export function useSuggestionWriteback({
             ) {
               throw new Error('请返回原文件后撤销；写前检查点仍在版本历史中');
             }
-            if (actionInFlightRef.current) throw new Error('补丁操作仍在处理中，请稍后撤销');
+            if (actionInFlightRef.current) throw new Error('修订操作仍在处理中，请稍后撤销');
             const current = editorRef.current?.getValue() ?? null;
             if (current === null || !canUndoWriteback(current, wrote, normalizeEol)) {
               emitToast('文件在此期间又变了，一键撤销会吃掉新内容——检查点仍在版本历史里', {
@@ -950,7 +950,7 @@ export function useSuggestionWriteback({
               return;
             }
             const actionToken = beginAction('undo', pendingSuggestionRef.current ?? suggestion);
-            if (!actionToken) throw new Error('补丁操作仍在处理中，请稍后撤销');
+            if (!actionToken) throw new Error('修订操作仍在处理中，请稍后撤销');
             const undoOwner = pendingSuggestionRef.current;
             const ownsAction = () => actionInFlightRef.current?.token === actionToken;
             const restoreUndoOperations = (receipt: WritebackReceipt, token: symbol) => {
@@ -992,7 +992,7 @@ export function useSuggestionWriteback({
             // 失败继续拒绝 Promise，让 ToastHost 保留同一个撤销动作以便显式重试。
             try {
               if (createdFile) {
-                if (!projectRoot) throw new Error('未打开项目，不能撤销新建');
+                if (!projectRoot) throw new Error('未打开作品，不能撤销新建');
                 const epoch = recoveryEpochRef.current;
                 const version = targetModel?.getVersionId?.();
                 const targetState = modelCacheRef.current.get(path);
@@ -1062,7 +1062,7 @@ export function useSuggestionWriteback({
                     undoAttemptVersion !== null &&
                     targetModel.getVersionId?.() === undoAttemptVersion,
                   summary: `撤销：${suggestion.summary}`,
-                  note: '用户意图：撤销刚写回的修订',
+                  note: '用户意图：撤销刚写进文件的修订',
                 },
               );
               if (undoRecord.warning) {
@@ -1084,7 +1084,7 @@ export function useSuggestionWriteback({
                             'undo',
                             pendingSuggestionRef.current ?? suggestion,
                           );
-                          if (!retryToken) throw new Error('补丁操作仍在处理中，请稍后补记');
+                          if (!retryToken) throw new Error('修订操作仍在处理中，请稍后补记');
                           try {
                             await retryAudit((receipt) =>
                               restoreUndoOperations(receipt, retryToken),
@@ -1100,7 +1100,7 @@ export function useSuggestionWriteback({
               }
               // 正常交付和只补记录共用同一结算；历史回执和迟到完成不授予旧提案权限。
               restoreUndoOperations(undoRecord.receipt, actionToken);
-              emitToast('已撤销，文件回到写回前', { tone: 'success' });
+              emitToast('已撤销，文件回到这次写入之前', { tone: 'success' });
             } finally {
               finishAction(actionToken);
             }
@@ -1131,7 +1131,7 @@ export function useSuggestionWriteback({
         filePath: path ?? '',
         status: 'error',
         action: 'revision_accepted',
-        message: '当前没有待写回的修订。',
+        message: '当前没有待写进文件的修订。',
       });
       return;
     }
@@ -1283,7 +1283,7 @@ export function useSuggestionWriteback({
         );
       setSuggestionStatus(
         (recoveredRecord
-          ? '已核验原写回与闭环记录；未再次写入，保留作者当前编辑'
+          ? '已核验原来那次写入与闭环记录；未再次写入，保留作者当前编辑'
           : loopRecord.recordPath
             ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
             : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
@@ -1294,7 +1294,7 @@ export function useSuggestionWriteback({
         filePath: path,
         status: 'completed',
         action: 'revision_accepted',
-        message: loopRecord.recordPath ? '修订已写回并记录闭环' : '修订已写回',
+        message: loopRecord.recordPath ? '修订已写进文件并记录闭环' : '修订已写进文件',
         runId: suggestion.runId,
         projectPath: projectRoot,
         assistantSessionId: suggestion.assistantSessionId,
@@ -1361,7 +1361,7 @@ export function useSuggestionWriteback({
       const suggestion = pendingSuggestionRef.current;
       const path = filePathRef.current;
       if (!suggestion || !path || suggestion.filePath !== path || !editorRef.current) {
-        setSuggestionStatus('当前没有待写回的修订。');
+        setSuggestionStatus('当前没有待写进文件的修订。');
         return;
       }
 
@@ -1491,7 +1491,7 @@ export function useSuggestionWriteback({
             filePath: path,
             status: 'completed',
             action: 'revision_accepted',
-            message: '修订已全部接受并写回',
+            message: '修订已全部接受并写进文件',
             recordPath: loopRecord.recordPath ?? undefined,
             runId: suggestion.runId,
             projectPath: opState.recovery?.projectPath,
@@ -1510,7 +1510,7 @@ export function useSuggestionWriteback({
         );
         setSuggestionStatus(
           (finished
-            ? '修订已全部接受并写回；一键撤销只回退最后写回的那一次分块，更早的写回见版本历史。'
+            ? '修订已全部接受并写进文件；一键撤销只回退最后写进文件的那一次分块，更早的写入见版本历史。'
             : loopRecord.recordPath
               ? '已接受该修改块并写入当前文件，剩余修改仍可继续确认'
               : '已接受该修改块并写入当前文件') +

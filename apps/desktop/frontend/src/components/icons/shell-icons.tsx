@@ -9,6 +9,7 @@
  *   右栏 composer：发送=ArrowUp / 挂载上下文=Plus
  *   树/会话：ChevronRight·ChevronDown / Folder·FolderOpen·File / 新建文件=FilePlus / 新建文件夹=FolderPlus / 新建会话=MessageSquarePlus / 分支=GitBranch
  *   观测/补丁：勾选=Check
+ *   对话头：上下文=Layers / 章节检查记录=ListChecks
  */
 import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
@@ -30,6 +31,7 @@ import {
   Keyboard,
   Layers,
   Library,
+  ListChecks,
   Maximize2,
   Minus,
   MoreHorizontal,
@@ -39,6 +41,7 @@ import {
   Palette,
   Pencil,
   Plus,
+  Puzzle,
   Radar,
   RefreshCw,
   Search,
@@ -70,6 +73,7 @@ export {
   Keyboard,
   Layers,
   Library,
+  ListChecks,
   Maximize2,
   Minus,
   MoreHorizontal,
@@ -79,6 +83,7 @@ export {
   Palette,
   Pencil,
   Plus,
+  Puzzle,
   Radar,
   RefreshCw,
   Search,

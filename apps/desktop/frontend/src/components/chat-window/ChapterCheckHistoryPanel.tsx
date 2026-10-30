@@ -1,4 +1,7 @@
-import { Button, Textarea } from '../ui';
+import { useRef, useState } from 'react';
+
+import { Button, FloatingSurface, IconButton, Textarea } from '../ui';
+import { ListChecks } from '../icons/shell-icons';
 import type { ChapterCheckEntry } from '../../lib/api/chapter-checks';
 import { formatStoredTimeFull } from '../../lib/stored-time';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
@@ -8,7 +11,7 @@ const executionLabel = {
   failed: '检查执行失败',
   incomplete: '检查未完整执行',
 };
-const manuscriptLabel = { pass: '自动检查通过', fail: '发现稿件问题', unknown: '稿件判断未知' };
+const manuscriptLabel = { pass: '自动检查通过', fail: '发现正文问题', unknown: '正文判断未知' };
 
 function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
   const check = entry.check;
@@ -32,7 +35,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
         {check && (
           <>
             <p>
-              稿件硬问题 {check.manuscriptHardCount} · 建议 {check.advisoryCount}
+              正文硬问题 {check.manuscriptHardCount} · 建议 {check.advisoryCount}
             </p>
             <p>
               提供正文 {check.coverage.suppliedChars} 字 · 来源回显
@@ -54,7 +57,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
                   {finding.rule === 'checker_failure'
                     ? '检查器诊断'
                     : finding.severity === 'hard'
-                      ? '稿件问题'
+                      ? '正文问题'
                       : '建议'}
                   ：{finding.message}
                 </p>
@@ -78,7 +81,7 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
         {entry.candidateContent !== null && (
           <details>
             <summary className="cursor-pointer text-foreground">查看只读候选稿</summary>
-            <p className="my-2">这份候选稿未生成补丁；查看或复制不会写回项目文件。</p>
+            <p className="my-2">这份候选稿未生成修订；查看或复制不会写进作品文件。</p>
             <Textarea
               readOnly
               value={entry.candidateContent}
@@ -93,19 +96,80 @@ function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
   );
 }
 
-export function ChapterCheckHistoryPanel({ history }: { history: ChapterCheckHistoryState }) {
-  if (!history.enabled || (!history.loading && !history.error && !history.entries.length))
-    return null;
+export const CHECK_HISTORY_PANEL_ID = 'conversation-check-history-panel';
+
+/** 最新一条没跑完、没通过，或记录读不到时，按钮上挂个小点提醒作者点开看。 */
+function needsAttention(history: ChapterCheckHistoryState) {
+  if (history.error) return true;
+  const latest = history.entries[0];
+  if (!latest) return false;
+  const check = latest.check;
+  return !check || check.executionStatus !== 'completed' || check.manuscriptStatus === 'fail';
+}
+
+/** 对话头「章节检查记录」按钮：有记录或读取出错才出现，点开是按钮右下方的小浮窗。 */
+export function ChapterCheckHistoryToggle({ history }: { history: ChapterCheckHistoryState }) {
+  if (!history.enabled || (!history.entries.length && !history.error)) return null;
+  return <CheckHistoryButton history={history} />;
+}
+
+// 单独一层：按钮藏起来时连同「已展开」一起卸掉，换会话后有了记录不会自己弹开。
+function CheckHistoryButton({ history }: { history: ChapterCheckHistoryState }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
   return (
-    <section
-      className="mx-auto max-h-[35vh] w-[calc(100%-1.5rem)] max-w-[800px] flex-shrink-0 space-y-2 overflow-auto border-t border-border px-1 py-2"
-      aria-label="章节检查记录"
-      data-testid="chapter-check-history"
-    >
+    <>
+      <IconButton
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        data-testid="conversation-check-history-toggle"
+        size="xs"
+        className={open ? 'relative bg-elevated' : 'relative'}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? CHECK_HISTORY_PANEL_ID : undefined}
+        label={open ? '收起检查记录' : '章节检查记录'}
+        tooltip={open ? '收起检查记录' : '章节检查记录'}
+        icon={
+          <>
+            <ListChecks
+              size={14}
+              strokeWidth={1.6}
+              className={open ? 'text-foreground' : undefined}
+            />
+            {needsAttention(history) && (
+              <span
+                className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-warning"
+                data-testid="check-history-attention-dot"
+              />
+            )}
+          </>
+        }
+      />
+      {open && (
+        <FloatingSurface
+          id={CHECK_HISTORY_PANEL_ID}
+          aria-label="章节检查记录"
+          triggerRef={triggerRef}
+          align="end"
+          onDismiss={() => setOpen(false)}
+          className="max-h-[60vh] w-[24rem] animate-fade-in overflow-y-auto rounded-lg border border-border bg-surface shadow-dropdown"
+        >
+          <ChapterCheckHistoryPanel history={history} />
+        </FloatingSurface>
+      )}
+    </>
+  );
+}
+
+function ChapterCheckHistoryPanel({ history }: { history: ChapterCheckHistoryState }) {
+  return (
+    <section className="space-y-2 px-3 py-2.5" data-testid="chapter-check-history">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-medium text-foreground">章节检查记录</h3>
         <Button size="compact" variant="ghost" onClick={history.reload} disabled={history.loading}>
-          重新读取记录
+          重新读取
         </Button>
       </div>
       {history.loading && (

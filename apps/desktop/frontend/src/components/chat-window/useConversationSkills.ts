@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CONVERSATION_SKILL_DIR } from '@storyforge/project-core';
+import { CONVERSATION_SKILL_DIR, PLUGINS_FILE } from '@storyforge/project-core';
 
 import {
   loadConversationSkills,
@@ -7,6 +7,7 @@ import {
 } from '../../lib/api/conversation-skills';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
+import { PLUGINS_CHANGED_EVENT } from '../../lib/plugin-events';
 import { normalizePathForMatch } from '../../lib/project/path';
 import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/tauri-fs';
 import { emitToast } from '../../lib/toast';
@@ -77,12 +78,13 @@ export type ConversationSkillsView =
   | { status: 'ready'; skills: ConversationSkillItem[] };
 
 const SKILL_DIR = `/${normalizePathForMatch(CONVERSATION_SKILL_DIR)}`;
+const PLUGINS_PATH = `/${normalizePathForMatch(PLUGINS_FILE)}`;
 
-// 写盘广播带路径时只认技能文件夹（或其中的文件）；不带路径的是整体失效，也重读。
+// 写盘广播带路径时只认技能文件夹（或其中的文件）与插件启用文件；不带路径的是整体失效，也重读。
 function touchesSkills(changed: string | undefined): boolean {
   if (!changed) return true;
   const path = `/${normalizePathForMatch(changed)}`;
-  return path.endsWith(SKILL_DIR) || path.includes(`${SKILL_DIR}/`);
+  return path.endsWith(SKILL_DIR) || path.includes(`${SKILL_DIR}/`) || path.endsWith(PLUGINS_PATH);
 }
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -102,8 +104,13 @@ export function useConversationSkills(projectPath: string | null) {
       if (touchesSkills((event as CustomEvent<{ path?: string }>).detail?.path))
         setVersion((value) => value + 1);
     };
+    const onPluginsChanged = () => setVersion((value) => value + 1);
     window.addEventListener(FS_MUTATION_EVENT, onMutation);
-    return () => window.removeEventListener(FS_MUTATION_EVENT, onMutation);
+    window.addEventListener(PLUGINS_CHANGED_EVENT, onPluginsChanged);
+    return () => {
+      window.removeEventListener(FS_MUTATION_EVENT, onMutation);
+      window.removeEventListener(PLUGINS_CHANGED_EVENT, onPluginsChanged);
+    };
   }, []);
 
   useEffect(() => {

@@ -23,9 +23,9 @@ export const AGENT_PERMISSION_PROFILE_OPTIONS: ReadonlyArray<{
   label: string;
   hint: string;
 }> = [
-  { value: 'read', label: '只读', hint: '只读项目、只回答，不产生任何改动' },
-  { value: 'ask', label: '询问', hint: '产出改动，但每次都要你在 diff 里点接受' },
-  { value: 'auto', label: '自动', hint: '项目内改动直接写盘（写前存快照，可撤销）' },
+  { value: 'read', label: '只读', hint: '只读作品、只回答，不产生任何改动' },
+  { value: 'ask', label: '询问', hint: '产出改动，但每次都要你在对比里点接受' },
+  { value: 'auto', label: '自动', hint: '作品内改动直接写进文件（写前存快照，可撤销）' },
 ];
 
 /**

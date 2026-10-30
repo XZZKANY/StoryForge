@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import { ChapterCheckHistoryPanel } from '../src/components/chat-window/ChapterCheckHistoryPanel';
 import { CHAT_COLUMN } from '../src/components/chat-window/column';
 import {
   ContextSummaryPanel,
@@ -75,7 +74,8 @@ test('delivery-unknown action bar keeps its buttons in the chat column', () => {
   );
 });
 
-test('context summary and chapter check history are column-width', () => {
+// 章节检查记录已挪进对话头的小浮窗，不再占对话栏，不在这里校验栏宽。
+test('context summary is column-width', () => {
   const context = mount(
     renderToStaticMarkup(
       <ContextSummaryPanel
@@ -94,37 +94,6 @@ test('context summary and chapter check history are column-width', () => {
     ),
   );
   assert.ok(inColumn(context.querySelector('[data-testid="context-summary"]')));
-
-  const history = mount(
-    renderToStaticMarkup(
-      <ChapterCheckHistoryPanel
-        history={{
-          enabled: true,
-          entries: [
-            {
-              runId: 'run-1',
-              artifactId: 1,
-              targetPath: '正文/第006章.md',
-              createdAt: '2026-10-16T00:00:00',
-              check: null,
-              checkError: null,
-              candidateContent: null,
-              candidateError: null,
-            },
-          ],
-          truncated: false,
-          loading: false,
-          error: null,
-          reload: () => undefined,
-        }}
-      />,
-    ),
-  );
-  const section = history.querySelector('[data-testid="chapter-check-history"]');
-  assert.ok(inColumn(section));
-  assert.ok(history.querySelector('[data-testid="chapter-check-entry"]'));
-  // border-default 不是有效类，会落到 Tailwind 默认的浅灰边线。
-  assert.equal(history.innerHTML.includes('border-default'), false);
 });
 
 test('decision choices and lightweight status sit in the chat column', () => {

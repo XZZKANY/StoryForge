@@ -99,9 +99,9 @@ export function Titlebar({
             onClick={onToggleRight}
             // 与 StatusBar 字数徽标同一套弹层模式：名字稳定（不因展开/收起态翻成相反动作），
             // 态由 aria-expanded 告知；否则只剩视觉图标 + 随态翻转的 title，屏读者拿不到稳定身份。
-            aria-label="Agent 面板"
+            aria-label="AI 面板"
             aria-expanded={!rightCollapsed}
-            title={rightCollapsed ? '展开 Agent 面板' : '收起 Agent 面板'}
+            title={rightCollapsed ? '展开 AI 面板' : '收起 AI 面板'}
             data-testid="titlebar-toggle-right"
           >
             <PanelRight size={14} strokeWidth={1.6} />

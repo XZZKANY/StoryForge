@@ -121,7 +121,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
             <p className="text-2xs leading-relaxed text-subtle">
               {tab === 'history'
                 ? '处理完成或复核过的提案会归入历史。'
-                : 'Agent 提交的知识提案会先在这里等你处理。'}
+                : 'AI 提交的知识提案会先在这里等你处理。'}
             </p>
           </div>
         ) : (
@@ -267,7 +267,7 @@ function ProposalSummary({ proposal }: { proposal: ApiKnowledgeProposalItem }) {
 }
 
 function sourceLabel(source: ApiKnowledgeProposalItem['sources'][number]): string {
-  if (source.type === 'project_file') return source.path ?? '项目文件';
+  if (source.type === 'project_file') return source.path ?? '作品文件';
   if (source.type === 'author_statement') return '作者声明';
   if (source.type === 'external_reference') return source.title ?? source.locator ?? '外部参考';
   return source.type;
@@ -378,7 +378,7 @@ function KnowledgePatchReview({ handle }: { handle: KnowledgeInboxHandle }) {
           onClick={() => void handle.accept()}
           data-testid="knowledge-confirm-writeback"
         >
-          <Check size={11} /> 确认写回
+          <Check size={11} /> 确认写进文件
         </button>
       </div>
     </div>

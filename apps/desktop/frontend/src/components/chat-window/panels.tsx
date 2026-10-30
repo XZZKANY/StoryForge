@@ -47,6 +47,7 @@ export function ConversationHeader({
   onSetLayoutMode,
   onOpenObservatory,
   observatoryAttention = false,
+  checkHistoryToggle,
   contextToggle,
 }: {
   title: string;
@@ -60,6 +61,7 @@ export function ConversationHeader({
   onSetLayoutMode?: (mode: LayoutMode) => void;
   onOpenObservatory?: () => void;
   observatoryAttention?: boolean;
+  checkHistoryToggle?: ReactNode;
   contextToggle?: ReactNode;
 }) {
   // Q5：会话下拉——会话按项目划分，标题变下拉入口（当前项目会话列表 + 新建）。
@@ -80,7 +82,7 @@ export function ConversationHeader({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         data-testid="conversation-session-switch"
-        title="本项目的会话（会话按项目划分，不再放全局左栏）"
+        title="本作品的会话（会话按作品划分，不再放全局左栏）"
       >
         <Sparkles size={13} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
@@ -124,6 +126,7 @@ export function ConversationHeader({
           }
         />
       )}
+      {checkHistoryToggle}
       {contextToggle}
       {/* Q4 布局三态就地控件：对话头切 编辑 / 平衡 / 对话聚焦 */}
       {onSetLayoutMode &&
@@ -559,12 +562,12 @@ export function RunActionBar({
               className="px-2 py-1 text-xs text-muted"
               data-testid="run-accept-writing"
             >
-              {target ? `正在写进稿子（${target}）…` : '正在写进稿子…'}
+              {target ? `正在写进文件（${target}）…` : '正在写进文件…'}
             </div>
           ) : (
             <DecisionChoices
               key={`${run.id}:patch:${approval?.patchId ?? ''}`}
-              title="AI 修订已生成，要写进稿子吗？"
+              title="AI 修订已生成，要写进文件吗？"
               detail={
                 target
                   ? `对比在编辑器里（${target}），看完再选；逐块接受、存成旁注在编辑器底部。`
@@ -573,7 +576,7 @@ export function RunActionBar({
               onTypeAhead={onTypeAhead}
               choices={[
                 {
-                  label: '接受，写进稿子',
+                  label: '接受，写进文件',
                   testid: 'run-accept-patch',
                   onSelect: () => {
                     if (controls.onAcceptPatch?.() === 'accepted')
@@ -799,7 +802,7 @@ export function ContextSummaryPanel({
           data-testid="context-candidates-error"
         >
           <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
-            项目上下文索引失败
+            作品上下文索引失败
           </span>
           <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
           <button
@@ -827,7 +830,7 @@ export function ContextSummaryPanel({
         >
           {contextCandidatesLoading ? (
             <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
-              正在读取项目上下文…
+              正在读取作品上下文…
             </div>
           ) : contextCandidatesError ? (
             errorBannerVisible ? null : (
@@ -836,7 +839,7 @@ export function ContextSummaryPanel({
                 data-testid="context-candidates-picker-error"
               >
                 <span className="min-w-0 flex-1 break-words">
-                  项目上下文索引失败：{contextCandidatesError}
+                  作品上下文索引失败：{contextCandidatesError}
                 </span>
                 <button
                   type="button"
@@ -850,7 +853,7 @@ export function ContextSummaryPanel({
             )
           ) : visibleCandidates.length === 0 ? (
             <div className="px-2 py-1 text-xs text-subtle">
-              当前项目还没有可选的 Markdown 上下文。
+              当前作品还没有可选的 Markdown 上下文。
             </div>
           ) : (
             visibleCandidates.map((file) => {

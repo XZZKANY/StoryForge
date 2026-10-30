@@ -63,7 +63,7 @@ import {
   roleMentions,
   type AgentExecutionOutcome,
 } from './runPayloads';
-import { RunControlScope } from './runControl';
+import { RUN_MAX_DURATION_SECONDS, RunControlScope } from './runControl';
 import {
   buildConversationSystemJobs,
   compactionJob,
@@ -923,6 +923,7 @@ export class AgentRuntime {
         writingReadSources: [],
       }),
       runtimeInterruption: (run, boundary) => this.runtimeInterruption(run, boundary),
+      renewRunDeadline: () => this.control.renewDeadline(RUN_MAX_DURATION_SECONDS),
       checkResultDelivery: (result, boundary, eventsRecorded) => {
         try {
           checkRunInterruption(this.control, boundary);

@@ -199,7 +199,7 @@ export function useKnowledgeInbox(projectRoot: string | null) {
         setReviewPatch(null);
         await refresh();
       }
-      emitToast(result === 'written' ? '知识已写入项目' : '知识写回状态已恢复', {
+      emitToast(result === 'written' ? '知识已写入作品' : '知识写入状态已恢复', {
         tone: 'success',
       });
     } catch (cause) {

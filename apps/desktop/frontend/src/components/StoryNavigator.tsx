@@ -150,7 +150,7 @@ export function StoryNavigator({
   return (
     <div className="flex h-full flex-col bg-panel" data-testid="story-navigator">
       <div className="sf-panel-header">
-        <div className="flex h-7 gap-1 rounded-md p-0.5" role="tablist" aria-label="项目导航视图">
+        <div className="flex h-7 gap-1 rounded-md p-0.5" role="tablist" aria-label="作品导航视图">
           <NavigatorTabButton
             label="文件"
             active={activeTab === 'files'}
@@ -258,7 +258,7 @@ function StoryIndexView({
   if (!projectPath) {
     return (
       <div className="mt-8 mx-4 text-center" data-testid="story-index-empty">
-        <p className="text-sm text-subtle">尚未打开项目</p>
+        <p className="text-sm text-subtle">尚未打开作品</p>
       </div>
     );
   }
@@ -272,7 +272,7 @@ function StoryIndexView({
       <PanelError
         compact
         title="加载故事索引失败"
-        hint="项目结构可能已变动；重试仍失败可先用「文件」页浏览。"
+        hint="作品结构可能已变动；重试仍失败可先用「文件」页浏览。"
         detail={error}
         onRetry={onRetry}
       />
@@ -284,7 +284,7 @@ function StoryIndexView({
       <div className="mx-4 mt-8 text-center" data-testid="story-index-empty">
         <p className="text-sm text-subtle">还没有故事资料</p>
         <p className="mt-2 text-xs leading-5 text-subtle">
-          初始化项目结构后，可以在大纲、人物、设定、时间线和正文里放 Markdown。
+          初始化作品结构后，可以在大纲、人物、设定、时间线和正文里放 Markdown。
         </p>
       </div>
     );

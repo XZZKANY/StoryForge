@@ -742,8 +742,8 @@ test('分块接受至无剩余时给完结反馈，不再暗示「剩余修改�
   assert.equal(handle.pendingSuggestion, null, '内容已达 after 后补丁面板应收起');
   const texts = effects.toast.mock.calls.map((args: unknown[]) => String(args[0]));
   assert.ok(
-    texts.some((text) => text.includes('已全部接受并写回')),
-    '最后一块落盘后应给「已全部接受并写回」的完结反馈',
+    texts.some((text) => text.includes('已全部接受并写进文件')),
+    '最后一块落盘后应给「已全部接受并写进文件」的完结反馈',
   );
   assert.equal(
     texts.some((text) => text.includes('剩余修改仍可继续确认')),
@@ -765,7 +765,7 @@ test('分块接受的撤销 toast 点明撤的是哪一步，不暗示可逐步�
     '撤销 toast 必须标出对应的分块位置，多条并列时才知道各撤哪一步',
   );
   const action = (undoToast[1] as { action: { label: string } }).action;
-  assert.equal(action.label, '撤销本次写回（回到该分块写回前）');
+  assert.equal(action.label, '撤销这次写入（回到该分块写进文件前）');
   assert.doesNotMatch(action.label, /逐步/);
 });
 
@@ -2469,7 +2469,7 @@ test.each([false, true])(
         assert.match(action.label, /重试记录/);
         await act(async () => action.run());
         const cacheNotice = effects.toast.mock.calls.at(-1)!;
-        assert.match(String(cacheNotice[0]), /写回记录已补齐/);
+        assert.match(String(cacheNotice[0]), /写入记录已补齐/);
         assert.match(String(cacheNotice[0]), /canon 派生缓存未失效/);
         assert.equal((cacheNotice[1] as { tone: string }).tone, 'info');
         action = (cacheNotice[1] as { action: typeof action }).action;

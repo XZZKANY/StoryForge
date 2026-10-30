@@ -5,6 +5,7 @@ import { Button, FloatingSurface, IconButton } from '../ui';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { FileText, Layers, Search } from '../icons/shell-icons';
 import { runContextReads, skillsUsedThisRun } from './context-panel';
+import { PluginsBlock } from './PluginsBlock';
 import type { AgentRun } from './types';
 import { useAgentInstructions } from './useAgentInstructions';
 import {
@@ -19,9 +20,11 @@ export const CONTEXT_PANEL_ID = 'conversation-context-panel';
 export function ContextPanelToggle({
   projectPath,
   run,
+  onOpenSettings,
 }: {
   projectPath: string | null;
   run: AgentRun | null;
+  onOpenSettings?: () => void;
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -52,7 +55,17 @@ export function ContextPanelToggle({
           onDismiss={() => setOpen(false)}
           className="w-[22rem] animate-fade-in rounded-lg border border-border bg-surface shadow-dropdown"
         >
-          <ContextPanel projectPath={projectPath} run={run} />
+          <ContextPanel
+            projectPath={projectPath}
+            run={run}
+            onOpenSettings={
+              onOpenSettings &&
+              (() => {
+                setOpen(false);
+                onOpenSettings();
+              })
+            }
+          />
         </FloatingSurface>
       )}
     </>
@@ -375,9 +388,11 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
 export function ContextPanel({
   projectPath,
   run,
+  onOpenSettings,
 }: {
   projectPath: string | null;
   run: AgentRun | null;
+  onOpenSettings?: () => void;
 }) {
   return (
     <div
@@ -386,6 +401,11 @@ export function ContextPanel({
     >
       <InstructionsBlock projectPath={projectPath} />
       <SkillsBlock projectPath={projectPath} run={run} />
+      <PluginsBlock
+        projectPath={projectPath}
+        title={<BlockTitle title="插件" hint="本机插件库 · 勾选这本书要用的" />}
+        onOpenSettings={onOpenSettings}
+      />
       <RunReadsBlock projectPath={projectPath} run={run} />
     </div>
   );

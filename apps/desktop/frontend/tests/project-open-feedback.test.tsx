@@ -77,7 +77,7 @@ test('目录选择异常显示可读原因与下一步，关闭提示后可再�
   await click('打开项目');
   const dialog = container.querySelector('[role="dialog"]');
   expect(dialog).not.toBeNull();
-  expect(dialog?.textContent).toContain('打开项目失败');
+  expect(dialog?.textContent).toContain('打开作品失败');
   expect(dialog?.textContent).toContain('目录选择器暂时不可用');
   expect(dialog?.textContent).toContain('重新选择');
   expect(selectProjectSafely).not.toHaveBeenCalled();

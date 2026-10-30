@@ -37,7 +37,7 @@ type PatchReviewPanelProps = {
 type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry' | 'undo';
 
 const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
-  undo: '撤销写回',
+  undo: '撤销写入',
   accept: '接受',
   hunk: '接受修改块',
   reject: '拒绝',
@@ -70,7 +70,7 @@ type DiffStats = {
 
 /** 工程追溯字段仅进 title/tooltip，主行不展示。 */
 export function buildPatchReviewTraceTitle(suggestion: AssistantFileSuggestion): string {
-  const parts = [`补丁 ${suggestion.id}`];
+  const parts = [`修订 ${suggestion.id}`];
   if (suggestion.assistantSessionId != null) {
     parts.push(`会话 ${suggestion.assistantSessionId}`);
   }
@@ -273,7 +273,7 @@ export function PatchReviewPanel({
         !panel.contains(target) ||
         panel.closest('[hidden], .hidden, [inert], [aria-hidden="true"]') ||
         !target.closest(
-          '[role="group"][aria-label="补丁操作"], [role="group"][aria-label="补丁分块操作"]',
+          '[role="group"][aria-label="修订操作"], [role="group"][aria-label="修订分块操作"]',
         )
       ) {
         return;
@@ -389,7 +389,7 @@ export function PatchReviewPanel({
     zones: placement.zones,
     enabled: expanded,
     renderZone: (zone) => (
-      <div className="sf-patch-hunk-zone-bar" role="group" aria-label="补丁分块操作">
+      <div className="sf-patch-hunk-zone-bar" role="group" aria-label="修订分块操作">
         {zone.hunks.map((placed, position) => (
           <Button
             key={placed.hunk.id}
@@ -545,7 +545,7 @@ export function PatchReviewPanel({
           <div
             className="ml-auto flex max-w-full flex-wrap items-center gap-2"
             role="group"
-            aria-label="补丁操作"
+            aria-label="修订操作"
           >
             <Button
               type="button"
@@ -676,7 +676,7 @@ export function PatchReviewPanel({
           <div
             className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap border-t border-agent/20 px-3 py-1 text-2xs text-muted"
             role="group"
-            aria-label="补丁分块操作"
+            aria-label="修订分块操作"
           >
             <span className="flex-shrink-0">{placement.unplaced.length} 处无法定位</span>
             {placement.unplaced.map((placed) => (

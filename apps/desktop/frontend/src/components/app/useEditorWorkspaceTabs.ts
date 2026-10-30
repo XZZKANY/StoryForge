@@ -241,7 +241,7 @@ export function useEditorWorkspaceTabs({
   const selectProjectSafely = useCallback(
     async (path: string) => {
       const operation = beginCloseOperation();
-      if (!(await confirmDiscardFiles(openFiles, '切换项目', operation)) || !operation.current())
+      if (!(await confirmDiscardFiles(openFiles, '切换作品', operation)) || !operation.current())
         return false;
       resetEditorFiles();
       selectProject(path);
@@ -255,7 +255,7 @@ export function useEditorWorkspaceTabs({
       if (path === activeProject) {
         const operation = beginCloseOperation();
         if (
-          !(await confirmDiscardFiles(openFiles, '移除当前项目', operation)) ||
+          !(await confirmDiscardFiles(openFiles, '移除当前作品', operation)) ||
           !operation.current()
         )
           return;

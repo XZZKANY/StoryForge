@@ -82,7 +82,7 @@ export function projectOverviewActivity({
       assistantSessionId,
       status: 'busy',
       goal: '',
-      message: '正在准备 Agent…',
+      message: '正在准备 AI…',
     };
   }
   return null;
@@ -91,7 +91,7 @@ export function projectOverviewActivity({
 export function overviewActivityLabel(status: AgentRunOverviewStatus): string {
   switch (status) {
     case 'running':
-      return 'Agent 正在工作';
+      return 'AI 正在工作';
     case 'waiting':
       return '等待下一步';
     case 'waiting_permission':
@@ -99,9 +99,9 @@ export function overviewActivityLabel(status: AgentRunOverviewStatus): string {
     case 'waiting_brief':
       return '等待章节 Brief 确认';
     case 'waiting_patch':
-      return '等待修改确认';
+      return '等待修订确认';
     case 'paused':
-      return 'Agent 已暂停';
+      return 'AI 已暂停';
     case 'completed':
       return '本轮已完成';
     case 'stopped':
@@ -109,7 +109,7 @@ export function overviewActivityLabel(status: AgentRunOverviewStatus): string {
     case 'failed':
       return '本轮遇到问题';
     case 'busy':
-      return '正在准备 Agent';
+      return '正在准备 AI';
     case 'session_error':
       return '会话加载失败';
   }

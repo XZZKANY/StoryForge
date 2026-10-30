@@ -78,7 +78,7 @@ export async function sendAgentUserMessage(
   } catch (error) {
     throw rejected(error);
   }
-  if (terminal === null) throw new Error('Agent 流在返回结果前结束。');
+  if (terminal === null) throw new Error('AI 流在返回结果前结束。');
   return terminal;
 }
 
