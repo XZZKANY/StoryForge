@@ -19,7 +19,7 @@ fn app_relative_parts(relative_path: &str) -> Result<Vec<&str>, String> {
         });
     if !clean {
         return Err(format!(
-            "引擎只能写项目的 .storyforge/ 目录: {relative_path}"
+            "引擎只能写入作品的 .storyforge/ 目录: {relative_path}"
         ));
     }
     Ok(parts)
@@ -59,11 +59,11 @@ pub fn write_engine_project_file(
             Err(e) => return Err(format!("无法检查目录 {}: {}", dir.display(), e)),
         }
         let canonical = fs::canonicalize(&dir)
-            .map_err(|e| format!("无法解析项目目录 {}: {}", dir.display(), e))?;
+            .map_err(|e| format!("无法解析作品目录 {}: {}", dir.display(), e))?;
         ensure_canonical_path_inside_project(&root, &canonical, &dir, false)?;
         if !first_component_is_app_dir(&root, &canonical) {
             return Err(format!(
-                "目标不在项目的 .storyforge/ 目录里: {relative_path}"
+                "目标不在作品的 .storyforge/ 目录里: {relative_path}"
             ));
         }
     }

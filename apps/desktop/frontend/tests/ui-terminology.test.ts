@@ -19,11 +19,8 @@ const RETIRED_TERMS: Array<{ term: string; pattern: RegExp; current: string }> =
   { term: '稿件', pattern: /稿件/, current: '正文或文件' },
   { term: '稿子', pattern: /稿子/, current: '正文或文件' },
 ];
-const ALL_TERMS = new Set(RETIRED_TERMS.map(({ term }) => term));
 // 文件 → 这个文件里允许出现的弃用词。
 const EXEMPTIONS: Record<string, ReadonlySet<string>> = {
-  // 照抄 Rust 宿主原话的测试替身，全部词都豁免，宿主改词时一起改。
-  'src/lib/writeback-receipt-fixture.ts': ALL_TERMS,
   // 匹配作者在对话里打的字：作者还会打旧说法「写回」，要继续认。
   'src/lib/local-conversation-action.ts': new Set(['写回']),
   // 新建作品时写进示例文件的小说内容（「完成第一份能被读者追下去的稿子」），不是界面文案。

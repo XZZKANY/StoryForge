@@ -24,7 +24,7 @@ describe('the native read budget ceiling', () => {
       const { root, reader } = open();
       await expect(
         reader.readProjectBytes(root, 'a.md', MAX_NATIVE_READ_BYTES + 1),
-      ).rejects.toThrow(new ProjectReadError('项目文件读取预算无效'));
+      ).rejects.toThrow(new ProjectReadError('作品文件读取预算无效'));
       const read = await reader.readProjectBytes(root, 'a.md', MAX_NATIVE_READ_BYTES);
       expect([read.bytes.length, read.exceeded]).toEqual([6, false]);
     });
