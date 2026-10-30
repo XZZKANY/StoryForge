@@ -51,6 +51,7 @@ const twoProfiles: LlmProfiles = {
       provider: 'anthropic',
       baseUrl: 'https://api.anthropic.com/v1',
       model: 'claude-sonnet',
+      models: ['claude-sonnet'],
       hasApiKey: true,
     },
     {
@@ -59,6 +60,7 @@ const twoProfiles: LlmProfiles = {
       provider: 'kimi',
       baseUrl: 'https://api.moonshot.cn/v1',
       model: 'kimi-k2',
+      models: ['kimi-k2'],
       hasApiKey: false,
     },
   ],

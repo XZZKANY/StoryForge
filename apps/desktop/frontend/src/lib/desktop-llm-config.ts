@@ -7,7 +7,10 @@ export type LlmProfile = {
   name: string;
   provider: string;
   baseUrl: string;
+  /** 这套正在用的模型，总在 models 里。 */
   model: string;
+  /** 勾上要出现在对话下拉里的模型。 */
+  models: string[];
   hasApiKey: boolean;
 };
 
@@ -20,13 +23,14 @@ export type LlmProfiles = {
 
 export type SavedLlmProfile = LlmProfiles & { savedProfileId: string };
 
-/** 不带 id 是新建；Key 留空 = 保持原样，clearApiKey = 清除。 */
+/** 不带 id 是新建；Key 留空 = 保持原样，clearApiKey = 清除；不带 models = 沿用原来勾的。 */
 export type SaveLlmProfileRequest = {
   id?: string;
   name: string;
   provider: string;
   baseUrl: string;
   model: string;
+  models?: string[];
   apiKey?: string;
   clearApiKey?: boolean;
 };
@@ -96,8 +100,11 @@ export const saveLlmProfile = (payload: SaveLlmProfileRequest) =>
 export const deleteLlmProfile = (id: string) =>
   published(call<LlmProfiles>('delete_llm_profile', { id }));
 
-export const activateLlmProfile = (id: string) =>
-  published(call<LlmProfiles>('activate_llm_profile', { id }));
+/** 带 model 时顺带把那套正在用的模型换成它（得是勾过的）。 */
+export const activateLlmProfile = (id: string, model?: string) =>
+  published(
+    call<LlmProfiles>('activate_llm_profile', model === undefined ? { id } : { id, model }),
+  );
 
 export const setPolishLlmProfile = (id: string | null) =>
   published(call<LlmProfiles>('set_llm_polish_profile', { id }));

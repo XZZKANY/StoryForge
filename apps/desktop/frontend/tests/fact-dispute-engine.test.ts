@@ -2,7 +2,7 @@
  * 全项目审计 B-08：先记「老陈出生北城」、之后才在 canon 里补「老陈是陈默的别名」，
  * 再把「陈默出生南城」以本章为准——处理待定时要按作品现在的 canon 认别名，只剩一个有效值。
  */
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import type { ProjectReader } from '@storyforge/engine';
 import { memoryProject } from '../../../../packages/engine/src/kernel/memoryProject.test-support';
 
@@ -52,6 +52,11 @@ const active = (text: string) =>
   (JSON.parse(text).facts as { value: string; status: string }[])
     .filter((fact) => fact.status === 'active')
     .map((fact) => fact.value);
+
+// resolveLedgerDispute 第一次调用才动态加载整个引擎包，满载机器上会超过单条用例的 5 秒预算，先在这里加载。
+beforeAll(async () => {
+  await import('../src/lib/engine/facts');
+}, 60_000);
 
 beforeEach(() => {
   fixture.reader = memoryProject(ROOT, {

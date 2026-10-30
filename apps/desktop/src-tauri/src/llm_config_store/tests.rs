@@ -20,6 +20,14 @@ fn clear_key(id: &str, model: &str) -> SaveLlmProfileRequest {
     .unwrap()
 }
 
+fn with_models(id: Option<&str>, model: &str, models: &[&str]) -> SaveLlmProfileRequest {
+    serde_json::from_value(
+        json!({"id": id, "name": "", "provider": "openai-compatible",
+        "baseUrl": BASE, "model": model, "models": models}),
+    )
+    .unwrap()
+}
+
 fn raw(path: &Path) -> Value {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
 }
@@ -342,7 +350,7 @@ fn activate_mirrors_top_level_and_revealed_slots_follow() {
     let path = dir.path().join("llm-provider.json");
     save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
     save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
-    let listed = activate_profile(&path, "p2").unwrap();
+    let listed = activate_profile(&path, "p2", None).unwrap();
     assert_eq!(listed.active_profile_id.as_deref(), Some("p2"));
     let data = raw(&path);
     assert_eq!(data["model"], "kimi");
@@ -359,7 +367,7 @@ fn activate_mirrors_top_level_and_revealed_slots_follow() {
     set_polish_profile(&path, Some("p1")).unwrap();
     assert_eq!(read_revealed_slot(&path, true).unwrap().model, "claude");
     assert_eq!(read_revealed_slot(&path, false).unwrap().model, "kimi");
-    assert!(activate_profile(&path, "missing").is_err());
+    assert!(activate_profile(&path, "missing", None).is_err());
     assert!(set_polish_profile(&path, Some("missing")).is_err());
     let cleared = set_polish_profile(&path, None).unwrap();
     assert!(cleared.polish_profile_id.is_none());
@@ -436,7 +444,7 @@ fn dangling_active_id_is_repaired_from_the_top_level() {
     let path = dir.path().join("llm-provider.json");
     save_profile(&path, profile(None, "claude", Some("claude-test-sentinel"))).unwrap();
     save_profile(&path, profile(None, "kimi", Some("kimi-test-sentinel"))).unwrap();
-    activate_profile(&path, "p2").unwrap();
+    activate_profile(&path, "p2", None).unwrap();
     let mut data = raw(&path);
     data["activeProfileId"] = json!("gone");
     data["polishProfileId"] = json!("gone-too");
@@ -567,4 +575,41 @@ fn reconcile_write_back_failure_still_serves_the_old_version_edit() {
     assert_eq!(fs::read_to_string(&path).unwrap(), edited);
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1, "不留暂存文件");
     drop(lock);
+}
+
+#[test]
+fn ticked_models_switch_the_current_one_and_survive_saves_without_a_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, with_models(None, "b", &[" a ", "b", "", "a", "c"])).unwrap();
+    assert_eq!(list(&path).unwrap().profiles[0].models, ["a", "b", "c"]);
+
+    let listed = activate_profile(&path, "p1", Some(" c ")).unwrap();
+    assert_eq!(listed.profiles[0].model, "c");
+    assert_eq!(raw(&path)["model"], "c", "顶层照旧镜像当前那套");
+    assert_eq!(read_revealed_slot(&path, false).unwrap().model, "c");
+
+    let refused = activate_profile(&path, "p1", Some("not-ticked")).err().unwrap();
+    assert!(refused.to_string().contains("不在这套配置勾选的列表里"));
+    assert_eq!(list(&path).unwrap().profiles[0].model, "c");
+
+    // 移除 Key 之类不带列表的保存：勾的那些原样留着；换了个没勾的当前模型就补进列表最前。
+    save_profile(&path, clear_key("p1", "d")).unwrap();
+    let after = list(&path).unwrap();
+    assert_eq!(after.profiles[0].model, "d");
+    assert_eq!(after.profiles[0].models, ["d", "a", "b", "c"]);
+}
+
+#[test]
+fn files_without_a_model_list_show_the_current_model() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("llm-provider.json");
+    save_profile(&path, profile(None, "m", None)).unwrap();
+    let mut data = raw(&path);
+    data["profiles"][0].as_object_mut().unwrap().remove("models");
+    fs::write(&path, data.to_string()).unwrap();
+    let listed = list(&path).unwrap();
+    assert_eq!(listed.profiles[0].models, ["m"]);
+    activate_profile(&path, "p1", Some("m")).unwrap();
+    assert!(activate_profile(&path, "p1", Some("other")).is_err());
 }

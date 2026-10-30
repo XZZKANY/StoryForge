@@ -5,7 +5,7 @@ import {
   subscribeLlmProfiles,
   type LlmProfiles,
 } from '../../lib/desktop-llm-config';
-import { profileTitle } from '../../lib/provider-config';
+import { providerTitle } from '../../lib/provider-config';
 import { ComposerMenuSelect, type ComposerMenuOption } from './ComposerMenuSelect';
 
 const OPEN_SETTINGS = '__open-settings__';
@@ -21,7 +21,10 @@ interface ModelProfileSelectorProps {
   onOpenSettings?: () => void;
 }
 
-/** 切的是全局「当前那套」，等同在设置里点配置卡；下一次调用生效。 */
+type Choice = { id: string; model: string };
+const choiceKey = ({ id, model }: Choice) => `${id}/${model}`;
+
+/** 按服务商分组列出各套勾过的模型；选一个 = 切到那套并换成这个模型（全局），下一次调用生效。 */
 export function ModelProfileSelector({
   disabled = false,
   busy = false,
@@ -62,25 +65,29 @@ export function ModelProfileSelector({
 
   const profiles = list?.profiles ?? [];
   const active = profiles.find((profile) => profile.id === list?.activeProfileId) ?? null;
-  const options: ComposerMenuOption<string>[] = profiles.length
-    ? profiles.map((profile) => ({
-        value: profile.id,
-        label: profileTitle(profile),
-        hint: profile.model.trim() || '未选模型',
-      }))
-    : onOpenSettings
-      ? [{ value: OPEN_SETTINGS, label: '去设置里添加' }]
-      : [];
+  const choices = new Map<string, Choice>();
+  const options: ComposerMenuOption<string>[] = [];
+  for (const profile of profiles) {
+    for (const model of profile.models) {
+      const choice = { id: profile.id, model };
+      choices.set(choiceKey(choice), choice);
+      options.push({ value: choiceKey(choice), label: model, group: providerTitle(profile) });
+    }
+  }
+  if (onOpenSettings)
+    options.push({ value: OPEN_SETTINGS, label: options.length ? '管理模型…' : '去设置里添加' });
+  const current = active?.model.trim() ? choiceKey({ id: active.id, model: active.model }) : null;
 
-  const select = async (id: string): Promise<boolean> => {
-    if (id === OPEN_SETTINGS) {
+  const select = async (value: string): Promise<boolean> => {
+    if (value === OPEN_SETTINGS) {
       onOpenSettings?.();
       return true;
     }
-    if (id === list?.activeProfileId) return true;
+    const choice = choices.get(value);
+    if (!choice || value === current) return true;
     setError('');
     try {
-      const next = await activateLlmProfile(id);
+      const next = await activateLlmProfile(choice.id, choice.model);
       if (aliveRef.current && next) setList(next);
       return true;
     } catch (failure) {
@@ -93,21 +100,21 @@ export function ModelProfileSelector({
     <span role="alert" className="text-error">
       {error}
     </span>
-  ) : profiles.length || onOpenSettings ? null : (
+  ) : choices.size || onOpenSettings ? null : (
     '还没有模型配置，在设置里添加后可在这里切换。'
   );
 
   return (
     <ComposerMenuSelect
       options={options}
-      selected={active?.id ?? null}
+      selected={current}
       onSelect={select}
-      triggerText={active ? profileTitle(active) : '未配置模型'}
+      triggerText={active ? active.model.trim() || '未选模型' : '未配置模型'}
       triggerTitle={
-        active ? `${profileTitle(active)} · ${active.model.trim() || '未选模型'}` : '未配置模型'
+        active ? `${providerTitle(active)} · ${active.model.trim() || '未选模型'}` : '未配置模型'
       }
-      ariaLabel="当前模型配置"
-      menuLabel="选择模型配置"
+      ariaLabel="当前模型"
+      menuLabel="选择模型"
       testId="model-profile-selector"
       disabled={disabled}
       busy={busy}

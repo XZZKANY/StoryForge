@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { once } from 'node:events';
-import { tmpdir } from 'node:os';
+import { freemem, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
@@ -88,7 +89,9 @@ try {
   const send = async () => page.getByRole('textbox', { name: '续写方向（可留空）' }).press('Enter');
   const accept = page.getByRole('button', { name: '接受（Alt+Enter）' });
   const reject = page.getByRole('button', { name: '弃用（Esc）' });
-  await page.goto(url + '__inline-audit');
+  // 每次都是新的 Vite 缓存，load 要等 Monaco 整张模块图冷编译完：空闲 5–10s，
+  // 同机跑整套 vitest 时实测 58s、63s，超过默认 30s。只放宽这一步。
+  await page.goto(url + '__inline-audit', { timeout: 120000 });
   await page.waitForFunction(() => document.documentElement.dataset.inlineReady === 'true');
   await open();
   await send();
@@ -177,29 +180,80 @@ try {
   );
   console.log(JSON.stringify({ status: 'passed', results }, null, 2));
 } catch (error) {
+  // 原始错误先打出来、先落盘，再收集证据：满载时失败截图卡在等字体，它的超时曾把原始错误盖掉。
+  // 每项证据单独限时，收集失败只记进 evidenceErrors，最后仍抛原始错误。
+  console.error('Inline continuation regression failed (original error):');
+  console.error(error);
+  const failure = {
+    error: String(error),
+    stack: error?.stack,
+    elapsedMs: Math.round(process.uptime() * 1000),
+    freeMemoryMB: Math.round(freemem() / 1024 / 1024),
+    results,
+    errors,
+    evidenceErrors: [],
+  };
+  const saveFailure = () =>
+    writeFile(evidence + '/failure.json', JSON.stringify(failure, null, 2)).catch((e) =>
+      console.error('failure.json write failed: ' + String(e)),
+    );
+  await saveFailure();
   const page = browser?.contexts()[0]?.pages()[0];
   if (page) {
-    await page.screenshot({ path: evidence + '/failure.png' });
-    await writeFile(evidence + '/failure-dom.html', await page.content());
-    await writeFile(
-      evidence + '/failure-state.json',
-      JSON.stringify(
-        await page.evaluate(() => ({
-          text: document.body.innerText,
-          active: document.activeElement?.outerHTML,
-          audit: window.__INLINE_AUDIT__
-            ? { requests: window.__INLINE_AUDIT__.requests, ready: window.__INLINE_AUDIT__.ready }
-            : null,
-        })),
-        null,
-        2,
-      ),
-    );
+    const evidenceSteps = [
+      [
+        'failure.png',
+        // page.screenshot 会等 document.fonts.ready；CDP 直接截当前画面，不等字体。
+        async () => {
+          const cdp = await page.context().newCDPSession(page);
+          const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+          await writeFile(evidence + '/failure.png', Buffer.from(data, 'base64'));
+        },
+      ],
+      [
+        'failure-dom.html',
+        async () => writeFile(evidence + '/failure-dom.html', await page.content()),
+      ],
+      [
+        'failure-state.json',
+        async () =>
+          writeFile(
+            evidence + '/failure-state.json',
+            JSON.stringify(
+              await page.evaluate(() => ({
+                text: document.body.innerText,
+                active: document.activeElement?.outerHTML,
+                audit: window.__INLINE_AUDIT__
+                  ? {
+                      requests: window.__INLINE_AUDIT__.requests,
+                      ready: window.__INLINE_AUDIT__.ready,
+                    }
+                  : null,
+              })),
+              null,
+              2,
+            ),
+          ),
+      ],
+    ];
+    for (const [name, collect] of evidenceSteps) {
+      let timer;
+      try {
+        await Promise.race([
+          collect(),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('timed out after 5000ms')), 5000);
+          }),
+        ]);
+      } catch (evidenceError) {
+        failure.evidenceErrors.push(name + ': ' + String(evidenceError));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    await saveFailure();
   }
-  await writeFile(
-    evidence + '/failure.json',
-    JSON.stringify({ error: String(error), stack: error.stack, results, errors }, null, 2),
-  );
+  console.error('Failure evidence: ' + evidence);
   throw error;
 } finally {
   try {

@@ -177,9 +177,10 @@ function ProfileCard({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const title = profileTitle(profile);
   const kind = providerKindOr(profile.provider, 'openai-compatible');
+  const count = profile.models.length > 1 ? profile.models.length : 0;
   const subtitle = profile.name.trim()
-    ? `${getProviderPreset(kind).label} · ${profile.model || '未选模型'}`
-    : hostOf(profile.baseUrl);
+    ? `${getProviderPreset(kind).label} · ${profile.model || '未选模型'}${count ? ` 等 ${count} 个` : ''}`
+    : `${hostOf(profile.baseUrl)}${count ? ` · 共 ${count} 个模型` : ''}`;
   const display = health && health !== 'loading' ? describeProviderHealth(health) : null;
   const tone =
     display?.tone === 'ok'
