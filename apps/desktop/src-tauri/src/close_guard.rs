@@ -115,6 +115,8 @@ pub fn resolve_close_request(
 ) {
     if guard.resolve(request, proceed) {
         app.exit(0);
+    } else if !proceed {
+        crate::app_update::disarm(&app);
     }
 }
 
