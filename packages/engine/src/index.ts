@@ -238,6 +238,18 @@ export {
 export { conversationSkillsBlock, loadConversationSkills } from './kernel/conversationSkills';
 export type { ConversationSkill } from './kernel/conversationSkills';
 export {
+  describePlugin,
+  listInstalledPlugins,
+  readEnabledPluginNames,
+  resolveEnabledPlugins,
+} from './kernel/plugins';
+export type {
+  PluginDescription,
+  PluginEntry,
+  PluginInstructions,
+  PluginManifest,
+} from './kernel/plugins';
+export {
   authorCommandText,
   AuthorEditPolicyError,
   authorEditPolicyFailures,
