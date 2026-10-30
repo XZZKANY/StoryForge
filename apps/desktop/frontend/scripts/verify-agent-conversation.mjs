@@ -644,6 +644,9 @@ try {
   await batchCard.waitFor({ timeout: 5000 });
   await batchCard.getByText('批量写第 1–3 章', { exact: true }).waitFor({ timeout: 5000 });
   await batchCard
+    .getByText('要写 2 章 · 预估 12.4 万 · 上限 18.6 万', { exact: true })
+    .waitFor({ timeout: 5000 });
+  await batchCard
     .getByText('按本书最近 4 章，每章平均 6.2 万（最少 4.8 万、最多 9.1 万）。', { exact: false })
     .waitFor({ timeout: 5000 });
   if ((await input.inputValue()) !== '') {

@@ -18,10 +18,13 @@ export function PartnerOpening({
   handoff,
   onDraft,
   onAsk,
+  actionsHidden = false,
 }: {
   handoff: ChapterHandoff;
   onDraft: (request: ChapterWriteRequest) => void;
   onAsk: (prompt: string) => void;
+  /** 批量写章确认卡开着时藏起会直接发话、起草的按钮，卡关掉再出来。 */
+  actionsHidden?: boolean;
 }) {
   const next = handoff.next.chapterOrdinal;
   const last = handoff.lastChapter;
@@ -70,56 +73,58 @@ export function PartnerOpening({
             <p>第 {next} 章从哪儿接？</p>
           </>
         )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            type="button"
-            className={chip}
-            onClick={() => onAsk(discussNextChapterPrompt(handoff))}
-            data-testid="partner-opening-discuss"
-          >
-            {last === null ? '聊聊这本书想写什么' : `先聊聊第 ${next} 章怎么走`}
-          </button>
-          {last === null ? (
-            <>
-              <button
-                type="button"
-                className={chip}
-                onClick={() => onAsk(DISCUSS_PROTAGONIST_PROMPT)}
-                data-testid="partner-opening-protagonist"
-              >
-                先想主角
-              </button>
-              <button
-                type="button"
-                className={chip}
-                onClick={() => onAsk(DISCUSS_WORLD_PROMPT)}
-                data-testid="partner-opening-world"
-              >
-                先搭世界观
-              </button>
-            </>
-          ) : null}
-          {promise ? (
+        {actionsHidden ? null : (
+          <div className="flex flex-wrap gap-2 pt-1">
             <button
               type="button"
               className={chip}
-              onClick={() => onAsk(pickUpPromisePrompt(handoff, promise))}
-              data-testid="partner-opening-promise"
-              title={`「${promise.title}」${stalePromiseDetail(promise)}`}
+              onClick={() => onAsk(discussNextChapterPrompt(handoff))}
+              data-testid="partner-opening-discuss"
             >
-              <span className="truncate">接上「{promise.title}」</span>
+              {last === null ? '聊聊这本书想写什么' : `先聊聊第 ${next} 章怎么走`}
             </button>
-          ) : null}
-          <button
-            type="button"
-            className={chip}
-            onClick={() => onDraft(handoff.next)}
-            data-testid="partner-opening-draft"
-          >
-            <Sparkles size={13} strokeWidth={1.8} aria-hidden="true" />
-            {last === null ? '直接起草第 1 章' : `起草第 ${next} 章`}
-          </button>
-        </div>
+            {last === null ? (
+              <>
+                <button
+                  type="button"
+                  className={chip}
+                  onClick={() => onAsk(DISCUSS_PROTAGONIST_PROMPT)}
+                  data-testid="partner-opening-protagonist"
+                >
+                  先想主角
+                </button>
+                <button
+                  type="button"
+                  className={chip}
+                  onClick={() => onAsk(DISCUSS_WORLD_PROMPT)}
+                  data-testid="partner-opening-world"
+                >
+                  先搭世界观
+                </button>
+              </>
+            ) : null}
+            {promise ? (
+              <button
+                type="button"
+                className={chip}
+                onClick={() => onAsk(pickUpPromisePrompt(handoff, promise))}
+                data-testid="partner-opening-promise"
+                title={`「${promise.title}」${stalePromiseDetail(promise)}`}
+              >
+                <span className="truncate">接上「{promise.title}」</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={chip}
+              onClick={() => onDraft(handoff.next)}
+              data-testid="partner-opening-draft"
+            >
+              <Sparkles size={13} strokeWidth={1.8} aria-hidden="true" />
+              {last === null ? '直接起草第 1 章' : `起草第 ${next} 章`}
+            </button>
+          </div>
+        )}
         {sources.length > 0 ? (
           <p className="text-2xs leading-5 text-subtle">依据：{sources.join(' · ')}</p>
         ) : null}

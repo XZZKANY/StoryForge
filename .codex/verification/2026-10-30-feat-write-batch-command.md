@@ -41,3 +41,28 @@
   - 试写模式也照列「到了上限会……」那句固定说明，但试写不给上限，读起来有点对不上；待定。
   - 卡开着时，开场的「起草第 N 章」、编辑器的「AI 起草下一章」等不经输入框的入口仍能发起写章，没有拦（E 刀接调度器时一起看）。
   - `/写` 后面跟的不是范围（如 `/写 这几章快一点`）按格式不对处理，不当成续写加要求。
+
+## 2026-10-30 确认卡改版：摘要行、章列表卡内滚动、底部按钮常驻、卡开着时藏起会发起写章的快捷按钮
+
+- 改动（按审阅意见；上一节「待定」里的折叠行数、试写上限句、快捷按钮三条在这里收口）：
+  - `WriteBatchCard.tsx` 从上到下改成：标题 → 紧贴的摘要行（可开跑且有历史「要写 N 章 · 预估 A 万 · 上限 B 万」；试写「先试写第 k 章量一量」；有不能开跑的原因「有 M 处要先处理」）→「要求：…」→ 不能开跑的原因 → 章列表 → 底部区。
+    - 章列表限高 `max-h-44`（11rem，每章两行字加内边距约 2.9rem，露出将近 4 行），卡内滚动；去掉「还有 N 章」；「要写」不再挂小标，只有「已有正文，跳过」「试写后再估」挂。
+    - 底部区 `flex-shrink-0` 常驻：详细说明收成 `text-2xs`，放在按钮上方。有历史时写每章平均 / 最少 / 最多、估算与没拿到用量的次数、「这里算的是 token 数，不是钱」；预估与上限已在摘要行，详细说明里不再重复。试写时写引擎给的说明。固定说明也在这里。
+    - 「到了上限……」只在有上限（有历史）时出现，试写不出。
+    - 卡片是 `flex-col`，中段（原因 + 列表）`min-h-0 overflow-y-auto`。窗口再矮时让中段让位，按钮不随列表滚走。
+  - `ChatWindowView.tsx`：批量写章那一层不再整体滚，交给卡片自己管。最大高度从章纲卡同款的 60% 提到 70%：1400×759 下 60% 只露得出 3 章，70% 露出将近 4 章。卡开着时给开场 `PartnerOpening` 传 `actionsHidden`，藏起「先聊聊第 N 章怎么走」「起草第 N 章」等全部按钮，开场的话照留，卡关掉按钮回来。
+  - 新 `src/lib/write-batch-card.ts`：一个卡开没开的开关（`useSyncExternalStore`）。`ChatWindow.tsx` 按 `submission.writeBatch` 拨它，卸载时拨回 false；「AI 起草下一章」事件在卡开着时也拦下，提示同章纲待确认时那句。`App.tsx`：卡开着时传给总览与手稿视图的 `onDraftNextChapter` 为 undefined，两处「AI 起草下一章」按钮随之不出。App 现 386 行，上限 400。
+  - 没藏的：总览主按钮「和 AI 聊聊这本书」（它同时是没有正文时的主入口，而且只是切到对话栏、不直接发话）、观测镜的「让 AI 查」（经输入框同一条提交路，卡开着时被拦下并提示，话留在输入框）。
+- 验证（按要求没跑整套 `pnpm verify` 与前端全量）：
+  - 相关前端测试一起跑：`write-batch-card` / `write-batch-menu` / `write-batch-quick-actions`（新）/ `composer-skill-commands` / `chapter-write-request` / `partner-opening` / `chat-pending-message` / `book-overview` / `manuscript-view` / `source-standards` / `ui-terminology`，11 个文件 102 passed。
+    - `write-batch-card.test.tsx` 改了期望：摘要行三种、「要写」不挂标、详细说明不再带预估与上限、试写不出上限句、15 章全列在限高列表里且说明与按钮在列表外的底部区。另加一条：卡开着时开场按钮全藏、开场的话照留，关卡后回来、点「起草第 4 章」照常交出请求。
+    - `chapter-write-request.test.tsx` 加一条：经真 `ChatWindow` 打 `/写 4-6` 后开关为开、起草事件被拦并提示，关卡后开关为关、起草恢复。
+    - 新 `write-batch-quick-actions.test.tsx` 用真 `App` 拨开关：总览「AI 起草第 N 章」随开关出没。冷启动编 App 约 22 秒，单条超时放宽到 30 秒。
+  - `npm --prefix apps/desktop/frontend run typecheck` EXIT=0；改动文件 eslint、prettier 通过。
+  - 浏览器回归单跑 `node scripts/verify-agent-conversation.mjs`：通过，`/写 1-3` 那段多核了摘要行「要写 2 章 · 预估 12.4 万 · 上限 18.6 万」。
+  - 变异（`output/write-batch-card/mutate2.py`，每处断言目标串恰好 1 次、无条件按原字节还原）5 处全红：M9 摘要行没了、M10 试写也说上限、M11 开场快捷按钮不藏（以上跑 `write-batch-card.test.tsx`）；M12 壳层不藏「AI 起草下一章」（跑 `write-batch-quick-actions.test.tsx`，红在断言而不是超时）；M13 对话窗口不对外报卡开着（跑 `chapter-write-request.test.tsx`）。
+  - 截图重截，覆盖到 `output/write-batch-card/`（1400×759、浅色暖色）：`1-history.png`（第 4–10 章）、`2-trial.png`、`3-blockers.png`、`4-invalid.png`，另加 `5-history-15.png`（第 1–15 章，第 1 章跳过、要写 14 章）。上一轮的 `-scrolled` 与 `1b-` 已删。五张里按钮都在卡片底部可见，开场按钮都已藏起。
+- 行尾：`ChatWindowView.tsx` 仍全 CRLF；其余改动与新建文件全 LF。`--numstat` 与 `--ignore-all-space --numstat` 只在 `PartnerOpening.tsx`（按钮区包进条件多缩进一层）和 `WriteBatchCard.tsx`（分成头 / 中 / 底三段重新缩进）上不同。
+- 未覆盖：
+  - 列表露出的行数随窗口高度变。1400×759 下有历史的卡露出将近 4 章，窗口再矮会少。
+  - 开关是全应用一份：当前只有一个常驻对话窗口，以后要是同时开两个，要改成按作品分开记。

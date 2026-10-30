@@ -32,6 +32,7 @@ import {
   type RetryWithoutKnowledge,
 } from '../lib/assistant-events';
 import { emitToast } from '../lib/toast';
+import { isWriteBatchCardOpen, setWriteBatchCardOpen } from '../lib/write-batch-card';
 
 export {
   filePathFromAgentResult,
@@ -97,6 +98,9 @@ export function ChatWindow(props: ChatWindowProps) {
   );
   const controls = useAgentRunControls(state, runAuthorAgent, applyAgentStreamEvent, recovery);
   const submission = useChatSubmission(state, runAuthorAgent, props);
+  const writeBatchOpen = submission.writeBatch !== null;
+  useEffect(() => setWriteBatchCardOpen(writeBatchOpen), [writeBatchOpen]);
+  useEffect(() => () => setWriteBatchCardOpen(false), []);
   // 只在新会话、还没说过一句话时开场；旧会话有自己的上下文，不插话。
   const openingVisible =
     Boolean(projectPath) &&
@@ -198,7 +202,8 @@ export function ChatWindow(props: ChatWindowProps) {
   useEffect(() => {
     const onChapterWrite = (event: Event) => {
       const detail = (event as CustomEvent<ChapterWriteRequest>).detail;
-      if (state.agentBusy || state.chapterBrief || state.agentRun?.status === 'waiting') {
+      const pending = state.chapterBrief || state.agentRun?.status === 'waiting';
+      if (state.agentBusy || pending || isWriteBatchCardOpen()) {
         emitToast('先处理当前待确认内容，再发起新的起草。', { tone: 'info' });
         return;
       }

@@ -11,19 +11,10 @@ import type {
 } from '../../lib/api/contracts';
 import { planWriteBatch } from '../../lib/api/write-batch';
 
-/** 章多时默认只列前几章，其余收起来。 */
-export const WRITE_BATCH_VISIBLE_CHAPTERS = 8;
-
-const STATUS_LABEL: Record<ApiWriteBatchChapter['status'], string> = {
-  write: '要写',
+/** 只有不写的章挂小标；要写的是默认，不标。 */
+const STATUS_TAG: Partial<Record<ApiWriteBatchChapter['status'], string>> = {
   skip_written: '已有正文，跳过',
   after_trial: '试写后再估',
-};
-
-const STATUS_CLASS: Record<ApiWriteBatchChapter['status'], string> = {
-  write: 'border-border-strong text-foreground',
-  skip_written: 'border-border text-subtle',
-  after_trial: 'border-border text-muted',
 };
 
 /** token 数按「万」显示，保留一位小数。 */
@@ -31,12 +22,26 @@ export function formatTenThousands(tokens: number): string {
   return (tokens / 10_000).toFixed(1);
 }
 
-function estimateText(estimate: ApiWriteBatchEstimate): string[] {
+/** 标题下紧贴的一行：能不能开跑、要花多少，一眼看清。 */
+export function planSummary(plan: ApiWriteBatchPlan): string | null {
+  if (plan.blockers.length > 0) return `有 ${plan.blockers.length} 处要先处理`;
+  if (!plan.can_start) return null;
+  if (plan.estimate) {
+    const wan = formatTenThousands;
+    return (
+      `要写 ${plan.estimate.chapter_count} 章 · 预估 ${wan(plan.estimate.estimated_tokens)} 万` +
+      ` · 上限 ${wan(plan.estimate.cap_tokens)} 万`
+    );
+  }
+  const first = plan.chapters.find((chapter) => chapter.status === 'write');
+  return plan.basis === 'trial' && first ? `先试写第 ${first.ordinal} 章量一量` : null;
+}
+
+function estimateDetails(estimate: ApiWriteBatchEstimate): string[] {
   const wan = formatTenThousands;
   const lines = [
     `按本书最近 ${estimate.sample_count} 章，每章平均 ${wan(estimate.average_tokens)} 万` +
-      `（最少 ${wan(estimate.min_tokens)} 万、最多 ${wan(estimate.max_tokens)} 万）。` +
-      `预估 ${wan(estimate.estimated_tokens)} 万，上限 ${wan(estimate.cap_tokens)} 万。`,
+      `（最少 ${wan(estimate.min_tokens)} 万、最多 ${wan(estimate.max_tokens)} 万）。`,
   ];
   const parts = [
     estimate.estimated_calls > 0 && `${estimate.estimated_calls} 次服务商没报用量，是按字数估的`,
@@ -99,6 +104,8 @@ function useWriteBatchPlan(
 /**
  * `/写 …` 的确认卡：列出这一批写哪几章、为什么还不能开始、预估多少。只出卡不开跑，
  * 「开始写」只把计划交给外面传进来的 onStart。
+ * 从上到下：标题与摘要 → 不能开跑的原因 → 章列表（限高、卡内滚动）→ 底部说明与按钮。
+ * 右栏窄、窗口矮时让中间一段让位，底部按钮始终露在卡片里。
  */
 export function WriteBatchCard({
   command,
@@ -115,160 +122,168 @@ export function WriteBatchCard({
   onClose: () => void;
 }) {
   const view = useWriteBatchPlan(command, projectPath, permissionProfile);
-  const [showAll, setShowAll] = useState(false);
   const startHintId = useId();
   const plan = view?.status === 'ready' ? view.plan : null;
   // 能开跑的计划；有不能开跑的原因时为 null，卡上不给「开始写」。
   const ready = plan?.can_start ? plan : null;
+  const summary = plan ? planSummary(plan) : null;
   const chapters = plan?.chapters ?? [];
-  const visible = showAll ? chapters : chapters.slice(0, WRITE_BATCH_VISIBLE_CHAPTERS);
-  const hiddenCount = chapters.length - visible.length;
   return (
     <section
-      className="rounded-lg border border-agent/40 bg-panel px-3 py-3"
+      className="flex min-h-0 flex-col rounded-lg border border-agent/40 bg-panel px-3 py-3"
       aria-label={cardTitle(command)}
       data-testid="write-batch-card"
     >
-      <div className="text-xs font-semibold text-foreground" data-testid="write-batch-title">
-        {cardTitle(command)}
-      </div>
-      {command.kind === 'range' && command.note && (
-        <div className="mt-1 truncate text-xs text-subtle" title={command.note}>
-          要求：{command.note}
+      <div className="flex-shrink-0">
+        <div className="text-xs font-semibold text-foreground" data-testid="write-batch-title">
+          {cardTitle(command)}
         </div>
-      )}
-      {command.kind === 'invalid' && (
-        <div className="mt-2 text-xs" data-testid="write-batch-invalid">
-          <p className="text-foreground">{command.message}</p>
-          <ul className="mt-2 space-y-1">
-            {WRITE_BATCH_USAGE.map((item) => (
-              <li key={item.example} className="flex gap-2">
-                <span className="shrink-0 text-foreground">{item.example}</span>
-                <span className="text-subtle">{item.meaning}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {view?.status === 'loading' && (
-        <p className="mt-2 text-xs text-muted" role="status" data-testid="write-batch-loading">
-          正在排这一批…
-        </p>
-      )}
-      {view?.status === 'error' && (
-        <p
-          className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-xs text-warning"
-          data-testid="write-batch-error"
-        >
-          排不出这一批：{view.message}
-        </p>
-      )}
-      {/* 不能开跑的原因放在章列表前面：章多时列表会把它挤到要滚动才看得见的地方。 */}
-      {plan && plan.blockers.length > 0 && (
-        <div
-          className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2"
-          data-testid="write-batch-blockers"
-        >
-          <div className="text-xs font-medium text-warning">还不能开始写</div>
-          <ul className="mt-1 space-y-1 text-xs text-foreground">
-            {plan.blockers.map((blocker) => (
-              <li key={blocker.code} data-testid="write-batch-blocker">
-                {blocker.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {chapters.length > 0 && (
-        <ul className="mt-2 divide-y divide-border/60" data-testid="write-batch-chapters">
-          {visible.map((chapter) => (
-            <li
-              key={chapter.ordinal}
-              className="flex items-start gap-2 py-1.5"
-              data-testid="write-batch-chapter"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs text-foreground">
-                  第 {chapter.ordinal} 章{chapter.title ? `《${chapter.title}》` : ''}
-                </div>
-                <div
-                  className="mt-0.5 truncate text-3xs text-subtle"
-                  title={chapter.goal ?? undefined}
-                >
-                  {chapter.goal ?? '计划里没写本章目标'}
-                </div>
-              </div>
-              <span
-                className={`shrink-0 rounded-md border px-1.5 py-0.5 text-3xs ${STATUS_CLASS[chapter.status]}`}
-              >
-                {STATUS_LABEL[chapter.status]}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {hiddenCount > 0 && (
-        <button
-          type="button"
-          className="mt-1 block text-left text-xs text-subtle transition-colors hover:text-foreground"
-          onClick={() => setShowAll(true)}
-          data-testid="write-batch-more"
-        >
-          还有 {hiddenCount} 章
-        </button>
-      )}
-      {ready?.basis === 'history' && ready.estimate && (
-        <div className="mt-2 space-y-1 text-xs text-foreground" data-testid="write-batch-estimate">
-          {estimateText(ready.estimate).map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-      )}
-      {ready?.basis === 'trial' && ready.note && (
-        <p className="mt-2 text-xs text-foreground" data-testid="write-batch-trial">
-          {ready.note}
-        </p>
-      )}
-      {ready && (
-        <ul className="mt-2 space-y-1 text-xs text-muted" data-testid="write-batch-notes">
-          <li>写完直接写进文件，每章写进去之前都留快照，可以撤销。</li>
-          <li>到了上限会把正在写的这一章写完再停，实际用量可能比上限多出一章。</li>
-          {ready.permission_profile === 'ask' && (
-            <li>这一批的修订不用逐章点接受，算你这次点了开始的授权；平时的权限档位不变。</li>
-          )}
-        </ul>
-      )}
-      <div className="mt-3 flex items-center justify-end gap-2">
-        {ready && !onStart && (
-          <span id={startHintId} className="mr-auto text-3xs text-subtle">
-            下一步接上
-          </span>
+        {summary && (
+          <div className="mt-0.5 text-xs text-muted" data-testid="write-batch-summary">
+            {summary}
+          </div>
         )}
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="text-xs"
-          onClick={onClose}
-          data-testid="write-batch-close"
-        >
-          {ready ? '取消' : '关闭'}
-        </Button>
+        {command.kind === 'range' && command.note && (
+          <div className="mt-0.5 truncate text-xs text-subtle" title={command.note}>
+            要求：{command.note}
+          </div>
+        )}
+      </div>
+      <div className="min-h-0 overflow-y-auto">
+        {command.kind === 'invalid' && (
+          <div className="mt-2 text-xs" data-testid="write-batch-invalid">
+            <p className="text-foreground">{command.message}</p>
+            <ul className="mt-2 space-y-1">
+              {WRITE_BATCH_USAGE.map((item) => (
+                <li key={item.example} className="flex gap-2">
+                  <span className="shrink-0 text-foreground">{item.example}</span>
+                  <span className="text-subtle">{item.meaning}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {view?.status === 'loading' && (
+          <p className="mt-2 text-xs text-muted" role="status" data-testid="write-batch-loading">
+            正在排这一批…
+          </p>
+        )}
+        {view?.status === 'error' && (
+          <p
+            className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-xs text-warning"
+            data-testid="write-batch-error"
+          >
+            排不出这一批：{view.message}
+          </p>
+        )}
+        {plan && plan.blockers.length > 0 && (
+          <div
+            className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2"
+            data-testid="write-batch-blockers"
+          >
+            <div className="text-xs font-medium text-warning">还不能开始写</div>
+            <ul className="mt-1 space-y-1 text-xs text-foreground">
+              {plan.blockers.map((blocker) => (
+                <li key={blocker.code} data-testid="write-batch-blocker">
+                  {blocker.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {chapters.length > 0 && (
+          // 限高 11rem：每章两行字加上下内边距约 2.9rem，露出将近 4 行，最后一行露半截提示下面还有。
+          <ul
+            className="mt-2 max-h-44 divide-y divide-border/60 overflow-y-auto"
+            data-testid="write-batch-chapters"
+          >
+            {chapters.map((chapter) => (
+              <li
+                key={chapter.ordinal}
+                className="flex items-start gap-2 py-1.5"
+                data-testid="write-batch-chapter"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs text-foreground">
+                    第 {chapter.ordinal} 章{chapter.title ? `《${chapter.title}》` : ''}
+                  </div>
+                  <div
+                    className="mt-0.5 truncate text-3xs text-subtle"
+                    title={chapter.goal ?? undefined}
+                  >
+                    {chapter.goal ?? '计划里没写本章目标'}
+                  </div>
+                </div>
+                {STATUS_TAG[chapter.status] && (
+                  <span
+                    className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-3xs text-subtle"
+                    data-testid="write-batch-chapter-tag"
+                  >
+                    {STATUS_TAG[chapter.status]}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex-shrink-0" data-testid="write-batch-footer">
         {ready && (
+          <div className="mt-2 space-y-0.5 text-2xs leading-4 text-muted">
+            {ready.estimate && (
+              <div className="space-y-0.5" data-testid="write-batch-estimate">
+                {estimateDetails(ready.estimate).map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            )}
+            {ready.basis === 'trial' && ready.note && (
+              <p data-testid="write-batch-trial">{ready.note}</p>
+            )}
+            <ul className="space-y-0.5" data-testid="write-batch-notes">
+              <li>写完直接写进文件，每章写进去之前都留快照，可以撤销。</li>
+              {/* 只在有上限时说：试写只写一章，不设上限。 */}
+              {ready.estimate && (
+                <li>到了上限会把正在写的这一章写完再停，实际用量可能比上限多出一章。</li>
+              )}
+              {ready.permission_profile === 'ask' && (
+                <li>这一批的修订不用逐章点接受，算你这次点了开始的授权；平时的权限档位不变。</li>
+              )}
+            </ul>
+          </div>
+        )}
+        <div className="mt-3 flex items-center justify-end gap-2">
+          {ready && !onStart && (
+            <span id={startHintId} className="mr-auto text-3xs text-subtle">
+              下一步接上
+            </span>
+          )}
           <Button
             type="button"
             size="sm"
-            variant="agent"
+            variant="secondary"
             className="text-xs"
-            disabled={!onStart}
-            title={onStart ? undefined : '下一步接上'}
-            aria-describedby={onStart ? undefined : startHintId}
-            onClick={() => onStart?.(ready)}
-            data-testid="write-batch-start"
+            onClick={onClose}
+            data-testid="write-batch-close"
           >
-            开始写
+            {ready ? '取消' : '关闭'}
           </Button>
-        )}
+          {ready && (
+            <Button
+              type="button"
+              size="sm"
+              variant="agent"
+              className="text-xs"
+              disabled={!onStart}
+              title={onStart ? undefined : '下一步接上'}
+              aria-describedby={onStart ? undefined : startHintId}
+              onClick={() => onStart?.(ready)}
+              data-testid="write-batch-start"
+            >
+              开始写
+            </Button>
+          )}
+        </div>
       </div>
     </section>
   );

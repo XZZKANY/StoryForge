@@ -228,6 +228,7 @@ export function ChatWindowView({
               handoff={opening}
               onDraft={onOpeningDraft}
               onAsk={(prompt) => void handleComposerSubmit(prompt)}
+              actionsHidden={writeBatch !== null}
             />
           ) : null
         }
@@ -254,12 +255,14 @@ export function ChatWindowView({
       )}
 
       {writeBatch && projectPath && (
+        // 卡片自己管滚动：章列表在卡内滚，底部按钮始终露着，这一层不再整体滚。
+        // 比章纲卡多给一成高度：1400×759 下底部说明占去不少，六成只露得出三章。
         <section
-          className="max-h-[60%] flex-shrink-0 overflow-y-auto px-5 py-3"
+          className="flex max-h-[70%] min-h-0 flex-shrink-0 flex-col px-5 py-3"
           aria-label="批量写章"
           data-testid="write-batch-decision"
         >
-          <div className={CHAT_COLUMN}>
+          <div className={`${CHAT_COLUMN} flex min-h-0 flex-col`}>
             <WriteBatchCard
               key={writeBatch.id}
               command={writeBatch.command}

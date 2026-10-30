@@ -18,6 +18,7 @@ import { useChatWindowState } from '../src/components/chat-window/useChatWindowS
 import type { RunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
 import { formatTenThousands, WriteBatchCard } from '../src/components/chat-window/WriteBatchCard';
 import type { AgentPermissionProfile } from '../src/lib/agent-permission';
+import type { ChapterHandoff } from '../src/lib/chapter-handoff';
 import type { ApiWriteBatchChapter, ApiWriteBatchPlan } from '../src/lib/api/contracts';
 import { planWriteBatch } from '../src/lib/api/write-batch';
 
@@ -123,7 +124,7 @@ const range = (from: number, to: number, note: string | null = null): WriteBatch
 });
 
 describe('确认卡', () => {
-  test('可开跑、有历史：章列表、状态小标、按万的预估、固定说明与询问档的授权说明', async () => {
+  test('可开跑、有历史：摘要行、章列表只给跳过的章挂小标、按万的详细说明、固定说明与询问档的授权说明', async () => {
     await card(range(4, 6));
     expect(plan).toHaveBeenCalledWith({
       projectRoot: PROJECT,
@@ -132,18 +133,19 @@ describe('确认卡', () => {
       permissionProfile: 'ask',
     });
     expect(text('write-batch-title')).toBe('批量写第 4–6 章');
+    expect(text('write-batch-summary')).toBe('要写 2 章 · 预估 12.4 万 · 上限 18.6 万');
     expect(
       all('write-batch-chapter').map((row) =>
         [...row.querySelectorAll('div, span')].map((n) => n.textContent),
       ),
     ).toEqual([
       [expect.any(String), '第 4 章《标题4》', '目标4', '已有正文，跳过'],
-      [expect.any(String), '第 5 章《标题5》', '目标5', '要写'],
-      [expect.any(String), '第 6 章《标题6》', '目标6', '要写'],
+      [expect.any(String), '第 5 章《标题5》', '目标5'],
+      [expect.any(String), '第 6 章《标题6》', '目标6'],
     ]);
     expect([...q('write-batch-estimate')!.querySelectorAll('p')].map((p) => p.textContent)).toEqual(
       [
-        '按本书最近 8 章，每章平均 6.2 万（最少 4.8 万、最多 9.1 万）。预估 12.4 万，上限 18.6 万。',
+        '按本书最近 8 章，每章平均 6.2 万（最少 4.8 万、最多 9.1 万）。',
         '其中 3 次服务商没报用量，是按字数估的；2 次没拿到用量，没算进去。',
         '这里算的是 token 数，不是钱。',
       ],
@@ -200,7 +202,7 @@ describe('确认卡', () => {
     expect(q('write-batch-notes')!.querySelectorAll('li')).toHaveLength(2);
   });
 
-  test('试写：显示引擎给的说明，不出预估；后面几章标「试写后再估」', async () => {
+  test('试写：摘要说先试写哪章，显示引擎给的说明，不出预估也不说上限；后面几章标「试写后再估」', async () => {
     const note =
       '这部作品还没有写章的用量记录：这次先只写第 1 章量一量，写完按实际用量给剩下 2 章的预估，再问你一次。';
     plan.mockResolvedValue(
@@ -214,12 +216,20 @@ describe('确认卡', () => {
       }),
     );
     await card(range(1, 3));
+    expect(text('write-batch-summary')).toBe('先试写第 1 章量一量');
     expect(text('write-batch-trial')).toBe(note);
     expect(q('write-batch-estimate')).toBeNull();
-    expect(all('write-batch-chapter').map((row) => row.querySelector('span')!.textContent)).toEqual(
-      ['要写', '试写后再估', '试写后再估'],
+    expect(
+      all('write-batch-chapter').map(
+        (row) => row.querySelector('[data-testid="write-batch-chapter-tag"]')?.textContent ?? null,
+      ),
+    ).toEqual([null, '试写后再估', '试写后再估']);
+    expect([...q('write-batch-notes')!.querySelectorAll('li')].map((li) => li.textContent)).toEqual(
+      [
+        '写完直接写进文件，每章写进去之前都留快照，可以撤销。',
+        '这一批的修订不用逐章点接受，算你这次点了开始的授权；平时的权限档位不变。',
+      ],
     );
-    expect(q('write-batch-notes')).not.toBeNull();
     expect(buttons().map((button) => button.label)).toEqual(['取消', '开始写']);
   });
 
@@ -240,6 +250,7 @@ describe('确认卡', () => {
       }),
     );
     const onClose = await card(range(4, 5), { onStart: vi.fn() });
+    expect(text('write-batch-summary')).toBe('有 2 处要先处理');
     expect(all('write-batch-blocker').map((item) => item.textContent)).toEqual(
       blockers.map((item) => item.message),
     );
@@ -268,15 +279,21 @@ describe('确认卡', () => {
     expect(buttons()).toEqual([{ label: '关闭', disabled: false }]);
   });
 
-  test('章多时只列前 8 章，其余收在「还有 N 章」里点开', async () => {
-    const chapters = Array.from({ length: 12 }, (_, index) => chapter(index + 1));
-    plan.mockResolvedValue(historyPlan({ from: 1, to: 12, chapters }));
-    await card(range(1, 12));
-    expect(all('write-batch-chapter')).toHaveLength(8);
-    expect(text('write-batch-more')).toBe('还有 4 章');
-    await act(async () => q('write-batch-more')!.click());
-    expect(all('write-batch-chapter')).toHaveLength(12);
-    expect(q('write-batch-more')).toBeNull();
+  test('章多时全列在限高的列表里、卡内滚动；说明和按钮在列表外面的底部区，不随列表滚走', async () => {
+    const chapters = Array.from({ length: 15 }, (_, index) => chapter(index + 1));
+    plan.mockResolvedValue(historyPlan({ from: 1, to: 15, chapters }));
+    await card(range(1, 15));
+    const list = q('write-batch-chapters')!;
+    expect(all('write-batch-chapter')).toHaveLength(15);
+    expect(list.classList).toContain('max-h-44');
+    expect(list.classList).toContain('overflow-y-auto');
+    expect(host.textContent).not.toContain('还有');
+    const footer = q('write-batch-footer')!;
+    expect(footer.classList).toContain('flex-shrink-0');
+    for (const id of ['write-batch-estimate', 'write-batch-notes', 'write-batch-start']) {
+      expect(footer.contains(q(id)), id).toBe(true);
+      expect(list.contains(q(id)), id).toBe(false);
+    }
   });
 
   test('排计划失败时说明原因，只有「关闭」', async () => {
@@ -297,6 +314,16 @@ let api: {
   state: ReturnType<typeof useChatWindowState>;
   submission: ReturnType<typeof useChatSubmission>;
 };
+const HANDOFF: ChapterHandoff = {
+  lastChapter: { ordinal: 3, relativePath: '正文/第003章.md' },
+  next: { targetPath: '正文/第004章.md', chapterOrdinal: 4 },
+  excerpt: null,
+  excerptClipped: false,
+  excerptSource: null,
+  stalePromises: [],
+};
+const onOpeningDraft = vi.fn();
+
 function Chat() {
   const state = useChatWindowState({
     projectPath: PROJECT,
@@ -338,6 +365,8 @@ function Chat() {
       }}
       writeBatch={submission.writeBatch}
       onCloseWriteBatch={submission.closeWriteBatch}
+      opening={HANDOFF}
+      onOpeningDraft={onOpeningDraft}
     />
   );
 }
@@ -396,6 +425,21 @@ describe('对话里提交 /写', () => {
     await act(async () => q('write-batch-close')!.click());
     await submit('帮我看看第三章');
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test('卡开着时藏起开场的「先聊聊」「起草第 N 章」，开场的话照留；卡关掉按钮回来', async () => {
+    await act(async () => root.render(<Chat />));
+    const opening = () => q('partner-opening');
+    expect(q('partner-opening-discuss')?.textContent).toBe('先聊聊第 4 章怎么走');
+    expect(q('partner-opening-draft')?.textContent).toBe('起草第 4 章');
+    await submit('/写 4-6');
+    expect(q('write-batch-card')).not.toBeNull();
+    expect(opening()!.textContent).toContain('第 4 章从哪儿接？');
+    expect(opening()!.querySelectorAll('button')).toHaveLength(0);
+    await act(async () => q('write-batch-close')!.click());
+    expect(q('partner-opening-discuss')).not.toBeNull();
+    await act(async () => q('partner-opening-draft')!.click());
+    expect(onOpeningDraft).toHaveBeenCalledWith(HANDOFF.next);
   });
 
   test('AI 在跑时照现有规则先进待发，跑完才出卡，仍不发给 AI', async () => {
