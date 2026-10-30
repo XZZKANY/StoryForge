@@ -42,6 +42,7 @@ const plugin = (id: string, displayName: string | null = null): PluginDescriptio
     displayName,
     format: 'storyforge',
   },
+  bundled: false,
   skills: [],
   styles: [],
   instructions: null,

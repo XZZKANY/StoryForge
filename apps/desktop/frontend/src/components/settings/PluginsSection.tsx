@@ -135,6 +135,17 @@ function PluginCard({
           <p className="truncate text-sm" data-testid="plugin-card-title">
             <span className="font-medium text-foreground">{title}</span>
             {meta && <span className="text-xs text-muted"> · {meta}</span>}
+            {plugin.bundled && (
+              <>
+                {' '}
+                <span
+                  className="rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
+                  data-testid="plugin-card-bundled"
+                >
+                  内置
+                </span>
+              </>
+            )}
           </p>
           {plugin.manifest?.description && (
             <p
@@ -173,17 +184,19 @@ function PluginCard({
           >
             {open ? '收起' : '查看'}
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            aria-label={`移除插件「${title}」`}
-            disabled={disabled}
-            loading={removing}
-            onClick={onRemove}
-            data-testid="plugin-card-remove"
-          >
-            移除
-          </Button>
+          {!plugin.bundled && (
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={`移除插件「${title}」`}
+              disabled={disabled}
+              loading={removing}
+              onClick={onRemove}
+              data-testid="plugin-card-remove"
+            >
+              移除
+            </Button>
+          )}
         </div>
       </div>
       {open && (

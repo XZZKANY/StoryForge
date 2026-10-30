@@ -371,7 +371,7 @@ test('技能：插件技能带插件小标、不可点；skill.read 读过的作
   ]);
 });
 
-test('技能：没有时一行说明，「新建」给三个模板，建到 技能/<名字>.md 并打开', async () => {
+test('技能：没有时一行说明，「新建」只给本书禁用词模板，建到 技能/<名字>.md 并打开', async () => {
   const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(false);
   const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();
   const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
@@ -384,12 +384,10 @@ test('技能：没有时一行说明，「新建」给三个模板，建到 技�
 
   await click($('context-skills-create'));
   expect(menuItems().map((node) => node.textContent)).toEqual([
-    '立项流程作者问「下一步干什么」，或世界观、总纲、人物刚写完一份时',
-    '审稿口径作者让你审稿、挑毛病或评价一章时',
     '本书禁用词起草、修订、续写正文时（把禁用词写进给起草或修订的 instruction）',
   ]);
 
-  const file = `${ROOT}\\技能\\立项流程.md`;
+  const file = `${ROOT}\\技能\\本书禁用词.md`;
   await click(menuItems()[0]);
   expect(menuItems()).toEqual([]);
   expect(exists).toHaveBeenCalledWith(file);
@@ -400,20 +398,14 @@ test('技能：没有时一行说明，「新建」给三个模板，建到 技�
   expect(SKILL_TEMPLATES[0].content).toBe(
     [
       '---',
-      '名字：立项流程',
-      '什么时候用：作者问「下一步干什么」，或世界观、总纲、人物刚写完一份时',
+      '名字：本书禁用词',
+      '什么时候用：起草、修订、续写正文时（把禁用词写进给起草或修订的 instruction）',
       '---',
-      '# 立项流程',
+      '# 本书禁用词',
       '',
-      '按这个顺序立项，一步做完再提下一步；作者说跳过就跳过。',
+      '下面的词和说法不要出现在正文里；修订时看到就换掉。',
       '',
-      '1. 世界观：`设定/` 里有一份写清时代、地理、力量体系或社会规则的文件。',
-      '2. 总纲：`大纲/总纲.md` 写清主线、结局方向、分卷或分阶段。',
-      '3. 主要人物：`人物/主要人物.md` 写清主角和两三个关键配角的目标、缺陷、关系。',
-      '4. 第一章章纲：第一章发生什么、停在哪里。',
-      '5. 开写第一章。',
-      '',
-      '每完成一步，回复里用一句话说下一步是什么，问作者要不要现在做。一次只起草一份。',
+      '- （一行写一个）',
       '',
     ].join('\n'),
   );
@@ -426,19 +418,19 @@ test('技能：新建碰上同名文件不覆盖，直接打开', async () => {
   loadSkills.mockResolvedValue([skill('审稿口径', '作者让你审稿时')]);
   await renderPanel(null);
   await click($('context-skills-create'));
-  await click(menuItems()[2]);
+  await click(menuItems()[0]);
   expect(mkdir).not.toHaveBeenCalled();
   expect(write).not.toHaveBeenCalled();
   expect(opened).toEqual([`${ROOT}\\技能\\本书禁用词.md`]);
 });
 
-test('技能：三个模板的头部都认得出名字和什么时候用', () => {
+test('技能：模板只剩本书禁用词（立项流程、审稿口径归起书基础包），头部认得出名字和什么时候用', () => {
   for (const item of SKILL_TEMPLATES) {
     expect(
       item.content.startsWith(`---\n名字：${item.name}\n什么时候用：${item.when}\n---\n`),
     ).toBe(true);
   }
-  expect(SKILL_TEMPLATES.map((item) => item.name)).toEqual(['立项流程', '审稿口径', '本书禁用词']);
+  expect(SKILL_TEMPLATES.map((item) => item.name)).toEqual(['本书禁用词']);
 });
 
 test('技能：写盘广播只在技能文件夹变了时重读', async () => {

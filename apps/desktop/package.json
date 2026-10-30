@@ -14,8 +14,9 @@
     "verify:tauri-smoke": "npm run prepare:git && node scripts/verify-tauri-smoke.mjs",
     "build:release-smoke": "npm run prepare:git && tauri build --ci --no-bundle",
     "verify:tauri-smoke:packaged": "npm run build:release-smoke && node scripts/verify-tauri-smoke.mjs --release",
-    "test:release": "node --test scripts/release-build.test.mjs",
+    "test:release": "node --test scripts/release-build.test.mjs scripts/verify-update-smoke.test.mjs",
     "test:nsis-install": "node --test scripts/verify-nsis-install.test.mjs scripts/verify-tauri-smoke.test.mjs",
+    "verify:update-smoke": "npm run prepare:git && node scripts/verify-update-smoke.mjs",
     "verify:nsis-install": "npm run prepare:git && node scripts/verify-nsis-install.mjs --build",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri": "tauri"

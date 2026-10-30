@@ -41,6 +41,8 @@ export type PluginDescription = {
   /** 插件文件夹的绝对路径。 */
   readonly root: string;
   readonly manifest: PluginManifest | null;
+  /** StoryForge 自带的插件（插件根下有宿主写的标记文件）：不能移除，每本书照样能不选。 */
+  readonly bundled: boolean;
   readonly skills: PluginEntry[];
   readonly styles: PluginEntry[];
   readonly instructions: PluginInstructions | null;
@@ -52,6 +54,8 @@ export const PLUGIN_ENTRY_MAX = 20;
 /** 插件指令片段的上限（码点数），超出保留开头。 */
 export const PLUGIN_INSTRUCTIONS_MAX_CHARS = 4_000;
 export const PLUGIN_INSTRUCTIONS_PATH = '指令.md';
+// 宿主放进插件库的自带插件带这个标记文件；与 Rust plugin_library.rs 的 BUNDLED_MARKER 相同。
+const BUNDLED_MARKER = '.storyforge-bundled';
 const SKILL_ENTRY = 'SKILL.md';
 
 const optional = (error: unknown) =>
@@ -61,6 +65,15 @@ const optional = (error: unknown) =>
 
 const unreadable = (path: string, error: unknown) =>
   `读不到 ${path}${error instanceof FsToolError || error instanceof ProjectTreeError ? `：${error.message}` : '。'}`;
+
+async function hasBundledMarker(reader: ProjectReader, root: string): Promise<boolean> {
+  try {
+    return (await reader.inspectProjectPath(root, BUNDLED_MARKER)).entryKind === 'file';
+  } catch (error) {
+    if (optional(error)) return false;
+    throw error;
+  }
+}
 
 /** present=false 是没有这个文件；present=true 而 text=null 是有但读不出（已记 problem）。 */
 async function readPluginText(
@@ -278,6 +291,7 @@ export async function describePlugin(
     id: projectBasename(pluginRoot),
     root: pluginRoot,
     manifest: null as PluginManifest | null,
+    bundled: false,
     skills: [] as PluginEntry[],
     styles: [] as PluginEntry[],
     instructions: null as PluginInstructions | null,
@@ -290,6 +304,7 @@ export async function describePlugin(
     problems.push(`插件文件夹不存在或读不到：${pluginRoot}`);
     return description;
   }
+  description.bundled = await hasBundledMarker(reader, pluginRoot);
 
   let skillsDir: string | null = CONVERSATION_SKILL_DIR;
   let codex = false;

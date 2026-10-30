@@ -73,6 +73,7 @@ const plugin = (id: string, extra: Partial<PluginDescription> = {}): PluginDescr
   id,
   root: `C:\\库\\${id}`,
   manifest: manifest(id),
+  bundled: false,
   skills: [],
   styles: [],
   instructions: null,
@@ -183,6 +184,33 @@ test('已装插件一张卡：名字回退、版本作者、计数照写 0、问
     '指令.md',
   ]);
   expect([...$('plugin-problems', details)!.querySelectorAll('li')]).toHaveLength(3);
+});
+
+test('自带插件：版本后有「内置」小标，没有「移除」，「查看」照旧', async () => {
+  vi.mocked(listPlugins).mockResolvedValue([
+    plugin('起书基础包', {
+      manifest: manifest('起书基础包', { author: 'StoryForge' }),
+      bundled: true,
+      skills: [entry('立项流程'), entry('审稿口径')],
+    }),
+    plugin('写法包'),
+  ]);
+  await mountSettings();
+  await vi.waitFor(() => expect($$('plugin-card')).toHaveLength(2));
+  const [starter, other] = $$('plugin-card');
+  expect($('plugin-card-title', starter)!.textContent).toBe(
+    '起书基础包 · v1.0.0 · StoryForge 内置',
+  );
+  expect($('plugin-card-bundled', starter)!.textContent).toBe('内置');
+  expect($('plugin-card-bundled', starter)!.className).toBe(
+    'rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted',
+  );
+  expect($('plugin-card-remove', starter)).toBeNull();
+  expect($('plugin-card-bundled', other)).toBeNull();
+  expect($('plugin-card-remove', other)).toBeTruthy();
+
+  await click($('plugin-card-toggle', starter));
+  expect($$('plugin-entry', $('plugin-card-details', starter)!)).toHaveLength(2);
 });
 
 test('没有插件时一行「还没有插件。」', async () => {

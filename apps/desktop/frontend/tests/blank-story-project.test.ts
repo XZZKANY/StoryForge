@@ -1,3 +1,4 @@
+import { serializePluginsFile, STARTER_PLUGIN_NAME } from '@storyforge/project-core';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { createBlankStoryProject, blankStoryProjectPath } from '../src/lib/project/create';
 import { TauriFileSystem } from '../src/lib/tauri-fs';
@@ -32,6 +33,7 @@ test('creates only a blank canonical structure and the explicitly named book pro
   expect(writes.map(([, path]) => path)).toEqual([
     root + '/大纲/项目说明.md',
     root + '/.storyforge/book.json',
+    root + '/.storyforge/plugins.json',
   ]);
   expect(writes.every(([owner]) => owner === root)).toBe(true);
   expect(JSON.parse(writes[1][2])).toEqual({
@@ -42,6 +44,7 @@ test('creates only a blank canonical structure and the explicitly named book pro
     cover: null,
     wordGoal: 0,
   });
+  expect(writes[2][2]).toBe(serializePluginsFile([STARTER_PLUGIN_NAME]));
 });
 
 test.each([
@@ -136,6 +139,6 @@ test('concurrent same-name creation has a single root claim and only the winner 
   ]);
   expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
   expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
-  expect(TauriFileSystem.writeFile).toHaveBeenCalledTimes(2);
+  expect(TauriFileSystem.writeFile).toHaveBeenCalledTimes(3);
   expect(TauriFileSystem.deletePath).not.toHaveBeenCalled();
 });
