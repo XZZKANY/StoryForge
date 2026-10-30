@@ -125,6 +125,13 @@ import {
 import { PatchReviewPanel } from '../../src/components/PatchReviewPanel';
 import { acceptPatchFromChat } from '../../src/components/chat-window/accept-patch';
 import { buildPatchHunks } from '../../src/lib/patch-hunks';
+import { reconstructAgentResultFromEvents } from '../../src/lib/api/agent-run-events';
+import type { AgentResultMessage } from '../../src/lib/api/types';
+import { truncationWarningFromAgentResult } from '../../src/components/chat-window/review';
+import {
+  CHAPTER_TRUNCATION_WARNING,
+  chapterWriteRebuildEvents,
+} from '../support/chapter-write-rebuild-events';
 
 const PROJECT = 'D:/连载/末世吞噬';
 const FILE = 'D:/连载/末世吞噬/正文/第01章.md';
@@ -703,4 +710,45 @@ test('没有截断警告的补丁照旧点一次就写', async () => {
   await clickAccept();
   assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
   assert.equal(container.querySelector('[data-testid="patch-truncation-confirm"]'), null);
+});
+
+/** 断线后按事件表重建的写章结果：取警告的路与对话窗一致，交给编辑器横幅。 */
+async function showRebuiltChapterPatch(truncationWarning: Record<string, unknown> | null) {
+  const rebuilt = reconstructAgentResultFromEvents(
+    chapterWriteRebuildEvents({
+      patch: { id: 'chapter-writing-1', file_path: FILE, before: BEFORE, after: AFTER },
+      truncationWarning,
+    }),
+    { sessionId: 'agent-session', runId: 'run-1' },
+  ) as AgentResultMessage;
+  act(() => root.render(<Harness key="panel" filePath={FILE} withPanel />));
+  await act(async () => {
+    emitFileSuggestion(
+      suggestion({
+        id: 'chapter-writing-1',
+        requiresConfirmation: rebuilt.agent_result.requires_user_confirmation,
+        truncationWarning: truncationWarningFromAgentResult(rebuilt) ?? undefined,
+      }),
+    );
+  });
+}
+
+test('断线重建的写章结果停在半句：同样红色警告、两步确认', async () => {
+  await showRebuiltChapterPatch(CHAPTER_TRUNCATION_WARNING);
+  assert.match(
+    container.querySelector('[data-testid="patch-truncation-warning"]')?.textContent ?? '',
+    /疑似没写完/,
+  );
+  await clickAccept();
+  assert.deepEqual(writes, [], '第一次点不能写盘');
+  assert.equal(acceptButton().textContent, '仍然整份接受');
+  await clickAccept();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
+});
+
+test('断线重建的写章结果收句：没有截断警告，点一次就写', async () => {
+  await showRebuiltChapterPatch(null);
+  assert.equal(container.querySelector('[data-testid="patch-truncation-warning"]'), null);
+  await clickAccept();
+  assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
 });
