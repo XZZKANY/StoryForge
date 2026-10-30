@@ -55,7 +55,7 @@ const chapters = [1, 2, 3, 4, 5].map((ordinal) => ({
   relativePath: `正文/第00${ordinal}章.md`,
   estimatedChars: 3000,
 }));
-const DEFAULT_PLACEHOLDER = '输入想法，@ 提及角色';
+const DEFAULT_PLACEHOLDER = '输入想法，@ 提及角色，/ 用技能';
 
 let root: Root;
 let host: HTMLDivElement;
