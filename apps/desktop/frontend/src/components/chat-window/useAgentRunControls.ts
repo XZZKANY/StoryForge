@@ -95,7 +95,7 @@ export function useAgentRunControls(
       emitToast(
         currentFile
           ? `请先返回 ${relativePath(projectPathRef.current, currentFile)}，再重试这轮请求。`
-          : '请先关闭当前稿件，再重试这轮项目对话。',
+          : '请先关闭当前稿件，再重试这轮对话。',
         { tone: 'info' },
       );
       return;
@@ -138,12 +138,12 @@ export function useAgentRunControls(
           const message = error instanceof Error ? error.message : String(error);
           setMessages((prev) => [
             ...prev,
-            { role: 'assistant', content: `修复写回失败，补丁仍在等待确认：${message}` },
+            { role: 'assistant', content: `修复写回失败，修订仍在等待确认：${message}` },
           ]);
           return;
         }
         setPendingRepairCommand(null);
-        setMessages((prev) => [...prev, { role: 'assistant', content: '修复补丁已执行写回。' }]);
+        setMessages((prev) => [...prev, { role: 'assistant', content: '修复已写回。' }]);
       } else if (type === 'deny_permission' && pendingRepairCommand) {
         setPendingRepairCommand(null);
       }
@@ -181,7 +181,7 @@ export function useAgentRunControls(
           }
           setMessages((prev) => [
             ...prev,
-            { role: 'assistant', content: `Agent 控制失败：${ack.detail}` },
+            { role: 'assistant', content: `AI 控制失败：${ack.detail}` },
           ]);
           return;
         }
@@ -247,7 +247,7 @@ export function useAgentRunControls(
             content:
               type === 'resume_run' && dispatched
                 ? `恢复请求结果未知，不能判定执行是否结束；请核对本轮，不要重新执行：${message}`
-                : `Agent 控制失败：${message}`,
+                : `AI 控制失败：${message}`,
           },
         ]);
       } finally {
@@ -326,7 +326,7 @@ export function useAgentRunControls(
         patchId: approvalStep.patchId,
         direction,
       });
-      if (rejected === null) emitToast('补丁目标仍在打开，请稍后再试', { tone: 'info' });
+      if (rejected === null) emitToast('修订目标仍在打开，请稍后再试', { tone: 'info' });
       return rejected === true;
     },
   };

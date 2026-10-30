@@ -379,7 +379,7 @@ async function readTreeEntry(
   } else if (!TREE_HASH_PATTERN.test(treeHash)) {
     unavailableReason = '版本元数据缺少有效 tree hash';
   } else if (normalizeRelative(storedFile) !== normalizeRelative(expectedFile)) {
-    unavailableReason = '版本元数据指向了其他项目文件';
+    unavailableReason = '版本元数据指向了其他作品的文件';
   } else if (!metadata.recordId) {
     unavailableReason = '版本元数据缺少保活 record id';
   }

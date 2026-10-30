@@ -33,7 +33,7 @@ export function useOverviewActivity({
   const openPendingSuggestion = useCallback(() => {
     showEditor();
     if (pendingSuggestion && displayedFile !== pendingSuggestion.filePath) {
-      void openFile(pendingSuggestion.filePath, '打开待确认修改');
+      void openFile(pendingSuggestion.filePath, '打开待确认修订');
     }
   }, [displayedFile, openFile, pendingSuggestion, showEditor]);
   return { pendingSuggestion, agentRun, onPendingChange, onRunChange, openPendingSuggestion };

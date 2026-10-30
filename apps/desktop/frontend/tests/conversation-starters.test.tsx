@@ -239,7 +239,7 @@ test('真实上下文预算与文件可按需查看，默认不挂空参考卡',
   expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain(
     '本轮参考资料（发送前选入，工具另读的不在此列）',
   );
-  expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain('项目里：');
+  expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain('作品里：');
   expect(host.querySelector('[data-testid="context-truncated-badge"]')).toBeNull();
 });
 
@@ -286,7 +286,7 @@ test('后台索引加载不制造空态，主动打开后才展示真实读取�
   expect(host.querySelector('[data-testid="context-summary"]')).toBeNull();
   await click('[aria-label="添加上下文"]');
   expect(host.querySelector('[data-testid="context-candidates-loading"]')).not.toBeNull();
-  expect(host.textContent).not.toContain('当前项目还没有可选');
+  expect(host.textContent).not.toContain('当前作品还没有可选');
 });
 
 test('完成按需上下文选择后回到原输入框，保留草稿', async () => {

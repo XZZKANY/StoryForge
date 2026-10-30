@@ -6,7 +6,7 @@ import type { StoryProjectInitializationPlan } from './types';
 
 const STORY_DIRS = ['正文', '大纲', '人物', '设定', '世界观', '时间线', '伏笔'];
 
-export const SAMPLE_STORY_PROJECT_NAME = 'StoryForge 示例项目';
+export const SAMPLE_STORY_PROJECT_NAME = 'StoryForge 示例作品';
 
 export function buildStoryProjectInitializationPlan(
   projectPath: string,

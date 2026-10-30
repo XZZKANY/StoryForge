@@ -197,8 +197,8 @@ function ExplorerView({
         {fileActions && (
           <button
             className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            aria-label="在项目根目录新建文件夹"
-            title="在项目根目录新建文件夹"
+            aria-label="在作品根目录新建文件夹"
+            title="在作品根目录新建文件夹"
             onClick={() => void fileActions.onNewFolder(activeProject)}
             data-testid="side-new-folder"
           >

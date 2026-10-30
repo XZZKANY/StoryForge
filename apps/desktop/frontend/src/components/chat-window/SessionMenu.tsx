@@ -55,12 +55,12 @@ export function SessionMenu({
   return (
     <FloatingSurface
       role="menu"
-      aria-label="本项目的会话"
+      aria-label="本作品的会话"
       triggerRef={triggerRef}
       onDismiss={onDismiss}
       className="animate-fade-in w-72 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown"
     >
-      <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">本项目的会话</div>
+      <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">本作品的会话</div>
       {sessions.length > 0 && (
         <label className="sf-form-shell mx-1 mb-1 flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
           <Search size={12} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />

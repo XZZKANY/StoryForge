@@ -314,7 +314,7 @@ export async function buildContextBundle(params: ContextBundleParams): Promise<C
     contextBundleCache.set(cacheKey, { createdAt: Date.now(), bundle });
     return bundle;
   }
-  throw new Error('项目资料在读取期间持续变化，请稍后重试。');
+  throw new Error('作品资料在读取期间持续变化，请稍后重试。');
 }
 
 async function collectContextBundle(params: Required<ContextBundleParams>): Promise<ContextBundle> {

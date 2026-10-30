@@ -111,7 +111,7 @@ export function useRunAuthorAgent(
             role: 'assistant',
             content: writebackOnly
               ? '当前没有待写回的修订。'
-              : '我需要先知道这是哪个项目。打开本地项目目录后，我们就可以直接围绕稿件聊。',
+              : '我需要先知道这是哪部作品。打开本地作品文件夹后，我们就可以直接围绕稿件聊。',
           },
         ]);
         return;
@@ -123,7 +123,7 @@ export function useRunAuthorAgent(
             role: 'assistant',
             content:
               writebackOnly || intent === 'file.revise' || intent === 'chapter.polish'
-                ? '当前没有可写回或可定向修订的稿件。要改某一章，先在编辑器里打开那份正文；如果只是讨论项目，直接问我就行。'
+                ? '当前没有可写回或可定向修订的稿件。要改某一章，先在编辑器里打开那份正文；如果只是讨论这部作品，直接问我就行。'
                 : '导出需要先在编辑器里打开一份当前稿。',
           },
         ]);
@@ -294,7 +294,7 @@ export function useRunAuthorAgent(
         }
 
         if (!isAgentResultMessage(response)) {
-          const detail = `Agent 返回了暂不支持的消息：${response.type}`;
+          const detail = `AI 返回了暂不支持的消息：${response.type}`;
           updateAgentStatus('failed');
           setRetryRequest(retryRequest);
           settleDiagnostic(detail);

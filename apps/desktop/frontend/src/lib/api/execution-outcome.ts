@@ -20,7 +20,7 @@ export function runtimeInterruptionFromResult(
     response.agent_result.requires_user_confirmation !== false ||
     response.proposed_patch != null
   ) {
-    throw new Error('Agent runtime_interruption 契约无效，不能作为成功或待写回结果处理。');
+    throw new Error('AI runtime_interruption 契约无效，不能作为成功或待写回结果处理。');
   }
   // 作者控制终态与此前执行失败是两个维度；保留并独立校验失败证据。
   executionOutcomeFromResult(response);
@@ -38,7 +38,7 @@ export function executionOutcomeFromResult(
     typeof value.code !== 'string' ||
     typeof value.message !== 'string'
   ) {
-    throw new Error('Agent execution_outcome 契约无效，不能作为成功结果处理。');
+    throw new Error('AI execution_outcome 契约无效，不能作为成功结果处理。');
   }
   if (
     response.proposed_patch != null &&
@@ -46,7 +46,7 @@ export function executionOutcomeFromResult(
       response.proposed_patch.requires_confirmation !== true ||
       response.agent_result.patch_resolution !== undefined)
   ) {
-    throw new Error('未完成运行的补丁确认状态矛盾，不能自动写回。');
+    throw new Error('未完成运行的修订确认状态矛盾，不能自动写回。');
   }
   return { status: value.status, code: value.code, message: value.message };
 }

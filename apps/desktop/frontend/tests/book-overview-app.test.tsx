@@ -96,7 +96,7 @@ test('总览释放主区并保留编辑器、Agent、作品表单；导航和同
     expect(get('workspace-sidebar-surface').hidden).toBe(false);
     await click('activity-book');
     await click('agent-run-trigger');
-    expect(get('book-overview-agent-run').textContent).toContain('Agent 正在工作');
+    expect(get('book-overview-agent-run').textContent).toContain('AI 正在工作');
     await click('book-overview-agent-run');
     expect(surface()).toBe('workspace');
     await click('activity-book');
