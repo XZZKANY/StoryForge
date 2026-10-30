@@ -205,7 +205,7 @@ test('源文本保留已知 data-testid 标记集合（拆分时壳层引用须�
 
 test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位', () => {
   assert.ok(
-    suggestionWritebackSource.includes('旧修订不能直接写回'),
+    suggestionWritebackSource.includes('旧修订不能直接写进文件'),
     '整文件接受必须继续在当前内容偏离 suggestion.before 时拒绝旧补丁',
   );
   assert.ok(

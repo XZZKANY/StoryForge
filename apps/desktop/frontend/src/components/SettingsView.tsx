@@ -298,7 +298,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                     />
                     <ToggleRow
                       title="自动保存"
-                      description="停止输入后自动写回当前文件。"
+                      description="停止输入后自动保存当前文件。"
                       checked={safeSettings.autoSave}
                       onChange={(checked) => update('autoSave', checked)}
                     />

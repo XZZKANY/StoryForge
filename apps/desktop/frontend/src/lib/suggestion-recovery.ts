@@ -274,7 +274,7 @@ export async function rememberSuggestionRequest(
 
 export class MissingSuggestionAudit extends Error {
   constructor() {
-    super('正文已有持久写回回执，但闭环记录缺失；可以明确补记，不会重写正文');
+    super('正文已有持久写入回执，但闭环记录缺失；可以明确补记，不会重写正文');
   }
 }
 
@@ -298,7 +298,7 @@ async function verifyJournalSettled(
       continue;
     }
     if (receipt.state !== 'applied' || !receipt.receiptPersisted)
-      throw new Error('原写回结果尚未确定，已保留恢复记录；请先核对正文与版本');
+      throw new Error('原写入结果尚未确定，已保留恢复记录；请先核对正文与版本');
     const path = receiptAuditPath(project, receipt.operationId);
     if (!(await TauriFileSystem.pathExists(path))) throw new MissingSuggestionAudit();
     await verifyReceiptAudit(project, path, receipt.operationId, semanticPayload);
@@ -379,7 +379,7 @@ export async function recoverSuggestionOperations(
       throw new Error('恢复请求的审计语义不匹配；未自动写入正文');
     const receipt = await TauriFileSystem.inspectWritebackReceipt(project, request);
     if (receipt?.state !== 'applied' || !receipt.receiptPersisted)
-      throw new Error('修订写回结果尚未确定，请核对正文与版本；不会自动重放旧决定');
+      throw new Error('修订写入结果尚未确定，请核对正文与版本；不会自动重放旧决定');
     const auditPath = receiptAuditPath(project, receipt.operationId);
     if (!(await TauriFileSystem.pathExists(auditPath))) {
       if (!repairMissingAudit) throw new MissingSuggestionAudit();
@@ -409,7 +409,7 @@ export async function readSuggestionAcceptance(
   const payload = await readReceiptAuditPayload(project, request);
   if (payload === null) return null;
   const record = readRevisionLoopPayload(project, request.path, payload);
-  if (record.patchId !== suggestionId) throw new Error('原写回审计与当前修订身份不匹配');
+  if (record.patchId !== suggestionId) throw new Error('原写入审计与当前修订身份不匹配');
   return record;
 }
 
@@ -466,7 +466,7 @@ export async function settleSuggestionRun(
       latestExecution.payload?.run_id !== original.runId ||
       events.lastIndexOf(latestExecution) > events.lastIndexOf(completed)
     )
-      throw new Error('自动修订已写回，但原运行完成状态尚未确认；请核对原运行');
+      throw new Error('自动修订已写进文件，但原运行完成状态尚未确认；请核对原运行');
     return 'completed';
   }
   const pendingEvent = [...events]
@@ -490,7 +490,7 @@ export async function settleSuggestionRun(
     !target ||
     normalizePathForMatch(target) !== normalizePathForMatch(original.filePath)
   )
-    throw new Error('原运行与修订归属不匹配，已保留写回记录供核对');
+    throw new Error('原运行与修订归属不匹配，已保留写入记录供核对');
   const started = events
     .slice(0, pendingIndex)
     .reverse()
@@ -505,7 +505,7 @@ export async function settleSuggestionRun(
         ['agent_execution_started', 'agent_execution_claimed'].includes(event.event_type),
       )
   )
-    throw new Error('原运行的执行归属已变化，不能用旧写回批准新执行');
+    throw new Error('原运行的执行归属已变化，不能用旧的那次写入批准新执行');
   const terminal = events
     .slice(pendingIndex + 1)
     .reverse()
@@ -524,7 +524,7 @@ export async function settleSuggestionRun(
       (terminal.payload?.control_type === 'deny_permission' &&
         terminal.event_type !== 'agent_run_failed')
     )
-      throw new Error('原运行已结束但不是该批准结果，请核对；不会重放写回');
+      throw new Error('原运行已结束但不是该批准结果，请核对；不会重放写入');
     if (decision === 'observe')
       return terminal.payload?.control_type === 'deny_permission' ? 'failed' : undefined;
     if (terminal.payload?.control_type !== controlType)

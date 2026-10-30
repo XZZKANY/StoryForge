@@ -35,7 +35,7 @@ export function emitProposedPatchOutcome(params: {
   const writingContext = writingContextFromAgentResult(response, params.contextRelativePaths);
   const filePath = resolveProposedPatchFilePath(params.projectPath, proposed.file_path);
   if (!filePath) {
-    const message = 'AI 返回的修订目标不在当前作品内，已阻止写回。';
+    const message = 'AI 返回的修订目标不在当前作品内，没有写进文件。';
     params.settleDiagnostic(message);
     emitSuggestionResult({
       filePath: proposed.file_path,

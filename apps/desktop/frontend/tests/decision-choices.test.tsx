@@ -437,7 +437,7 @@ it('accepting shows that the patch is being written until the editor reports bac
   expect(accept()).not.toBeNull();
   claim = 'accepted';
   await act(async () => accept()!.click());
-  expect(writing()?.textContent).toContain('正在写进稿子（资源与生存法则.md）');
+  expect(writing()?.textContent).toContain('正在写进文件（资源与生存法则.md）');
   expect(accept()).toBeNull();
   await act(async () =>
     emitAuthorLoopResult({

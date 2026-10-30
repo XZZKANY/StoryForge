@@ -409,7 +409,7 @@ test('resumed agent result preserves waiting status for confirmation results', (
   const steps = stepsFromResumedAgentResult(response);
   assert.equal(steps[0].detail, '已从暂停处恢复继续');
   assert.equal(steps.at(-1)?.status, 'waiting');
-  assert.match(steps.at(-1)?.detail ?? '', /编辑器里确认 diff/);
+  assert.match(steps.at(-1)?.detail ?? '', /编辑器的对比里确认/);
 });
 
 test('resumed file patch projects its target into the approval step', () => {
@@ -868,7 +868,7 @@ test('repair patch proposal is surfaced with an executable approval command', ()
   });
   assert.ok(withoutCommand);
   assert.equal(withoutCommand.command, null);
-  assert.match(withoutCommand.summary, /无法从对话内写回/);
+  assert.match(withoutCommand.summary, /无法从对话内写进文件/);
 
   // file_revision 走既有 diff 面板路径，不归 repair patch 处理。
   assert.equal(
