@@ -99,13 +99,29 @@ test('装机版读的更新地址与公钥就是出包脚本用的那一套', as
   assert.equal(release.bundle.createUpdaterArtifacts, true);
 });
 
-test('宿主注册了更新插件与 app_update_check，界面问的就是这个命令', async () => {
+test('宿主注册了更新插件与三个命令，界面问的就是这些命令', async () => {
   const main = await readFile(resolve(tauriDir, 'src', 'main.rs'), 'utf8');
   assert.match(main, /\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\)/);
-  assert.match(main, /app_update::app_update_check,/);
-  const frontend = await readFile(
-    resolve(tauriDir, '..', 'frontend', 'src', 'lib', 'update-check.ts'),
-    'utf8',
+  assert.match(main, /\.manage\(app_update::StagedUpdate::default\(\)\)/);
+  const lib = resolve(tauriDir, '..', 'frontend', 'src', 'lib');
+  const frontend =
+    (await readFile(resolve(lib, 'update-check.ts'), 'utf8')) +
+    (await readFile(resolve(lib, 'app-update.ts'), 'utf8'));
+  for (const command of ['app_update_check', 'app_update_download', 'app_update_restart_install']) {
+    assert.match(main, new RegExp(`app_update::${command},`));
+    assert.match(frontend, new RegExp(`'${command}'`));
+  }
+});
+
+test('装更新挂在退出握手最后一步；未保存那一步选了不关就撤销', async () => {
+  const hostClose = await readFile(resolve(tauriDir, 'src', 'host_close.rs'), 'utf8');
+  assert.match(
+    hostClose,
+    /state\.finish\(\);\s+crate::app_update::install_if_armed\(&app\);\s+app\.exit\(exit_code\);/,
   );
-  assert.match(frontend, /'app_update_check'/);
+  const closeGuard = await readFile(resolve(tauriDir, 'src', 'close_guard.rs'), 'utf8');
+  assert.match(
+    closeGuard,
+    /if guard\.resolve\(request, proceed\) \{\s+app\.exit\(0\);\s+\} else if !proceed \{\s+crate::app_update::disarm\(&app\);/,
+  );
 });
