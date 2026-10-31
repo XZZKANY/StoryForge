@@ -2,9 +2,9 @@
 
 更新时间：2026-10-31
 
-## 2026-10-31 当前入口：出 0.2.4（第一个带自动更新的版本）
+## 2026-10-31 当前入口：0.2.4 已发布（第一个带自动更新的版本），作者装上试用
 
-插件五刀和 `/写` 批量写章都已合进 master，还没打包。作者 10-31 要求出 0.2.4。
+10-31 已公开发布 GitHub Release [StoryForge 0.2.4](https://github.com/XZZKANY/StoryForge/releases/tag/v0.2.4)（tag `v0.2.4` 在 `37da523b`，附 `StoryForge-IDE_0.2.4_x64-setup.exe` 32,429,682 字节、SHA256 `a6ea4f586a72e6c8ed97c2843c1508a0a908305103011ba4ebc5e5e3eca34310`，与 `latest.json`），出包与发布记录见 `.codex/verification/2026-10-30-release-0.2.4.md`。作者从 0.2.3 要手动装这一次；以后新版在应用里提示。下一步：作者试用 `/写`、插件、`/技能名`，遇到问题照截图记下。下面第 1 条是出包时的步骤记录。
 
 1. **出 0.2.4**：版本号 PR #549（`release/0.2.4`）。照 `docs/operations/release-checklist.md`：合 master 后重跑 `pnpm verify`、前端构建、`test:rust`；发行版冒烟、`verify:nsis-install`、`verify:update-smoke`（这一版带自动更新）、真宿主探针（要作者先关 StoryForge）；更新说明写 `output/release-0.2.4/release-notes.md`；签名出包 `release-build.mjs` 与 `gh release create` 由作者亲手跑（要私钥密码）。0.2.3 没有更新器，0.2.4 要手动装一次，之后才能自动更新。
 2. **这一版带的新东西**（都还没在装机版上用过）：
