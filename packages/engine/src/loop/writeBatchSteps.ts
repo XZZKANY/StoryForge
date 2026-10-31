@@ -1,3 +1,5 @@
+import { chapterOrdinals } from '../kernel/canonRebuild';
+import { FACTS_LEDGER_PATH } from '../kernel/factLedger';
 import { resolveProjectRoot } from '../kernel/fsTools';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { sha256Hex } from '../kernel/sha256';
@@ -15,6 +17,7 @@ import { AGENT_RUN_FAILED } from './runPayloads';
 import {
   bookChapters,
   formatTokenCount,
+  ordinalRanges,
   planBatch,
   runUsage,
   type BookChapters,
@@ -81,8 +84,11 @@ export type WriteBatchMismatch = {
   message: string;
 };
 
-/** 读记录时每章带上连载计划里的标题（读时取，不存进记录）。 */
-export type WriteBatchViewChapter = WriteBatchRecordChapter & { title: string | null };
+/** 读记录时每章带上连载计划里的标题与本章目标（读时取，不存进记录）。 */
+export type WriteBatchViewChapter = WriteBatchRecordChapter & {
+  title: string | null;
+  goal: string | null;
+};
 export type WriteBatchViewRecord = Omit<WriteBatchRecord, 'chapters'> & {
   chapters: WriteBatchViewChapter[];
 };
@@ -156,6 +162,7 @@ function blankChapter(
     snapshot_version: null,
     facts_before: null,
     fact_disputes: null,
+    facts_added: null,
   };
 }
 
@@ -207,6 +214,7 @@ export async function startWriteBatch(
     created_at: now,
     model_key: modelKey,
     note,
+    facts_ledger_sha256: null,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -359,6 +367,19 @@ async function resolvedRelative(reader: ProjectReader, root: string, path: strin
   }
 }
 
+/** 事实台账当前的指纹；不在、读不出、超过 2 MiB 为 null（当成说不准）。 */
+async function ledgerFingerprint(reader: ProjectReader, root: string): Promise<string | null> {
+  try {
+    if ((await reader.inspectProjectPath(root, FACTS_LEDGER_PATH)).targetKind !== 'file')
+      return null;
+    const read = await reader.readProjectBytes(root, FACTS_LEDGER_PATH, MAX_READ_BYTES);
+    return read.exceeded ? null : sha256Hex(read.bytes);
+  } catch (error) {
+    if (error instanceof ProjectReadError) return null;
+    throw error;
+  }
+}
+
 /** 正文文件当前的指纹与字数；文件不在为 null。 */
 async function fileFingerprint(
   reader: ProjectReader,
@@ -401,6 +422,8 @@ export async function recordWriteBatchChapter(
     snapshot_version: string | null;
     facts_before: string | null;
     fact_disputes: number;
+    /** 记账时新记下的事实条数（不含待定的）；没记账或不知道为 null。 */
+    facts_added?: number | null;
   },
 ): Promise<WriteBatchRecord> {
   await resolveProjectRoot(deps.reader, root);
@@ -411,6 +434,9 @@ export async function recordWriteBatchChapter(
   if (typeof input.run_id !== 'string' || !input.run_id)
     throw new WriteBatchError('缺少这一章那次运行的 id。');
   if (!isCount(input.fact_disputes)) throw new WriteBatchError('fact_disputes 应是非负整数。');
+  const factsAdded = input.facts_added ?? null;
+  if (factsAdded !== null && !isCount(factsAdded))
+    throw new WriteBatchError('facts_added 应是非负整数或 null。');
   const snapshotVersion = optionalText(input.snapshot_version, 'snapshot_version');
   const factsBefore = optionalText(input.facts_before, 'facts_before');
   const writtenPath = optionalText(input.written_path, 'written_path');
@@ -453,12 +479,15 @@ export async function recordWriteBatchChapter(
     snapshot_version: snapshotVersion,
     facts_before: factsBefore,
     fact_disputes: input.fact_disputes,
+    facts_added: factsAdded,
   } satisfies Partial<WriteBatchRecordChapter>);
   const entry = { ordinal: chapter.ordinal, run_id: run.public_id, tokens: usage.tokens };
   const same = leg.runs.findIndex((item) => item.run_id === run.public_id);
   if (same >= 0) leg.runs.splice(same, 1);
   leg.runs.push(entry);
   leg.used_tokens = leg.runs.reduce((total, item) => total + item.tokens, 0);
+  // 记一笔时事实记账已经落定：这时的台账就是「这一批最后一次记账后」的样子。
+  record.facts_ledger_sha256 = await ledgerFingerprint(deps.reader, root);
   await save(deps, root, record);
   return record;
 }
@@ -533,11 +562,13 @@ async function stopBatch(
   return { action: 'stop', ...reason, ordinal };
 }
 
-/** 计划里还没写、正文却已经有了的章（作者中途自己写的）：跳过并标出来。 */
+/** 计划里还没写（或撤销过）、正文却已经有了的章（作者中途自己写的）：跳过并标出来。 */
 function markSkipped(record: WriteBatchRecord, book: BookChapters) {
   for (const chapter of record.chapters)
     if (
-      (chapter.state === 'pending' || chapter.state === 'after_trial') &&
+      (chapter.state === 'pending' ||
+        chapter.state === 'after_trial' ||
+        chapter.state === 'undone') &&
       book.writtenPath(chapter.ordinal) !== null
     )
       chapter.state = 'skipped_written';
@@ -776,7 +807,10 @@ export async function readWriteBatch(
       mismatches.push({
         ordinal: chapter.ordinal,
         kind: 'written_outside',
-        message: `记录说${label}没写进文件，正文里已经有了：以正文为准。`,
+        message:
+          chapter.state === 'undone'
+            ? `记录说${label}已经撤销了，正文里又有了：以正文为准。`
+            : `记录说${label}没写进文件，正文里已经有了：以正文为准。`,
       });
   }
   return {
@@ -785,10 +819,271 @@ export async function readWriteBatch(
       chapters: record.chapters.map((chapter) => ({
         ...chapter,
         title: book.entry(chapter.ordinal)?.title ?? null,
+        goal: book.entry(chapter.ordinal)?.goal ?? null,
       })),
     },
     mismatches,
     can_resume: record.status === 'stopped' && resumeFrom !== null,
     resume_from: resumeFrom,
   };
+}
+
+export type WriteBatchUndoBlockerCode =
+  | 'batch_running'
+  | 'not_batch_written'
+  | 'changed'
+  | 'missing'
+  | 'outside_chapters';
+
+export type WriteBatchUndoBlocker = {
+  code: WriteBatchUndoBlockerCode;
+  /** 给作者看的说明。 */
+  message: string;
+  /** 涉及的章序。 */
+  chapters: number[];
+};
+
+export type WriteBatchUndoChapter = {
+  ordinal: number;
+  target_path: string;
+  /** 写进去时记下的内容指纹：删之前当前文件得还是这一份。 */
+  written_sha256: string;
+  /**
+   * 删到这一章（含）就停下时，事实台账要恢复到的版本：已删的各章里章序最小、记过账的那一章记账前的那一版
+   * （版本记录的作品内相对路径）；已删的章都没记过账为 null。
+   */
+  facts_restore: string | null;
+};
+
+/** 「撤销第 k 章及之后」的计划：只读，不写文件。 */
+export type WriteBatchUndoPlan = {
+  batch_id: string;
+  from: number;
+  /** 要删的最后一章；没有可删的为 null。 */
+  to: number | null;
+  /** 要删的章，从最后一章倒着排。 */
+  chapters: WriteBatchUndoChapter[];
+  /** 全部删完时事实台账要恢复到的版本：第 k 章记账前的那一版（第 k 章没记过账就往后找第一章记过的）。 */
+  facts_before: string | null;
+  /**
+   * 当前台账和这一批最后一次记账后（或上次撤销恢复后）的那一版比：unchanged 一致；changed 不一致（含台账
+   * 不在了），作者之后在观测镜里的改动会一起回退；unknown 说不准（记录里没有那一版的指纹）。没有要恢复的台账为 null。
+   */
+  facts_ledger: 'unchanged' | 'changed' | 'unknown' | null;
+  blockers: WriteBatchUndoBlocker[];
+  can_undo: boolean;
+};
+
+const undoBlocker = (
+  code: WriteBatchUndoBlockerCode,
+  message: string,
+  chapters: number[] = [],
+): WriteBatchUndoBlocker => ({ code, message, chapters });
+
+const RUNNING_UNDO = '这一批还在写：停下或写完以后才能撤销。';
+const notBatchWritten = (ordinal: number) =>
+  undoBlocker(
+    'not_batch_written',
+    `第 ${ordinal} 章不是这一批写进文件的（或已经撤销过），没有可撤销的。`,
+    [ordinal],
+  );
+const changedBlocker = (ordinals: number[]) =>
+  undoBlocker(
+    'changed',
+    `第 ${ordinalRanges(ordinals)} 章写进文件以后改过，和写进去时的内容对不上：` +
+      '撤销会吃掉你的改动，先自己处理这几章（要留就别从这里撤，不要就自己删掉或改回去）。',
+    ordinals,
+  );
+const missingBlocker = (ordinals: number[]) =>
+  undoBlocker(
+    'missing',
+    `第 ${ordinalRanges(ordinals)} 章的文件已经不在了，和记录对不上：先自己核对这几章，再撤销。`,
+    ordinals,
+  );
+
+const pathKey = (path: string) => path.split('\\').join('/');
+
+/** 这一章当前的文件还是不是写进去时那一份：不在了为 missing，改过为 changed，没变为 null。 */
+async function undoFileProblem(
+  reader: ProjectReader,
+  root: string,
+  chapter: WriteBatchRecordChapter,
+): Promise<'missing' | 'changed' | null> {
+  const current = await fileFingerprint(reader, root, chapter.target_path);
+  if (current === null) return 'missing';
+  return current.sha256 === chapter.written_sha256 ? null : 'changed';
+}
+
+/**
+ * 撤销第 k 章及之后之前先看能不能撤（只读，不写文件）：要删的是这一批写进文件的第 k 章及之后的章，
+ * 从最后一章倒着排。拦法：这一批还在写；第 k 章不是这一批写进的；有章写进去以后改过或文件不在了
+ * （撤销会吃掉作者的改动）；第 k 章往后还有不是这一批写的正文（删掉前面的章，它们的章序会往前错位）。
+ * 事实台账要恢复到第 k 章记账前的那一版（facts_before）。
+ */
+export async function planWriteBatchUndo(
+  deps: Pick<WriteBatchRunDeps, 'reader' | 'platform'>,
+  root: string,
+  batchId: string,
+  fromOrdinal: number,
+): Promise<WriteBatchUndoPlan> {
+  await resolveProjectRoot(deps.reader, root);
+  const record = await latestBatch(deps.reader, root, batchId);
+  const first = chapterOf(record, fromOrdinal);
+  const blockers: WriteBatchUndoBlocker[] = [];
+  if (record.status === 'running') blockers.push(undoBlocker('batch_running', RUNNING_UNDO));
+  if (first.state !== 'written') blockers.push(notBatchWritten(first.ordinal));
+  const targets = record.chapters
+    .filter((chapter) => chapter.ordinal >= first.ordinal && chapter.state === 'written')
+    .sort((a, b) => b.ordinal - a.ordinal);
+  const changed: number[] = [];
+  const missing: number[] = [];
+  for (const chapter of targets) {
+    const problem = await undoFileProblem(deps.reader, root, chapter);
+    if (problem === 'changed') changed.push(chapter.ordinal);
+    if (problem === 'missing') missing.push(chapter.ordinal);
+  }
+  if (changed.length) blockers.push(changedBlocker(changed));
+  if (missing.length) blockers.push(missingBlocker(missing));
+  // 章序 = 正文按路径排序后的第几个：第 k 章往后只要还有一份不删的正文，删完它就会往前错位。
+  const deleting = new Set(targets.map((chapter) => pathKey(chapter.target_path)));
+  const outside: [string, number][] = [];
+  for (const [path, ordinal] of await chapterOrdinals(deps.reader, root, '*.md', deps.platform))
+    if (ordinal >= first.ordinal && !deleting.has(pathKey(path))) outside.push([path, ordinal]);
+  if (outside.length) {
+    const ordinals = outside.map(([, ordinal]) => ordinal);
+    const names = outside.slice(0, 3).map(([path]) => path);
+    blockers.push(
+      undoBlocker(
+        'outside_chapters',
+        `第 ${ordinalRanges(ordinals)} 章不是这一批写的正文（${names.join('、')}` +
+          `${outside.length > names.length ? ' 等' : ''}）：撤销第 ${first.ordinal} 章及之后会删掉排在它们前面的章，` +
+          '它们的章序会跟着往前错位。先自己处理这几章，再撤销。',
+        ordinals,
+      ),
+    );
+  }
+  let restore: string | null = null;
+  const chapters = targets.map((chapter) => {
+    // 倒着删：删到哪一章停下，台账就回到已删各章里最早一次记账之前。
+    if (chapter.facts_before !== null) restore = chapter.facts_before;
+    return {
+      ordinal: chapter.ordinal,
+      target_path: chapter.target_path,
+      written_sha256: chapter.written_sha256 ?? '',
+      facts_restore: restore,
+    };
+  });
+  let factsLedger: WriteBatchUndoPlan['facts_ledger'] = null;
+  if (restore !== null) {
+    const current = await ledgerFingerprint(deps.reader, root);
+    // 记下过指纹、现在台账却不在或读不出，也算和那一版不一样。
+    factsLedger =
+      record.facts_ledger_sha256 === null
+        ? 'unknown'
+        : current === record.facts_ledger_sha256
+          ? 'unchanged'
+          : 'changed';
+  }
+  return {
+    batch_id: record.id,
+    from: first.ordinal,
+    to: targets[0]?.ordinal ?? null,
+    chapters,
+    facts_before: restore,
+    facts_ledger: factsLedger,
+    blockers,
+    can_undo: blockers.length === 0 && chapters.length > 0,
+  };
+}
+
+/**
+ * 删一章之前再核一次（只读）：这一章还是这一批写进的、文件还是写进去时那一份。能删为 null。
+ * 计划出来以后到真删之间作者可能又动过，所以每章删之前都问一次。
+ */
+export async function checkWriteBatchUndoChapter(
+  deps: Pick<WriteBatchRunDeps, 'reader' | 'platform'>,
+  root: string,
+  batchId: string,
+  ordinal: number,
+): Promise<WriteBatchUndoBlocker | null> {
+  await resolveProjectRoot(deps.reader, root);
+  const record = await latestBatch(deps.reader, root, batchId);
+  if (record.status === 'running') return undoBlocker('batch_running', RUNNING_UNDO);
+  const chapter = chapterOf(record, ordinal);
+  if (chapter.state !== 'written') return notBatchWritten(chapter.ordinal);
+  const problem = await undoFileProblem(deps.reader, root, chapter);
+  if (problem === 'changed') return changedBlocker([chapter.ordinal]);
+  if (problem === 'missing') return missingBlocker([chapter.ordinal]);
+  return null;
+}
+
+/**
+ * 界面撤销完（倒着删了文件、计划里退回未写、事实台账恢复）以后记一笔：删掉了的章记成已撤销，
+ * 这一批改成停下（undone），续写照常按正文算（撤销后能从删掉的第一章重写）。
+ * 删没删由引擎读盘核对，界面说删了、文件却还在就不认；删掉的必须是这一批写进的、从某一章起往后的全部。
+ * failure：没删完就停下时的原因；facts_restored / facts_error：事实台账恢复了没有。
+ */
+export async function recordWriteBatchUndo(
+  deps: FileDeps,
+  root: string,
+  batchId: string,
+  fromOrdinal: number,
+  input: {
+    deleted: number[];
+    failure: string | null;
+    facts_restored: boolean;
+    facts_error: string | null;
+  },
+): Promise<WriteBatchRecord> {
+  await resolveProjectRoot(deps.reader, root);
+  const record = await latestBatch(deps.reader, root, batchId);
+  if (record.status === 'running') throw new WriteBatchError(RUNNING_UNDO);
+  chapterOf(record, fromOrdinal);
+  const failure = optionalText(input.failure, 'failure');
+  const factsError = optionalText(input.facts_error, 'facts_error');
+  if (!Array.isArray(input.deleted) || !input.deleted.length)
+    throw new WriteBatchError('没有删掉任何一章，不用记撤销。');
+  const deleted = [...new Set(input.deleted)].map((ordinal) => chapterOf(record, ordinal));
+  const lowest = Math.min(...deleted.map((chapter) => chapter.ordinal));
+  for (const chapter of deleted) {
+    if (chapter.ordinal < fromOrdinal || chapter.state !== 'written')
+      throw new WriteBatchError(
+        `第 ${chapter.ordinal} 章不是要撤销的第 ${fromOrdinal} 章及之后这一批写进的章。`,
+      );
+    if ((await fileFingerprint(deps.reader, root, chapter.target_path)) !== null)
+      throw new WriteBatchError(
+        `第 ${chapter.ordinal} 章的文件还在 ${chapter.target_path}，不能记成已撤销。`,
+      );
+  }
+  const left = record.chapters.filter(
+    (chapter) =>
+      chapter.state === 'written' &&
+      chapter.ordinal > lowest &&
+      !deleted.some((item) => item.ordinal === chapter.ordinal),
+  );
+  if (left.length)
+    throw new WriteBatchError(
+      `第 ${ordinalRanges(left.map((chapter) => chapter.ordinal))} 章还在：撤销要从最后一章倒着删，不能跳过。`,
+    );
+  for (const chapter of deleted) chapter.state = 'undone';
+  // 台账是这一批自己恢复的：恢复后的样子当作新的基准，下次撤销不把它算成作者的改动。
+  if (input.facts_restored) record.facts_ledger_sha256 = await ledgerFingerprint(deps.reader, root);
+  const book = await bookChapters(deps.reader, root, deps.platform);
+  const resume = firstUnwritten(record, book)?.ordinal ?? null;
+  const facts = factsError
+    ? `；事实台账没能恢复（${factsError}），去观测镜里核对`
+    : input.facts_restored
+      ? `，事实台账回到第 ${lowest} 章记账前`
+      : '';
+  record.status = 'stopped';
+  record.stop = {
+    code: 'undone',
+    message:
+      `撤销了第 ${ordinalRanges(deleted.map((chapter) => chapter.ordinal))} 章：文件删了，连载计划里退回未写${facts}。` +
+      (failure ? `没撤完就停下了：${failure}。` : '') +
+      (resume !== null ? `要重写就从第 ${resume} 章接着写。` : ''),
+    ordinal: resume,
+  };
+  await save(deps, root, record);
+  return record;
 }

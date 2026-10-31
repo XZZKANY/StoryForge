@@ -15,9 +15,10 @@ import {
   type ChapterFactRecordPlan,
   type FactBackfillPlan,
 } from './api/facts';
+import { relativePathInsideProject } from './project/path';
 import { TauriFileSystem } from './tauri-fs';
 import { emitToast } from './toast';
-import { snapshotBeforeWrite } from './versions';
+import { listVersions, readVersionState, snapshotBeforeWrite } from './versions';
 
 type Planned = Exclude<ChapterFactRecordPlan, { status: 'skipped' }>;
 
@@ -166,6 +167,41 @@ async function undoFactsWrite(
 }
 
 /**
+ * 批量写章「撤销第 k 章及之后」：事实台账回到 versionRef（第 k 章记账前给台账拍的那条版本记录，
+ * 作品内相对路径）存下的样子。同一套写法——恢复前再拍一版（之后记下的、作者在观测镜里改的都还能从
+ * 版本记录找回）、以读到的那一份为准写（期间被别处改了宿主拒写）。已经是那一版就不写，返回 false。
+ */
+export async function restoreFactsLedger(
+  projectPath: string,
+  versionRef: string,
+): Promise<boolean> {
+  const path = factsLedgerPathFor(projectPath);
+  const entry = (await listVersions(projectPath, path)).find(
+    (version) =>
+      relativePathInsideProject(projectPath, version.path)?.replace(/\\/g, '/') === versionRef,
+  );
+  if (!entry)
+    throw new Error('找不到记账前那一版事实台账的版本记录，没法自动恢复：去版本历史里找。');
+  const target = await readVersionState(projectPath, entry);
+  const goal = target.exists ? target.content : null;
+  const before = await readLedger(path);
+  if (goal === before) return false;
+  await snapshotBeforeWrite(projectPath, path, before ?? '', {
+    source: 'Editor',
+    summary: '批量写章撤销：事实台账回到记账前',
+    checkpoint: true,
+  });
+  if (goal !== null) {
+    await writeLedger(projectPath, path, before, goal);
+    return true;
+  }
+  if ((await readLedger(path)) !== before)
+    throw new Error('facts.json 刚被别处改过，这次没有恢复。');
+  await TauriFileSystem.deletePath(projectPath, path);
+  return true;
+}
+
+/**
  * 老章补录：引擎逐章调模型抽事实，全部抽完给出新台账；这里一次写入——期间被改就停、
  * 写前一次快照、一次撤销整批撤回。没有新事实就不写。
  */
@@ -243,6 +279,8 @@ export type AcceptedChapterFacts = {
   snapshotPath: string | null;
   /** 和已记事实对不上、存成待定的条数。 */
   disputes: number;
+  /** 新记下的事实条数（不含待定的）。 */
+  added: number;
   /** 没记上（出错）时的原因；正文不受影响。 */
   error: string | null;
 };
@@ -258,12 +296,13 @@ export async function recordAcceptedChapterFacts(
   runId: string | undefined,
   canNotify: () => boolean = () => true,
 ): Promise<AcceptedChapterFacts> {
-  const settled: AcceptedChapterFacts = { snapshotPath: null, disputes: 0, error: null };
+  const settled: AcceptedChapterFacts = { snapshotPath: null, disputes: 0, added: 0, error: null };
   if (!projectPath || !runId) return settled;
   try {
     const outcome = await recordChapterFacts({ projectPath, filePath, runId });
     if (outcome.status === 'skipped') return settled;
     settled.disputes = outcome.plan.conflicts.length;
+    settled.added = outcome.plan.added;
     if (outcome.status === 'written') settled.snapshotPath = outcome.snapshotPath;
     const message = factRecordMessage(outcome.plan);
     if (!message || !canNotify()) return settled;
@@ -290,6 +329,6 @@ export async function recordAcceptedChapterFacts(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (canNotify()) emitToast(`这章的事实没记上：${message}`, { tone: 'error' });
-    return { snapshotPath: null, disputes: 0, error: message };
+    return { snapshotPath: null, disputes: 0, added: 0, error: message };
   }
 }

@@ -27,6 +27,7 @@ const written = (ordinal: number, extra: Partial<ChapterWriteback> = {}): Chapte
     snapshotVersion: `.storyforge/versions/正文/第${String(ordinal).padStart(3, '0')}章.md/checkpoints/${ordinal}.meta.json`,
     factsBefore: `.storyforge/versions/.storyforge/canon/facts.json/checkpoints/${ordinal}.meta.json`,
     factDisputes: 0,
+    factsAdded: 3,
     factError: null,
     ...extra,
   }) as ChapterWriteback;
@@ -129,6 +130,7 @@ describe('runWriteBatchLoop', () => {
       snapshotVersion: '.storyforge/versions/正文/第004章.md/checkpoints/4.meta.json',
       factsBefore: '.storyforge/versions/.storyforge/canon/facts.json/checkpoints/4.meta.json',
       factDisputes: 0,
+      factsAdded: 3,
     });
     expect(deps.stop).not.toHaveBeenCalled();
   });

@@ -1,11 +1,14 @@
 import {
+  checkWriteBatchUndoChapter,
   formatTokenCount,
   markWriteBatchReviewed,
   nextWriteBatchStep,
   planWriteBatch,
+  planWriteBatchUndo,
   previewWriteBatchResume,
   readWriteBatch,
   recordWriteBatchChapter,
+  recordWriteBatchUndo,
   recoverInterruptedWriteBatch,
   resumeWriteBatch,
   runUsage,
@@ -20,6 +23,8 @@ import type {
   ApiWriteBatchRecovery,
   ApiWriteBatchStartResult,
   ApiWriteBatchStep,
+  ApiWriteBatchUndoBlocker,
+  ApiWriteBatchUndoPlan,
   ApiWriteBatchView,
 } from '../api/contracts';
 import { platform } from './assistant';
@@ -103,6 +108,7 @@ export async function recordEngineWriteBatchChapter(
     snapshot_version: string | null;
     facts_before: string | null;
     fact_disputes: number;
+    facts_added: number | null;
   },
 ): Promise<ApiWriteBatch> {
   return await recordWriteBatchChapter(await runDeps(), projectRoot, batchId, input);
@@ -137,6 +143,38 @@ export async function markEngineWriteBatchReviewed(
 
 export async function readEngineWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return await readWriteBatch(fileDeps(), projectRoot);
+}
+
+/** 撤销第 k 章及之后的计划：只读作品文件与批量记录，不开引擎库、不写文件。 */
+export async function planEngineWriteBatchUndo(
+  projectRoot: string,
+  batchId: string,
+  fromOrdinal: number,
+): Promise<ApiWriteBatchUndoPlan> {
+  return await planWriteBatchUndo(fileDeps(), projectRoot, batchId, fromOrdinal);
+}
+
+/** 删一章之前再核一次：还是写进去时那一份为 null。 */
+export async function checkEngineWriteBatchUndoChapter(
+  projectRoot: string,
+  batchId: string,
+  ordinal: number,
+): Promise<ApiWriteBatchUndoBlocker | null> {
+  return await checkWriteBatchUndoChapter(fileDeps(), projectRoot, batchId, ordinal);
+}
+
+export async function recordEngineWriteBatchUndo(
+  projectRoot: string,
+  batchId: string,
+  fromOrdinal: number,
+  input: {
+    deleted: number[];
+    failure: string | null;
+    facts_restored: boolean;
+    facts_error: string | null;
+  },
+): Promise<ApiWriteBatch> {
+  return await recordWriteBatchUndo(fileDeps(), projectRoot, batchId, fromOrdinal, input);
 }
 
 /** 给作者看的 token 数按「万」说（与引擎停下说明里同一种说法）。 */

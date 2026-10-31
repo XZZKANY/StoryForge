@@ -20,6 +20,8 @@ import type {
   ApiWriteBatchStep,
   ApiWriteBatchStop,
   ApiWriteBatchStopCode,
+  ApiWriteBatchUndoBlocker,
+  ApiWriteBatchUndoPlan,
   ApiWriteBatchView,
   ApiWriteBatchViewChapter,
 } from './contracts';
@@ -184,6 +186,7 @@ const STOP_CODES = [
   'app_closed',
   'run_not_started',
   'scheduler_error',
+  'undone',
 ] as const satisfies readonly ApiWriteBatchStopCode[];
 
 /**
@@ -250,6 +253,7 @@ function decodeRecordChapter(value: unknown): ApiWriteBatchRecordChapter {
     chars: field(raw, 'chars', isCountOrNull, at),
     check: raw.check === null ? null : decodeCheck(raw.check),
     fact_disputes: field(raw, 'fact_disputes', isCountOrNull, at),
+    facts_added: field(raw, 'facts_added', isCountOrNull, at),
     facts_before: field(raw, 'facts_before', isText, at),
     ordinal: field(raw, 'ordinal', isOrdinal, at),
     run_id: field(raw, 'run_id', isText, at),
@@ -257,7 +261,7 @@ function decodeRecordChapter(value: unknown): ApiWriteBatchRecordChapter {
     state: field(
       raw,
       'state',
-      oneOf('pending', 'written', 'stopped_here', 'skipped_written', 'after_trial'),
+      oneOf('pending', 'written', 'stopped_here', 'skipped_written', 'after_trial', 'undone'),
       at,
     ),
     target_path: field(raw, 'target_path', isString, at),
@@ -281,6 +285,7 @@ export function decodeWriteBatch(value: unknown): ApiWriteBatch {
   return {
     chapters: list(raw, 'chapters', at, decodeRecordChapter),
     created_at: field(raw, 'created_at', isString, at),
+    facts_ledger_sha256: field(raw, 'facts_ledger_sha256', isText, at),
     from: field(raw, 'from', isOrdinal, at),
     id: field(raw, 'id', isString, at),
     legs: list(raw, 'legs', at, decodeLeg),
@@ -336,15 +341,19 @@ function decodeMismatch(value: unknown): ApiWriteBatchMismatch {
   };
 }
 
-/** 读记录时的那份：每章多带一个读时取的标题。 */
+/** 读记录时的那份：每章多带读时取的标题与本章目标。 */
 function decodeViewBatch(value: unknown): ApiWriteBatchView['batch'] {
   if (value === null) return null;
   const batch = decodeWriteBatch(value);
   const raws = object(value, '批量记录').chapters as unknown[];
-  const chapters: ApiWriteBatchViewChapter[] = batch.chapters.map((chapter, index) => ({
-    ...chapter,
-    title: field(object(raws[index], '批量记录的章'), 'title', isText, '批量记录的章'),
-  }));
+  const chapters: ApiWriteBatchViewChapter[] = batch.chapters.map((chapter, index) => {
+    const raw = object(raws[index], '批量记录的章');
+    return {
+      ...chapter,
+      goal: field(raw, 'goal', isText, '批量记录的章'),
+      title: field(raw, 'title', isText, '批量记录的章'),
+    };
+  });
   return { ...batch, chapters };
 }
 
@@ -446,6 +455,8 @@ export async function recordWriteBatchChapter(input: {
   snapshotVersion: string | null;
   factsBefore: string | null;
   factDisputes: number;
+  /** 记账时新记下的事实条数（不含待定的）；没记账或不知道为 null。 */
+  factsAdded: number | null;
 }): Promise<ApiWriteBatch> {
   const raw = await (
     await engine()
@@ -456,6 +467,7 @@ export async function recordWriteBatchChapter(input: {
     snapshot_version: input.snapshotVersion,
     facts_before: input.factsBefore,
     fact_disputes: input.factDisputes,
+    facts_added: input.factsAdded,
   });
   return decodeWriteBatch(raw);
 }
@@ -515,6 +527,105 @@ export async function markWriteBatchReviewed(
  */
 export async function readWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return decodeWriteBatchView(await (await engine()).readEngineWriteBatch(projectRoot));
+}
+
+const UNDO_BLOCKER_CODES = [
+  'batch_running',
+  'not_batch_written',
+  'changed',
+  'missing',
+  'outside_chapters',
+] as const satisfies readonly ApiWriteBatchUndoBlocker['code'][];
+
+function decodeUndoBlocker(value: unknown): ApiWriteBatchUndoBlocker {
+  const at = '不能撤销的原因';
+  const raw = object(value, at);
+  const chapters = field<unknown[]>(raw, 'chapters', Array.isArray, at);
+  if (!chapters.every(isOrdinal)) throw new WriteBatchShapeError(`${at}的 chapters 不对`);
+  return {
+    chapters: chapters as number[],
+    code: field(raw, 'code', oneOf(...UNDO_BLOCKER_CODES), at),
+    message: field(raw, 'message', isString, at),
+  };
+}
+
+export function decodeWriteBatchUndoPlan(value: unknown): ApiWriteBatchUndoPlan {
+  const at = '撤销计划';
+  const raw = object(value, at);
+  const plan: ApiWriteBatchUndoPlan = {
+    batch_id: field(raw, 'batch_id', isString, at),
+    blockers: list(raw, 'blockers', at, decodeUndoBlocker),
+    can_undo: field(raw, 'can_undo', (item) => typeof item === 'boolean', at),
+    chapters: list(raw, 'chapters', at, (item) => {
+      const chapter = object(item, `${at}的章`);
+      return {
+        facts_restore: field(chapter, 'facts_restore', isText, at),
+        ordinal: field(chapter, 'ordinal', isOrdinal, at),
+        target_path: field(chapter, 'target_path', isString, at),
+        written_sha256: field(chapter, 'written_sha256', isString, at),
+      };
+    }),
+    facts_before: field(raw, 'facts_before', isText, at),
+    facts_ledger: field(raw, 'facts_ledger', oneOf('unchanged', 'changed', 'unknown', null), at),
+    from: field(raw, 'from', isOrdinal, at),
+    to: field(raw, 'to', isOrdinalOrNull, at),
+  };
+  // 界面按这个顺序删：必须是从最后一章倒着排的。
+  const ordinals = plan.chapters.map((chapter) => chapter.ordinal);
+  if (ordinals.some((ordinal, index) => index > 0 && ordinal >= ordinals[index - 1]))
+    throw new WriteBatchShapeError('撤销计划里的章不是从最后一章倒着排的');
+  if ((plan.facts_before === null) !== (plan.facts_ledger === null))
+    throw new WriteBatchShapeError('撤销计划的台账版本与台账比对对不上');
+  if (plan.can_undo && (plan.blockers.length > 0 || plan.chapters.length === 0))
+    throw new WriteBatchShapeError('撤销计划说能撤，却有不能撤的原因或没有要删的章');
+  return plan;
+}
+
+/** 撤销第 k 章及之后之前先问引擎能不能撤、要删哪几章（倒着排）、台账恢复到哪一版；只读。 */
+export async function planWriteBatchUndo(
+  projectRoot: string,
+  batchId: string,
+  fromOrdinal: number,
+): Promise<ApiWriteBatchUndoPlan> {
+  return decodeWriteBatchUndoPlan(
+    await (await engine()).planEngineWriteBatchUndo(projectRoot, batchId, fromOrdinal),
+  );
+}
+
+/** 删一章之前再问一次：这一章的文件还是写进去时那一份为 null，否则是不能删的原因。 */
+export async function checkWriteBatchUndoChapter(
+  projectRoot: string,
+  batchId: string,
+  ordinal: number,
+): Promise<ApiWriteBatchUndoBlocker | null> {
+  const raw = await (
+    await engine()
+  ).checkEngineWriteBatchUndoChapter(projectRoot, batchId, ordinal);
+  return raw === null ? null : decodeUndoBlocker(raw);
+}
+
+/**
+ * 撤销做完以后记一笔：删掉了的章（倒着删的顺序）、没删完时停下的原因、事实台账恢复了没有。
+ * 引擎读盘核对删没删，这一批改成停下（undone），续写从删掉的第一章起。
+ */
+export async function recordWriteBatchUndo(input: {
+  projectRoot: string;
+  batchId: string;
+  fromOrdinal: number;
+  deleted: number[];
+  failure: string | null;
+  factsRestored: boolean;
+  factsError: string | null;
+}): Promise<ApiWriteBatch> {
+  const raw = await (
+    await engine()
+  ).recordEngineWriteBatchUndo(input.projectRoot, input.batchId, input.fromOrdinal, {
+    deleted: input.deleted,
+    failure: input.failure,
+    facts_restored: input.factsRestored,
+    facts_error: input.factsError,
+  });
+  return decodeWriteBatch(raw);
 }
 
 /** 给作者看的 token 数按「万」说，与引擎停下说明里同一种说法。 */

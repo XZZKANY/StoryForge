@@ -6,6 +6,7 @@ import { nodeSqliteDb } from '../../../../packages/engine/src/store/nodeSqlite.t
 import {
   decodeWriteBatch,
   decodeWriteBatchStep,
+  decodeWriteBatchUndoPlan,
   decodeWriteBatchView,
   WriteBatchShapeError,
 } from '../src/lib/api/write-batch';
@@ -217,12 +218,14 @@ describe('lib/api 经引擎记批量、问下一步', () => {
       snapshotVersion: 'snap-2',
       factsBefore: null,
       factDisputes: 0,
+      factsAdded: 4,
     });
     expect(recorded.chapters[0]).toMatchObject({
       state: 'written',
       tokens: 1500,
       check: { verdict: 'pass', issue_count: 0, summary: '通过' },
       snapshot_version: 'snap-2',
+      facts_added: 4,
     });
     expect(recorded.chapters[0].written_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(recorded.legs[0].used_tokens).toBe(1500);
@@ -252,6 +255,76 @@ describe('lib/api 经引擎记批量、问下一步', () => {
     expect(blocked.started).toBe(false);
     expect(blocked.plan.blockers.map((item) => item.code)).toContain('previous_batch_unreviewed');
     expect((await api.markWriteBatchReviewed(ROOT, batch.id)).reviewed).toBe(true);
+  });
+
+  it('plans an undo newest first, checks a chapter before deleting it, and records what was deleted', async () => {
+    await seedChapterRun('history', '正文/第001章.md', 1000);
+    const api = await import('../src/lib/api/write-batch');
+    const started = await api.startWriteBatch({
+      projectRoot: ROOT,
+      from: 2,
+      to: 3,
+      permissionProfile: 'ask',
+      modelKey: MODEL,
+    });
+    if (!started.started) throw new Error('应能开跑');
+    const id = started.batch.id;
+    const step = {
+      projectRoot: ROOT,
+      batchId: id,
+      permissionProfile: 'auto',
+      modelKey: MODEL,
+    } as const;
+    for (const ordinal of [2, 3]) {
+      expect(await api.nextWriteBatchStep(step)).toMatchObject({ action: 'write', ordinal });
+      const target = `正文/第00${ordinal}章.md`;
+      await seedChapterRun(`run-${ordinal}`, target, 1500);
+      fixture.project.apply({ [target]: file(`第${ordinal}章\n\n批量写的。\n`) });
+      await api.recordWriteBatchChapter({
+        projectRoot: ROOT,
+        batchId: id,
+        ordinal,
+        runId: `run-${ordinal}`,
+        writtenPath: `${ROOT}\\正文\\第00${ordinal}章.md`,
+        snapshotVersion: `snap-${ordinal}`,
+        factsBefore: `facts-${ordinal}`,
+        factDisputes: 0,
+        factsAdded: 1,
+      });
+    }
+    expect(await api.nextWriteBatchStep(step)).toEqual({ action: 'finished' });
+
+    const plan = await api.planWriteBatchUndo(ROOT, id, 2);
+    // 作品里没有事实台账：记一笔时没有指纹，说不准作者之后动没动过。
+    expect(plan).toMatchObject({
+      from: 2,
+      to: 3,
+      facts_before: 'facts-2',
+      facts_ledger: 'unknown',
+      can_undo: true,
+    });
+    expect(plan.chapters.map((chapter) => [chapter.ordinal, chapter.facts_restore])).toEqual([
+      [3, 'facts-3'],
+      [2, 'facts-2'],
+    ]);
+    expect(await api.checkWriteBatchUndoChapter(ROOT, id, 3)).toBeNull();
+    fixture.project.apply({ '正文/第003章.md': file('第三章\n\n作者改过。\n') });
+    expect(await api.checkWriteBatchUndoChapter(ROOT, id, 3)).toMatchObject({ code: 'changed' });
+    expect((await api.planWriteBatchUndo(ROOT, id, 2)).can_undo).toBe(false);
+
+    fixture.project.apply({ '正文/第003章.md': null, '正文/第002章.md': null });
+    const undone = await api.recordWriteBatchUndo({
+      projectRoot: ROOT,
+      batchId: id,
+      fromOrdinal: 2,
+      deleted: [3, 2],
+      failure: null,
+      factsRestored: true,
+      factsError: null,
+    });
+    expect(undone.chapters.map((chapter) => chapter.state)).toEqual(['undone', 'undone']);
+    expect(undone.stop).toMatchObject({ code: 'undone', ordinal: 2 });
+    expect(await api.readWriteBatch(ROOT)).toMatchObject({ can_resume: true, resume_from: 2 });
   });
 
   it('stops a batch the app left running when the book is opened again', async () => {
@@ -290,16 +363,18 @@ describe('批量记录回包的解码', () => {
     snapshot_version: 'v',
     facts_before: null,
     fact_disputes: 0,
+    facts_added: 3,
     extra: 'dropped',
   };
   const BATCH = {
-    version: 2,
+    version: 3,
     id: 'write-batch-1',
     from: 2,
     to: 2,
     created_at: '2026-10-30T08:00:00Z',
     model_key: MODEL,
     note: null,
+    facts_ledger_sha256: null,
     status: 'running',
     reviewed: false,
     stop: null,
@@ -339,6 +414,8 @@ describe('批量记录回包的解码', () => {
     ['negative leg usage', { legs: [{ ...BATCH.legs[0], used_tokens: -1 }] }],
     ['missing reviewed', { reviewed: undefined }],
     ['a note that is not text', { note: 3 }],
+    ['a chapter without the facts count', { chapters: [{ ...CHAPTER, facts_added: undefined }] }],
+    ['a missing ledger fingerprint', { facts_ledger_sha256: undefined }],
   ])('rejects %s', (_name, change) => {
     expect(() => decodeWriteBatch({ ...BATCH, ...change })).toThrow(WriteBatchShapeError);
   });
@@ -389,14 +466,19 @@ describe('批量记录回包的解码', () => {
         ...BATCH,
         status: 'stopped',
         stop: { ...STOP, code: 'scheduler_error' },
-        chapters: [{ ...CHAPTER, title: '标题2' }],
+        chapters: [{ ...CHAPTER, title: '标题2', goal: '目标2' }],
       },
       mismatches: [],
       can_resume: true,
       resume_from: 2,
     });
     expect(view).toMatchObject({ can_resume: true, resume_from: 2 });
-    expect(view.batch?.chapters[0]).toMatchObject({ ordinal: 2, title: '标题2' });
+    expect(view.batch?.chapters[0]).toMatchObject({
+      ordinal: 2,
+      title: '标题2',
+      goal: '目标2',
+      facts_added: 3,
+    });
     expect(view.batch?.chapters[0]).not.toHaveProperty('extra');
     expect(view.batch?.stop?.code).toBe('scheduler_error');
   });
@@ -405,5 +487,71 @@ describe('批量记录回包的解码', () => {
     expect(() =>
       decodeWriteBatchView({ batch: BATCH, mismatches: [], can_resume: false, resume_from: 2 }),
     ).toThrow(WriteBatchShapeError);
+  });
+
+  it('rejects a view whose chapters miss the goal', () => {
+    expect(() =>
+      decodeWriteBatchView({
+        batch: { ...BATCH, chapters: [{ ...CHAPTER, title: '标题2' }] },
+        mismatches: [],
+        can_resume: false,
+        resume_from: 2,
+      }),
+    ).toThrow(WriteBatchShapeError);
+  });
+
+  it('accepts an undone chapter and a batch stopped by the undo', () => {
+    const batch = decodeWriteBatch({
+      ...BATCH,
+      status: 'stopped',
+      stop: { code: 'undone', message: '撤销了第 2 章。', ordinal: 2 },
+      chapters: [{ ...CHAPTER, state: 'undone' }],
+    });
+    expect(batch.chapters[0].state).toBe('undone');
+    expect(batch.stop?.code).toBe('undone');
+  });
+});
+
+describe('撤销计划的解码', () => {
+  const PLAN = {
+    batch_id: 'write-batch-1',
+    from: 2,
+    to: 3,
+    chapters: [
+      {
+        ordinal: 3,
+        target_path: '正文/第003章.md',
+        written_sha256: 'b',
+        facts_restore: 'f3',
+        x: 1,
+      },
+      { ordinal: 2, target_path: '正文/第002章.md', written_sha256: 'a', facts_restore: 'f2' },
+    ],
+    facts_before: 'f2',
+    facts_ledger: 'changed',
+    blockers: [],
+    can_undo: true,
+    extra: true,
+  };
+
+  it('keeps only the contract fields', () => {
+    const plan = decodeWriteBatchUndoPlan(PLAN);
+    expect(plan).not.toHaveProperty('extra');
+    expect(plan.chapters[0]).not.toHaveProperty('x');
+    expect(plan.chapters.map((chapter) => chapter.ordinal)).toEqual([3, 2]);
+  });
+
+  it.each([
+    ['chapters not newest first', { chapters: [...PLAN.chapters].reverse() }],
+    ['can_undo with a blocker', { blockers: [{ code: 'changed', message: 'm', chapters: [3] }] }],
+    ['can_undo with nothing to delete', { chapters: [], to: null }],
+    [
+      'an unknown blocker',
+      { can_undo: false, blockers: [{ code: 'odd', message: 'm', chapters: [] }] },
+    ],
+    ['an unknown ledger verdict', { facts_ledger: 'maybe' }],
+    ['a ledger verdict without a ledger to restore', { facts_before: null }],
+  ])('rejects %s', (_name, change) => {
+    expect(() => decodeWriteBatchUndoPlan({ ...PLAN, ...change })).toThrow(WriteBatchShapeError);
   });
 });

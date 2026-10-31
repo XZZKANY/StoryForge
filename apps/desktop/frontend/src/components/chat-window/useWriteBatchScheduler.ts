@@ -5,6 +5,7 @@ import type { ApiWriteBatch, ApiWriteBatchPlan } from '../../lib/api/contracts';
 import {
   currentWriteBatchModelKey,
   markWriteBatchReviewed,
+  planWriteBatchUndo,
   previewWriteBatchResume,
   readWriteBatch,
   recoverInterruptedWriteBatch,
@@ -12,6 +13,7 @@ import {
   startWriteBatch,
 } from '../../lib/api/write-batch';
 import { emitToast } from '../../lib/toast';
+import { undoWriteBatchFrom } from '../../lib/write-batch-undo';
 import type { WriteBatchStartFeedback } from './WriteBatchCard';
 import {
   buildWriteBatchResult,
@@ -78,6 +80,8 @@ export function useWriteBatchScheduler({
   });
   const runRef = useRef<WriteBatchRun | null>(null);
   const lastResultRef = useRef<WriteBatchResult | null>(null);
+  // 清单上正在撤销：这时不开新的一批、不续写。
+  const undoingRef = useRef(false);
 
   const setPhase = useCallback((owner: WriteBatchOwner, next: WriteBatchPhase) => {
     if (!owner.active) return;
@@ -173,6 +177,7 @@ export function useWriteBatchScheduler({
       const owner = ownerRef.current;
       const project = owner.project;
       if (!project || runRef.current) return { error: '已经有一批在写了。' };
+      if (undoingRef.current) return { error: '上一批正在撤销，等撤完再开。' };
       try {
         const result = await startWriteBatch({
           projectRoot: project,
@@ -233,7 +238,7 @@ export function useWriteBatchScheduler({
   const resumeFromResult = useCallback(() => {
     const owner = ownerRef.current;
     const project = owner.project;
-    if (!project || runRef.current) return;
+    if (!project || runRef.current || undoingRef.current) return;
     updateResult(owner, { pending: true, error: null });
     const note = lastResultRef.current?.batch?.note ?? null;
     preview(owner, project, note).catch((error: unknown) =>
@@ -245,7 +250,7 @@ export function useWriteBatchScheduler({
   const resumeFromCommand = useCallback(() => {
     const owner = ownerRef.current;
     const project = owner.project;
-    if (!project || runRef.current) return;
+    if (!project || runRef.current || undoingRef.current) return;
     void (async () => {
       const view = await readWriteBatch(project);
       const batch = view.batch;
@@ -275,6 +280,7 @@ export function useWriteBatchScheduler({
     const owner = ownerRef.current;
     const project = owner.project;
     if (!project || runRef.current) return { error: '已经有一批在写了。' };
+    if (undoingRef.current) return { error: '这一批正在撤销，等撤完再续写。' };
     try {
       const result = await resumeWriteBatch({
         projectRoot: project,
@@ -319,6 +325,82 @@ export function useWriteBatchScheduler({
     );
   }, [updateResult]);
 
+  /**
+   * 清单上第一次点「撤销这章及之后」：先只读地问引擎能不能撤（不改任何东西）。不能撤就把原因放在卡上；
+   * 能撤就在这一行换成「确认撤销第 k–n 章？」，连同台账会不会把作者之后的改动一起回退。
+   */
+  const prepareUndo = useCallback(
+    (ordinal: number) => {
+      const owner = ownerRef.current;
+      const project = owner.project;
+      const batch = lastResultRef.current?.batch;
+      if (!project || !batch || runRef.current || undoingRef.current) return;
+      updateResult(owner, { pending: true, error: null, undoBlockers: [], undoConfirm: null });
+      planWriteBatchUndo(project, batch.id, ordinal).then(
+        (plan) =>
+          updateResult(
+            owner,
+            plan.can_undo && plan.to !== null
+              ? {
+                  pending: false,
+                  undoConfirm: { from: plan.from, to: plan.to, factsLedger: plan.facts_ledger },
+                }
+              : { pending: false, undoBlockers: plan.blockers.map((blocker) => blocker.message) },
+          ),
+        (error: unknown) =>
+          updateResult(owner, { pending: false, error: `没能撤销：${errorText(error)}` }),
+      );
+    },
+    [updateResult],
+  );
+
+  const cancelUndo = useCallback(
+    () => updateResult(ownerRef.current, { undoConfirm: null }),
+    [updateResult],
+  );
+
+  /**
+   * 清单上确认了「撤销第 k 章及之后」：能不能撤、删哪几章由引擎说，照着倒着删；不能撤就把原因放在卡上、
+   * 什么都不动。撤完（或没撤完）读一遍记录刷新清单：删了几章、停在哪、台账恢复没有都在引擎记下的停下原因里。
+   */
+  const undoFrom = useCallback(
+    (ordinal: number) => {
+      const owner = ownerRef.current;
+      const project = owner.project;
+      const batch = lastResultRef.current?.batch;
+      if (!project || !batch || runRef.current || undoingRef.current) return;
+      undoingRef.current = true;
+      updateResult(owner, { pending: true, error: null, undoBlockers: [], undoConfirm: null });
+      void (async () => {
+        const outcome = await undoWriteBatchFrom({
+          projectRoot: project,
+          batchId: batch.id,
+          fromOrdinal: ordinal,
+        });
+        if (outcome.kind === 'blocked') {
+          updateResult(owner, { pending: false, undoBlockers: outcome.messages });
+          return;
+        }
+        const errors = [
+          !outcome.deleted.length && outcome.failure ? `没能撤销：${outcome.failure}` : null,
+          outcome.recordError
+            ? `撤销删了第 ${outcome.deleted.join('、')} 章，但批量记录没记上：${outcome.recordError}` +
+              (outcome.failure ? `；没撤完：${outcome.failure}` : '') +
+              (outcome.factsError ? `；事实台账没能恢复：${outcome.factsError}` : '')
+            : null,
+        ].filter((item): item is string => item !== null);
+        await showLatest(owner, project, { error: errors.join('；') || null });
+      })()
+        .catch((error: unknown) =>
+          updateResult(owner, { pending: false, error: `没能撤销：${errorText(error)}` }),
+        )
+        .finally(() => {
+          undoingRef.current = false;
+        });
+    },
+    [showLatest, updateResult],
+  );
+
   const closeResult = useCallback(() => setPhase(ownerRef.current, IDLE), [setPhase]);
 
   return {
@@ -335,6 +417,9 @@ export function useWriteBatchScheduler({
     confirmResume,
     cancelConfirm,
     markReviewed,
+    prepareUndo,
+    cancelUndo,
+    undoFrom,
     closeResult,
   };
 }

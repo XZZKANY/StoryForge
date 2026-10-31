@@ -14,10 +14,12 @@ export type WriteBatchGrant = {
   readonly batchId: string;
 };
 
-type GrantState = { targets: ReadonlySet<string>; live: boolean };
+type GrantState = { targets: ReadonlySet<string>; live: boolean; runs: Set<string> };
 
 // 只认这里发出去的对象：别处照着形状拼一个出来，不在表里，升不了档。
 const issued = new WeakMap<WriteBatchGrant, GrantState>();
+// 这一批发起的运行 → 它的授权：自动写进文件时据此不逐章弹撤销提示（撤销改由清单提供）。
+const runOwners = new Map<string, WriteBatchGrant>();
 
 const targetKey = (path: string) => normalizePathForMatch(path.trim());
 
@@ -31,14 +33,38 @@ export function issueWriteBatchGrant(input: {
     projectPath: input.projectPath,
     batchId: input.batchId,
   });
-  issued.set(grant, { targets: new Set(input.targets.map(targetKey)), live: true });
+  issued.set(grant, {
+    targets: new Set(input.targets.map(targetKey)),
+    live: true,
+    runs: new Set(),
+  });
   return grant;
 }
 
-/** 批量停下、写完或调度器卸载时撤销；撤销后同一个对象再也升不了档。 */
+/** 批量停下、写完或调度器卸载时撤销；撤销后同一个对象再也升不了档，登记过的运行也不再算批量的。 */
 export function revokeWriteBatchGrant(grant: WriteBatchGrant | null | undefined): void {
   const state = grant ? issued.get(grant) : undefined;
-  if (state) state.live = false;
+  if (!state) return;
+  state.live = false;
+  for (const runId of state.runs) runOwners.delete(runId);
+  state.runs.clear();
+}
+
+/** 只给批量写章调度器用：把刚发起的这一章的运行 id 登记到这一批的授权下。 */
+export function bindWriteBatchRun(grant: WriteBatchGrant, runId: string): void {
+  const state = issued.get(grant);
+  if (!state?.live || !runId) return;
+  state.runs.add(runId);
+  runOwners.set(runId, grant);
+}
+
+/**
+ * 这次运行是不是批量写章发起的、这一批的授权还没撤。是的话它自动写进文件时不逐章弹撤销提示
+ * （写 10 章会冒出约 20 条、10 秒就消失），撤销改由清单提供；批量停下或写完以后作者再手动接受，照旧弹。
+ */
+export function isWriteBatchRun(runId: string | null | undefined): boolean {
+  const grant = runId ? runOwners.get(runId) : undefined;
+  return grant !== undefined && issued.get(grant)?.live === true;
 }
 
 /**

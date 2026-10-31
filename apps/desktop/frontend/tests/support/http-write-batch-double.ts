@@ -12,6 +12,8 @@ import type {
   ApiWriteBatchRecovery,
   ApiWriteBatchStartResult,
   ApiWriteBatchStep,
+  ApiWriteBatchUndoBlocker,
+  ApiWriteBatchUndoPlan,
   ApiWriteBatchView,
 } from '../../src/lib/api/contracts';
 import {
@@ -19,6 +21,7 @@ import {
   decodeWriteBatchPlan,
   decodeWriteBatchStart,
   decodeWriteBatchStep,
+  decodeWriteBatchUndoPlan,
   decodeWriteBatchView,
   type WriteBatchInterfaceStopCode,
 } from '../../src/lib/api/write-batch';
@@ -108,6 +111,7 @@ export async function recordWriteBatchChapter(input: {
   snapshotVersion: string | null;
   factsBefore: string | null;
   factDisputes: number;
+  factsAdded: number | null;
 }): Promise<ApiWriteBatch> {
   return decodeWriteBatch(
     await post('record', {
@@ -119,6 +123,7 @@ export async function recordWriteBatchChapter(input: {
       snapshot_version: input.snapshotVersion,
       facts_before: input.factsBefore,
       fact_disputes: input.factDisputes,
+      facts_added: input.factsAdded,
     }),
   );
 }
@@ -177,6 +182,51 @@ export async function markWriteBatchReviewed(
 
 export async function readWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return decodeWriteBatchView(await post('read', { project_root: projectRoot }));
+}
+
+export async function planWriteBatchUndo(
+  projectRoot: string,
+  batchId: string,
+  fromOrdinal: number,
+): Promise<ApiWriteBatchUndoPlan> {
+  return decodeWriteBatchUndoPlan(
+    await post('undo-plan', { project_root: projectRoot, batch_id: batchId, from: fromOrdinal }),
+  );
+}
+
+export async function checkWriteBatchUndoChapter(
+  projectRoot: string,
+  batchId: string,
+  ordinal: number,
+): Promise<ApiWriteBatchUndoBlocker | null> {
+  const raw = await post('undo-check', {
+    project_root: projectRoot,
+    batch_id: batchId,
+    ordinal,
+  });
+  return raw === null ? null : (raw as ApiWriteBatchUndoBlocker);
+}
+
+export async function recordWriteBatchUndo(input: {
+  projectRoot: string;
+  batchId: string;
+  fromOrdinal: number;
+  deleted: number[];
+  failure: string | null;
+  factsRestored: boolean;
+  factsError: string | null;
+}): Promise<ApiWriteBatch> {
+  return decodeWriteBatch(
+    await post('undo-record', {
+      project_root: input.projectRoot,
+      batch_id: input.batchId,
+      from: input.fromOrdinal,
+      deleted: input.deleted,
+      failure: input.failure,
+      facts_restored: input.factsRestored,
+      facts_error: input.factsError,
+    }),
+  );
 }
 
 /** 浏览器里没有宿主的模型配置：固定一个标识，回归只核它被原样带上。 */

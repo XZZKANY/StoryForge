@@ -1,39 +1,96 @@
+import { emitOpenFileRequest } from '../../lib/assistant-events';
+import { resolveProjectRelativePath } from '../../lib/project-context';
 import { Button } from '../ui';
 
 import type { WriteBatchResult } from './useWriteBatchScheduler';
-import { chapterLines, writtenChapterCount } from './write-batch-view';
+import {
+  chapterRows,
+  plannedChapterCount,
+  undoFactsNotice,
+  undoRangeLabel,
+  writtenChapterCount,
+  type WriteBatchChapterRow,
+} from './write-batch-view';
 
 function cardTitle(result: WriteBatchResult): string {
+  const status = result.batch?.status;
+  if (status === 'finished') return '这一批写完了';
+  if (status === 'stopped') return '这一批停下了';
+  if (status === 'running') return '这一批还在写';
+  return '批量写章';
+}
+
+/** 「这一批写了 N 章（计划 M 章）· 共用 X 万（预估 Y、上限 Z）」：不止一段时预估与上限说的是最近一段。 */
+function summaryText(result: WriteBatchResult): string | null {
   const batch = result.batch;
-  if (!batch) return '批量写章';
-  const done = `写了 ${writtenChapterCount(batch)} 章${result.used ? `，用了 ${result.used}` : ''}`;
-  if (batch.status === 'finished') return `这一批写完了：${done}`;
-  if (batch.status === 'stopped') return `这一批停下了：${done}`;
-  return `这一批还在写：${done}`;
+  if (!batch) return null;
+  const budget = [
+    result.estimate ? `预估 ${result.estimate}` : null,
+    result.cap ? `上限 ${result.cap}` : null,
+  ].filter(Boolean);
+  const leg = budget.length ? `（${result.legs > 1 ? '最近一段' : ''}${budget.join('、')}）` : '';
+  return (
+    `这一批写了 ${writtenChapterCount(batch)} 章（计划 ${plannedChapterCount(batch)} 章）` +
+    (result.used ? `· 共用 ${result.used}${leg}` : '')
+  );
+}
+
+function ChapterFacts({ facts }: { facts: WriteBatchChapterRow['facts'] }) {
+  if (facts === null) return null;
+  if (facts === 'unknown') return <span data-testid="write-batch-row-facts">· 新记下的事实 —</span>;
+  return (
+    <span data-testid="write-batch-row-facts">
+      · 新记下的事实 {facts.total} 条
+      {facts.pending > 0 && (
+        <span className="text-warning" data-testid="write-batch-row-pending">
+          （其中待定 {facts.pending} 条）
+        </span>
+      )}
+    </span>
+  );
 }
 
 /**
- * 批量停下或写完后，在对话里确认卡的位置出这张卡（同一套样式，不弹窗）：停下的原因照引擎原文，
- * 每章一行（章名 · 字数 · 检查），「这批审完了」（没审完不能开新的一批），能续写时「从第 k 章接着写」。
- * 完整清单与「撤销第 k 章及之后」是下一刀。
+ * 批量停下或写完后，在对话里确认卡的位置出这张清单（同一套样式，不弹窗）：顶部汇总与停下原因（引擎原文），
+ * 每章一行（章名点了打开 · 字数 · 检查 · 本章目标 · 新记下的事实 · 用量 · 对不上的标注 · 撤销这章及之后），
+ * 底部「这批审完了」「从第 k 章接着写」「关闭」常驻。撤销先在行内就地两步确认，不弹居中窗口：
+ * 第一次点只读地问引擎能不能撤，第二步写明台账会整份回退（作者之后改过台账时醒目提示）。
+ * 不放质量分、通过率之类的总评：检查通过不等于写得好。
  */
 export function WriteBatchResultCard({
   result,
+  projectPath,
   onReviewed,
   onResume,
+  onPrepareUndo,
+  onCancelUndo,
+  onUndo,
   onClose,
 }: {
   result: WriteBatchResult;
+  projectPath: string;
   onReviewed: () => void;
   onResume: () => void;
+  /** 第一次点「撤销这章及之后」：问引擎能不能撤。 */
+  onPrepareUndo: (ordinal: number) => void;
+  onCancelUndo: () => void;
+  /** 确认了：从这一章起撤销到这一批写进文件的最后一章。 */
+  onUndo: (ordinal: number) => void;
   onClose: () => void;
 }) {
   const batch = result.batch;
-  const lines = batch ? chapterLines(batch) : [];
+  const rows = batch ? chapterRows(batch, result.mismatches) : [];
   const finished = batch?.status === 'finished';
+  const confirm = result.undoConfirm;
+  const factsNotice = confirm ? undoFactsNotice(confirm.from, confirm.factsLedger) : null;
   // 出错停下时引擎记下的停下原因里已经带着这句错，不再重复一遍。
   const error = result.error && !batch?.stop?.message.includes(result.error) ? result.error : null;
   const title = cardTitle(result);
+  const summary = summaryText(result);
+  const open = (row: WriteBatchChapterRow) => {
+    const filePath = resolveProjectRelativePath(projectPath, row.targetPath);
+    if (filePath) emitOpenFileRequest(filePath);
+  };
   return (
     <section
       className="flex min-h-0 flex-col rounded-lg border border-agent/40 bg-panel px-3 py-3"
@@ -47,6 +104,11 @@ export function WriteBatchResultCard({
         >
           {title}
         </div>
+        {summary && (
+          <div className="mt-0.5 text-xs text-muted" data-testid="write-batch-result-summary">
+            {summary}
+          </div>
+        )}
         {batch?.stop && (
           <p className="mt-1 text-xs text-foreground" data-testid="write-batch-stop-reason">
             {batch.stop.message}
@@ -66,23 +128,139 @@ export function WriteBatchResultCard({
           </p>
         )}
       </div>
-      {lines.length > 0 && (
-        <ul
-          className="mt-2 max-h-44 min-h-0 divide-y divide-border/60 overflow-y-auto"
-          data-testid="write-batch-result-chapters"
-        >
-          {lines.map((line) => (
-            <li
-              key={line.ordinal}
-              className="py-1.5 text-xs text-foreground"
-              data-testid="write-batch-result-chapter"
-            >
-              {line.text}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-3 flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+      <div className="min-h-0 overflow-y-auto">
+        {result.undoBlockers.length > 0 && (
+          <div
+            className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2"
+            data-testid="write-batch-undo-blockers"
+          >
+            <div className="text-xs font-medium text-warning">还不能撤销</div>
+            <ul className="mt-1 space-y-1 text-xs text-foreground">
+              {result.undoBlockers.map((message) => (
+                <li key={message} data-testid="write-batch-undo-blocker">
+                  {message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {rows.length > 0 && (
+          <ul
+            className="mt-2 max-h-44 min-h-0 divide-y divide-border/60 overflow-y-auto"
+            data-testid="write-batch-result-chapters"
+          >
+            {rows.map((row) => (
+              <li
+                key={row.ordinal}
+                className="flex items-start gap-2 py-1.5"
+                data-testid="write-batch-result-chapter"
+                data-ordinal={row.ordinal}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-x-1 text-xs text-foreground">
+                    {row.openable ? (
+                      <button
+                        type="button"
+                        className="text-left font-medium hover:underline"
+                        onClick={() => open(row)}
+                        data-testid="write-batch-row-open"
+                      >
+                        {row.name}
+                      </button>
+                    ) : (
+                      <span className="font-medium" data-testid="write-batch-row-name">
+                        {row.name}
+                      </span>
+                    )}
+                    {row.chars && <span data-testid="write-batch-row-chars">· {row.chars}</span>}
+                    <span data-testid="write-batch-row-check">· {row.check}</span>
+                    <ChapterFacts facts={row.facts} />
+                    {result.chapterTokens[row.ordinal] && (
+                      <span data-testid="write-batch-row-tokens">
+                        · 用量 {result.chapterTokens[row.ordinal]}
+                      </span>
+                    )}
+                  </div>
+                  {row.goal && (
+                    <div
+                      className="mt-0.5 truncate text-3xs text-subtle"
+                      title={row.goal}
+                      data-testid="write-batch-row-goal"
+                    >
+                      目标：{row.goal}
+                    </div>
+                  )}
+                  {row.mismatch && (
+                    <div
+                      className="mt-0.5 text-3xs text-warning"
+                      data-testid="write-batch-row-mismatch"
+                    >
+                      {row.mismatch}
+                    </div>
+                  )}
+                  {confirm?.from === row.ordinal && factsNotice && (
+                    <p
+                      className={`mt-1 text-xs ${
+                        factsNotice.emphasis ? 'font-medium text-warning' : 'text-muted'
+                      }`}
+                      role={factsNotice.emphasis ? 'alert' : undefined}
+                      data-testid="write-batch-undo-facts"
+                      data-emphasis={factsNotice.emphasis ? 'true' : 'false'}
+                    >
+                      {factsNotice.text}
+                    </p>
+                  )}
+                </div>
+                {row.undoable && batch && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    {confirm?.from === row.ordinal ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="danger"
+                          className="text-xs"
+                          disabled={result.pending}
+                          onClick={() => onUndo(row.ordinal)}
+                          data-testid="write-batch-undo-confirm"
+                        >
+                          确认撤销{undoRangeLabel(confirm.from, confirm.to)}？
+                        </Button>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="secondary"
+                          className="text-xs"
+                          onClick={onCancelUndo}
+                          data-testid="write-batch-undo-cancel"
+                        >
+                          取消
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="secondary"
+                        className="text-xs"
+                        disabled={result.pending}
+                        onClick={() => onPrepareUndo(row.ordinal)}
+                        data-testid="write-batch-undo"
+                      >
+                        撤销这章及之后
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div
+        className="mt-3 flex flex-shrink-0 flex-wrap items-center justify-end gap-2"
+        data-testid="write-batch-result-footer"
+      >
         {batch?.reviewed && (
           <span className="mr-auto text-3xs text-subtle" data-testid="write-batch-reviewed-done">
             已标审完
