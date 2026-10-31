@@ -1,4 +1,4 @@
-import type { ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, type ProjectReader } from '../readPort';
 import {
   FsBinaryFileError,
   FsToolError,
@@ -218,8 +218,6 @@ export async function resolveNewProjectFile(
   return target;
 }
 
-const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-
 /**
  * 已存在、可见的 UTF-8 文件：一次原始读取同时给出提案输入与基线字节。
  * 错误文案沿用 Python（修订与审稿路径同样会把它们交给模型）。
@@ -234,11 +232,11 @@ export async function readProjectFileRaw(reader: ProjectReader, root: string, pa
     throw new FsToolError('external_writeback_input_exceeds_budget');
   let text: string;
   try {
-    text = STRICT_UTF8.decode(raw);
+    text = decodeUtf8(raw, { fatal: true });
   } catch {
     throw new FsToolError('external_writeback_requires_utf8');
   }
-  const normalized = text.replace(/\r\n?/g, '\n');
+  const normalized = normalizeNewlines(text);
   if (codePoints(normalized).length > READ_LIMIT_MAX)
     throw new FsToolError('external_writeback_input_exceeds_budget');
   return { target, content: normalized, raw };

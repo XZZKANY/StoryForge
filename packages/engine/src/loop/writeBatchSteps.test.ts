@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { countProseChars } from '@storyforge/project-core';
 import { InputDomainError } from '../kernel/json';
 import { memoryProject } from '../kernel/memoryProject.test-support';
 import { sha256Hex } from '../kernel/sha256';
 import { MemoryRunStore } from '../store/runs';
-import { chapterChars } from './chapterCheckProtocol';
 import { REQUEST_EVIDENCE_KIND } from './requestEvidence';
 import { AgentRunNotFoundError } from './runEvents';
 import { AGENT_RUN_FAILED } from './runPayloads';
@@ -754,7 +754,7 @@ describe('记一章', () => {
       state: 'written',
       run_id: 'r2',
       written_sha256: sha256Hex(new TextEncoder().encode(text)),
-      chars: chapterChars(text),
+      chars: countProseChars(text),
       check: { verdict: 'pass', issue_count: 2, summary: '修过一次后通过，有 2 条建议' },
       tokens: 1500,
       snapshot_version: 'snap-2',

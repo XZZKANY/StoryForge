@@ -1,9 +1,9 @@
 // issue #492：作者要「改成 X 字左右」，修订稿差得远时补丁要带字数提示；只提示，不改确认档位、不重写。
 import { describe, expect, it } from 'vitest';
+import { countProseChars } from '@storyforge/project-core';
 import fixedGolden from '../../golden/p3-fixed-pipelines.windows.json';
 import loopGolden from '../../golden/p3-patch-tools.windows.json';
 import { agentRunReplay } from './agentRunReplay.test-support';
-import { chapterChars } from './chapterCheckProtocol';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 照预言机场景的 JSON 形状改
 
@@ -68,7 +68,7 @@ describe('对话循环里的修订：作者给了目标字数', () => {
 
   it('修订稿超出目标：补丁带字数提示，自动档照旧不用点', async () => {
     const result = await run({ message: '把第一章改成40字左右', after: LONGER, replyIndex: 1 });
-    const actual = chapterChars(result.proposed_patch.after);
+    const actual = countProseChars(result.proposed_patch.after);
     expect(actual).toBeGreaterThan(44);
     const hint = result.agent_result.length_hint;
     expect(hint).toEqual({
@@ -100,7 +100,7 @@ describe('对话循环里的修订：作者给了目标字数', () => {
 
   it('落在目标里、或没提字数：不带提示', async () => {
     const inRange = await run({
-      message: `把第一章改成${chapterChars(LONGER)}字左右`,
+      message: `把第一章改成${countProseChars(LONGER)}字左右`,
       after: LONGER,
       replyIndex: 1,
     });

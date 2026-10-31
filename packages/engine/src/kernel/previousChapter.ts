@@ -1,5 +1,5 @@
 import { compareManuscriptPaths } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError } from './fsTools';
 import { normcase, type GenerationSourceCapture } from './generationSources';
 import { NON_MANUSCRIPT_DIRS, isManuscriptPath, orderManuscriptFiles } from './manuscript';
@@ -41,7 +41,6 @@ export async function iterManuscriptFiles(
   );
 }
 
-const normalizeNewlines = (text: string) => text.replace(/\r\n?/g, '\n');
 const stripNewlines = (text: string) => text.replace(/^\n+|\n+$/g, '');
 
 /** 取尾部 maxChars，并从段落边界起头——上文以半句开头会误导模型的语感判断。 */
@@ -138,7 +137,7 @@ export async function previousChapterPassage(
       capture?.project('previous_chapter', null, { channel: 'user', omissionReason: reason });
       return null; // 部分前缀代表不了这一章真正的结尾。
     }
-    const decoded = new TextDecoder('utf-8', { ignoreBOM: true }).decode(raw);
+    const decoded = decodeUtf8(raw);
     const normalized = stripNewlines(normalizeNewlines(decoded));
     await capture?.observe('previous_chapter', resolved, { raw, text: normalized, complete: true });
     const tail = tailOf(decoded, maxChars);

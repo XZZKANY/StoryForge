@@ -1,3 +1,5 @@
+import { decodeUtf8 } from '../readPort';
+
 /**
  * 内核读取 JSON 文件的唯一入口：标准 JSON，范围外直接报错，不复刻 Python json 的宽松行为。
  * 范围见 docs/architecture/ts-engine-migration-plan.md §4.3.1。
@@ -239,15 +241,13 @@ export function escapeStrayQuotes(text: string): string {
   return out;
 }
 
-const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-
 /** 文件字节：只收不带 BOM 的合法 UTF-8。 */
 export function parseJsonBytes(raw: Uint8Array, source: string): JsonValue {
   if (raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf)
     throw new InputDomainError(`${source}：文件以 BOM 开头，请另存为不带 BOM 的 UTF-8`);
   let text: string;
   try {
-    text = UTF8.decode(raw);
+    text = decodeUtf8(raw, { fatal: true });
   } catch {
     throw new InputDomainError(`${source}：不是合法的 UTF-8 文本`);
   }

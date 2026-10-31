@@ -1,4 +1,4 @@
-import type { ProjectReader } from '../readPort';
+import { decodeUtf8, stripBom, type ProjectReader } from '../readPort';
 import { platformTextBytes, type ProjectWriter } from '../writePort';
 import { DocxReadError, readDocxText } from './docx';
 import { iterProjectFiles, resolveProjectRoot } from './fsTools';
@@ -185,8 +185,6 @@ function hasPythonOnlyLiteral(text: string): boolean {
   return false;
 }
 
-const DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
-
 export async function readBreakdownSource(
   reader: ProjectReader,
   root: string,
@@ -220,7 +218,7 @@ export async function readBreakdownSource(
   }
   if (raw.subarray(0, 1024).includes(0))
     throw new BookBreakdownError(`文件不是可解析文本：${name}`);
-  let text = DECODER.decode(raw);
+  let text = decodeUtf8(raw);
   if (suffix === '.json') {
     try {
       JSON.parse(text);
@@ -294,7 +292,7 @@ const TITLE_SEPARATORS = new RegExp(`^(?:${PYTHON_WHITESPACE}|[:：、，,.．·
  * 再去掉章号后的分隔符。第一个非空行不是 Markdown 标题、或去掉章号后什么都不剩，为 null。
  */
 export function chapterHeadingTitle(text: string): string | null {
-  const first = pythonSplitlines(text.replace(/^\uFEFF/u, '')).find((line) => pythonStrip(line));
+  const first = pythonSplitlines(stripBom(text)).find((line) => pythonStrip(line));
   const line = pythonStrip(first ?? '');
   if (!HEADING_LINE.test(line)) return null;
   const heading = pythonStrip(line.replace(/^#+/u, '').replace(CLOSING_HASHES, ''));

@@ -1,4 +1,4 @@
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { buildAuthorEditPolicy, type AuthorEditPolicy } from './authorEditPolicy';
 import { AUTHOR_INSTRUCTIONS_PATH } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
@@ -20,8 +20,6 @@ export const CONVERSATION_PREFIX =
 export const GENERATION_PREFIX =
   '以下是作者对自己作品的写作偏好与要求。你正在为这位作者的正文落笔，' +
   '请逐条遵循；与上述通用创作准则冲突时，以作者本人的要求为准：\n';
-
-const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 /**
  * 读 `.storyforge/agent-instructions.md`；不存在 / 读不到 / 空内容一律 null。每次重读不缓存；
@@ -75,7 +73,7 @@ export async function readAuthorInstructions(
     throw error;
   }
   try {
-    text = pythonStrip(UTF8.decode(raw).replace(/\r\n?/g, '\n'));
+    text = pythonStrip(normalizeNewlines(decodeUtf8(raw, { fatal: true })));
   } catch {
     return unreadable();
   }

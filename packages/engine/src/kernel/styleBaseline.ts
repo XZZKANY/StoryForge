@@ -1,4 +1,4 @@
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import type { GenerationSourceCapture } from './generationSources';
 import { pythonFixed, pythonFloatSum } from './math';
 import { iterManuscriptFiles } from './previousChapter';
@@ -137,9 +137,7 @@ async function readChunk(
     });
     return null;
   }
-  const text = pythonStrip(
-    new TextDecoder('utf-8', { ignoreBOM: true }).decode(raw).replace(/\r\n?/g, '\n'),
-  );
+  const text = pythonStrip(normalizeNewlines(decodeUtf8(raw)));
   const short = cpLen(text) < MIN_CHUNK_CHARS;
   await capture?.observe('style_sample', path, {
     raw,

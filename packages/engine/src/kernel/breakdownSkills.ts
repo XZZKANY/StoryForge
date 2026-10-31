@@ -1,3 +1,5 @@
+import { countProseChars } from '@storyforge/project-core';
+import { normalizeNewlines } from '../readPort';
 import { InputDomainError, isJsonObject, parseJson, type JsonValue } from './json';
 import { pythonStrip } from './pythonText';
 
@@ -38,7 +40,6 @@ export class BreakdownSkillsError extends Error {
 
 const DIALOGUE = /“[^”]*”|「[^」]*」|"[^"\n]*"/gu;
 const QUESTION_OR_QUOTE = /[？?”」"]/u;
-const chars = (text: string) => Array.from(text.replace(/\s/gu, '')).length;
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -46,7 +47,9 @@ const median = (values: number[]) => {
 };
 
 export function craftMetrics(texts: readonly string[]): CraftMetrics | null {
-  const chapters = texts.map((text) => text.replace(/\r\n?/g, '\n')).filter((text) => chars(text));
+  const chapters = texts
+    .map((text) => normalizeNewlines(text))
+    .filter((text) => countProseChars(text));
   if (!chapters.length) return null;
   let total = 0;
   let dialogue = 0;
@@ -55,11 +58,14 @@ export function craftMetrics(texts: readonly string[]): CraftMetrics | null {
   const offsets: number[] = [];
   for (const text of chapters) {
     const lines = text.split('\n').filter((line) => pythonStrip(line));
-    total += chars(text);
+    total += countProseChars(text);
     paragraphs += lines.length;
-    dialogue += (text.match(DIALOGUE) ?? []).reduce((sum, quote) => sum + chars(quote), 0);
+    dialogue += (text.match(DIALOGUE) ?? []).reduce(
+      (sum, quote) => sum + countProseChars(quote),
+      0,
+    );
     const first = text.search(DIALOGUE);
-    if (first >= 0) offsets.push(chars(text.slice(0, first)));
+    if (first >= 0) offsets.push(countProseChars(text.slice(0, first)));
     if (QUESTION_OR_QUOTE.test(lines[lines.length - 1] ?? '')) hookEndings += 1;
   }
   return {

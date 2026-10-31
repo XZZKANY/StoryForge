@@ -1,5 +1,5 @@
 import { compareManuscriptPaths } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { ProjectReadError, readOptionalProjectText, type ProjectReader } from '../readPort';
 import { formatChapterWindow, renderAssertionMetadata } from './canonAssertions';
 import { readCanon, readFactLedger, readHooks } from './canonFiles';
 import { chapterOrdinals, entitySurfaceForms } from './canonRebuild';
@@ -208,24 +208,6 @@ function hookAgendaBlock(current: number | null, hooks: JsonObject): string | nu
   return '[本章伏笔计划]\n' + lines.join('\n');
 }
 
-async function chapterText(
-  reader: ProjectReader,
-  root: string,
-  path: string,
-  cache: Map<string, string | null>,
-): Promise<string | null> {
-  if (cache.has(path)) return cache.get(path)!;
-  let text: string | null = null;
-  try {
-    const read = await reader.readProjectBytes(root, path, MAX_READ_BYTES);
-    if (!read.exceeded) text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(read.bytes);
-  } catch (error) {
-    if (!(error instanceof ProjectReadError)) throw error;
-  }
-  cache.set(path, text);
-  return text;
-}
-
 export type WrittenFact = {
   /** 带给模型的一行。 */
   line: string;
@@ -257,7 +239,9 @@ async function pickWrittenFacts(
   const previous = [...ordinals].find(([, ordinal]) => ordinal === current - 1)?.[0] ?? null;
   const cache = new Map<string, string | null>();
   const previousText =
-    previous === null ? '' : ((await chapterText(reader, root, previous, cache)) ?? '');
+    previous === null
+      ? ''
+      : ((await readOptionalProjectText(reader, root, previous, MAX_READ_BYTES, cache)) ?? '');
   const mentions = `${input.mentionText}\n${previousText}`;
   const mentioned = (subject: string) =>
     (input.surfaceForms.get(subject) ?? [subject]).some(
@@ -284,7 +268,13 @@ async function pickWrittenFacts(
     if (isOlder && olderLines >= MAX_OLDER_FACT_LINES) break;
     const evidence = objects(fact.evidence)[0];
     const quote = typeof evidence?.quote === 'string' ? evidence.quote : '';
-    const text = await chapterText(reader, root, fact.path as string, cache);
+    const text = await readOptionalProjectText(
+      reader,
+      root,
+      fact.path as string,
+      MAX_READ_BYTES,
+      cache,
+    );
     if (!pythonStrip(quote) || text === null || locateQuote(text, quote) === null) continue;
     const attribute =
       typeof fact.attribute === 'string' && fact.attribute ? `/${fact.attribute}` : '';

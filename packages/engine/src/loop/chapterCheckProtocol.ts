@@ -1,3 +1,4 @@
+import { countProseChars } from '@storyforge/project-core';
 import { FACT_KINDS } from '../kernel/factLedger';
 import {
   dumpJson,
@@ -8,7 +9,7 @@ import {
   type JsonValue,
 } from '../kernel/json';
 import { codePoints, pythonStrip } from '../kernel/pythonText';
-import { locateQuote, QUOTE_WHITESPACE } from '../kernel/quoteLocation';
+import { locateQuote } from '../kernel/quoteLocation';
 import { sha256Hex } from '../kernel/sha256';
 
 type Obj = { [key: string]: unknown };
@@ -186,16 +187,6 @@ function decode(raw: unknown): Obj {
   return parsed as Obj;
 }
 
-/**
- * 正文字数：空白以外的每个字。把换行也算进去，短段落的稿子会被虚抬一成以上
- * （10-16 真书第 6 章：2826 个汉字算成 3547）。
- */
-export function chapterChars(text: string): number {
-  let count = 0;
-  for (const char of text) if (!QUOTE_WHITESPACE.has(char)) count += 1;
-  return count;
-}
-
 /** 引用必须真在正文里；原文里没有这句判无效。 */
 function quoteLocation(content: string, evidence: string, line: number | null): Obj {
   const location = locateQuote(content, evidence, line);
@@ -307,7 +298,7 @@ export function buildCheck(
   if (!pythonStrip(content)) findings.push(failure('draft_empty', '正文为空。'));
   const minimum = Math.trunc(Number(brief.target_chars_min));
   const maximum = Math.trunc(Number(brief.target_chars_max));
-  const chars = chapterChars(content);
+  const chars = countProseChars(content);
   // 字数偏离只提示不拦稿：为它整章重写，写出来的往往还是偏（作者 10-25：「不能全重新生成」）。
   // 短到不足下限三成多半是生成坏了（截断、只回了一句），仍当硬失败去修。
   if (chars < Math.trunc(minimum * 0.7) || chars > Math.trunc(maximum * 1.3)) {

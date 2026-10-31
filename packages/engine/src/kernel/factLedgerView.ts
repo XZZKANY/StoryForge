@@ -1,4 +1,4 @@
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { readOptionalProjectText, type ProjectReader } from '../readPort';
 import { readFactLedger } from './canonFiles';
 import { chapterOrdinals } from './canonRebuild';
 import { FsToolError } from './fsTools';
@@ -9,24 +9,6 @@ import { locateQuote } from './quoteLocation';
 const objects = (value: JsonValue | undefined): JsonObject[] =>
   Array.isArray(value) ? value.filter(isJsonObject) : [];
 const text = (value: JsonValue | undefined) => (typeof value === 'string' ? value : '');
-
-async function readText(
-  reader: ProjectReader,
-  root: string,
-  path: string,
-  cache: Map<string, string | null>,
-): Promise<string | null> {
-  if (cache.has(path)) return cache.get(path)!;
-  let value: string | null = null;
-  try {
-    const read = await reader.readProjectBytes(root, path, MAX_READ_BYTES);
-    if (!read.exceeded) value = new TextDecoder('utf-8', { ignoreBOM: true }).decode(read.bytes);
-  } catch (error) {
-    if (!(error instanceof ProjectReadError)) throw error;
-  }
-  cache.set(path, value);
-  return value;
-}
 
 /**
  * 观测镜「事实台账」分区（确定性，不调模型）：按章列出仍有效的事实，最近的章在前；
@@ -68,7 +50,7 @@ export async function buildFactLedgerView(
     const evidence = objects(fact.evidence)[0] ?? {};
     const quote = text(evidence.quote);
     const recordedLine = typeof evidence.start_line === 'number' ? evidence.start_line : null;
-    const chapter = await readText(reader, root, path, cache);
+    const chapter = await readOptionalProjectText(reader, root, path, MAX_READ_BYTES, cache);
     const location = chapter === null || !quote ? null : locateQuote(chapter, quote, recordedLine);
     if (location === null) stale += 1;
     const entry: JsonObject = {

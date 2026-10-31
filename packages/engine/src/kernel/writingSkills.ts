@@ -1,5 +1,5 @@
 import { compareChapterPaths } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError, readBoundedText, resolveProjectRoot } from './fsTools';
 import { scanProjectFiles, ProjectTreeError } from './projectTree';
 import { pythonStrip } from './pythonText';
@@ -36,7 +36,7 @@ const cut = (text: string, limit: number) => {
 
 /** 开头的 `---` 块里认「名字 / name」「什么时候用 / when / description」，冒号全半角都行。 */
 export function parseWritingSkill(path: string, content: string): Omit<WritingSkill, 'sha256'> {
-  const text = content.replace(/\r\n?/g, '\n');
+  const text = normalizeNewlines(content);
   const fallbackName = path
     .split('/')
     .slice(-1)[0]
