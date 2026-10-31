@@ -1,4 +1,5 @@
-import { compactText, PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { isObj, type Obj } from '../kernel/json';
+import { compactText, cpLen, PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import type { SecretContext } from '../kernel/redaction';
 import type { ChatResponse } from '../llm/contracts';
 import { RunInterrupted, type RunControl } from '../llm/control';
@@ -21,11 +22,6 @@ import {
   type ConversationSources,
   type MessageRow,
 } from './conversationHistory';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
 
 export const TITLE_JOB_NAME = 'conversation.title.generate';
 export const SUMMARY_JOB_NAME = 'conversation.summary.update';

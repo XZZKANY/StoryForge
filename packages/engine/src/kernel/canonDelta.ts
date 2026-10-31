@@ -18,14 +18,10 @@ import {
   type JsonValue,
 } from './json';
 import { pythonStrip } from './pythonText';
+import { sha1Hex } from './sha1';
 
 export const INVARIANT_KEYS = ['single_holder', 'lifespan', 'timeline_order', 'promises'] as const;
 const PROMISE_STATUSES = new Set(['planted', 'advancing', 'resolved']);
-
-async function sha1Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 const own = (entry: JsonObject, key: string) =>
   Object.prototype.hasOwnProperty.call(entry, key) ? entry[key] : undefined;

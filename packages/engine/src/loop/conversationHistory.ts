@@ -10,7 +10,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
-import { pythonStrip } from '../kernel/pythonText';
+import { cpLen, pythonStrip } from '../kernel/pythonText';
 import { stripCodeFence } from '../kernel/reviewReasoning';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { redactSensitive, type PlainJson, type SecretContext } from '../kernel/redaction';
@@ -89,7 +89,6 @@ const isObj = (value: unknown): value is Obj =>
   !Array.isArray(value) &&
   !(value instanceof JsonFloat) &&
   !(value instanceof Map);
-const cpLen = (text: string) => Array.from(text).length;
 const utf8Length = (text: string) => new TextEncoder().encode(text).length;
 
 /** 一个会话在存储里的事实行（P4 前：消息与工具调用来自 Python 库，run 事件与 artifact 来自引擎存储）。 */

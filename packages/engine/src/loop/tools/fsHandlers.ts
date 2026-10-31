@@ -2,6 +2,7 @@ import { pythonCasefold } from '../../kernel/casefold';
 import { fsList, fsSearch } from '../../kernel/fsProjectTools';
 import { fsRead, FsToolError } from '../../kernel/fsTools';
 import type { JsonObject, JsonValue } from '../../kernel/json';
+import { isObj, type Obj } from '../../kernel/json';
 import { buildLlmContextSnapshot, llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../../kernel/llmPromptContext';
 import {
@@ -14,7 +15,7 @@ import {
   projectKnowledgeRead,
   projectKnowledgeSearch,
 } from '../../kernel/projectKnowledgeFiles';
-import { PYTHON_WHITESPACE } from '../../kernel/pythonText';
+import { cpLen, PYTHON_WHITESPACE } from '../../kernel/pythonText';
 import type { PlainJson } from '../../kernel/redaction';
 import { reviewContextSummary } from '../../kernel/reviewSkills';
 import { detectIntent, optionalString, roleHints, roleMentions } from '../runPayloads';
@@ -22,10 +23,6 @@ import type { ToolExecutionContext, ToolHandler, ToolResult } from './execution'
 import type { ToolDeps } from './handlerDeps';
 import { fsIntArg, requiredString } from './runtimeArguments';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
 const WHITESPACE_RUN = new RegExp(`${PYTHON_WHITESPACE}+`, 'u');
 
 const completed = (

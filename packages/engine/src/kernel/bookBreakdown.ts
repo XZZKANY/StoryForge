@@ -15,7 +15,7 @@ import {
   type JsonValue,
 } from './json';
 import type { LlmPort } from './llmPort';
-import { PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
+import { cpLen, PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
 import { sha256Hex } from './sha256';
 import {
   BREAKDOWN_SKILLS_PATH,
@@ -117,7 +117,6 @@ type AnalysisField = {
   confidence: string;
 };
 
-const length = (text: string) => Array.from(text).length;
 const normalizeText = (raw: string) => pythonStrip(raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
 
 /** PurePath.suffix（保留原大小写）。 */
@@ -327,7 +326,7 @@ export async function loadProjectChapters(
     sources.push({
       path: relative,
       sha256: sha256Hex(text),
-      chars: length(text),
+      chars: cpLen(text),
       chapter_count: parsed.length,
     });
     chapters.push(...parsed);
@@ -559,9 +558,9 @@ export async function selectedContext(
     if (!content) continue;
     const block = `### ${chapter.title ?? '未命名'} [${chapter.reason ?? '结构锚点'}]\n${content}\n`;
     // 放不进预算的章跳过，后面短的章照样带上。
-    if (used + length(block) > maxChars) continue;
+    if (used + cpLen(block) > maxChars) continue;
     chunks.push(block);
-    used += length(block);
+    used += cpLen(block);
   }
   return chunks.join('\n---\n');
 }

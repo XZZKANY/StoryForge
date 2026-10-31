@@ -1,4 +1,5 @@
 import { dumpJson } from './json';
+import { cpLen } from './pythonText';
 import {
   redactSensitive,
   redactSensitiveText,
@@ -33,7 +34,6 @@ export function normcase(path: string, platform: 'windows' | 'posix'): string {
 }
 
 const PYTHON_STRIP_NEWLINES = /^\n+|\n+$/g;
-const codePoints = (text: string) => Array.from(text).length;
 
 export type SourceRow = {
   source_id: string;
@@ -234,7 +234,7 @@ export class GenerationSourceCapture {
     this.project('current_tail', tail, {
       sourcePurpose: 'supplied_manuscript',
       channel: 'user',
-      truncated: codePoints(prefix.replace(PYTHON_STRIP_NEWLINES, '')) > tailPoints.length,
+      truncated: cpLen(prefix.replace(PYTHON_STRIP_NEWLINES, '')) > tailPoints.length,
       sourceSpan: {
         start,
         end: start + tailPoints.length,
@@ -245,18 +245,18 @@ export class GenerationSourceCapture {
     });
     const remaining = lines.slice(anchorLine).join('\n');
     const suffixStart =
-      lines.slice(0, anchorLine).reduce((sum, line) => sum + codePoints(line) + 1, 0) +
-      codePoints(remaining) -
-      codePoints(remaining.replace(/^\n+/, ''));
+      lines.slice(0, anchorLine).reduce((sum, line) => sum + cpLen(line) + 1, 0) +
+      cpLen(remaining) -
+      cpLen(remaining.replace(/^\n+/, ''));
     const excerpt = Array.from(suffix).slice(0, suffixLimit).join('');
     this.project('current_suffix', excerpt, {
       sourcePurpose: 'supplied_manuscript',
       channel: 'user',
-      truncated: codePoints(suffix) > suffixLimit,
+      truncated: cpLen(suffix) > suffixLimit,
       sourceSpan: excerpt
         ? {
             start: suffixStart,
-            end: suffixStart + codePoints(excerpt),
+            end: suffixStart + cpLen(excerpt),
             basis: 'normalized_supplied_text',
             unit: 'chars',
           }
@@ -274,7 +274,7 @@ export class GenerationSourceCapture {
       projections.push({
         ...row,
         delivered,
-        delivered_chars: delivered ? codePoints(text!) : 0,
+        delivered_chars: delivered ? cpLen(text!) : 0,
         delivered_source_count: delivered ? row.source_ids.length : 0,
         omitted_source_count: row.requested_source_count - (delivered ? row.source_ids.length : 0),
         excerpt_sha256: delivered ? await textSha256(text!) : null,

@@ -1,4 +1,4 @@
-import { pythonStrip } from '../kernel/pythonText';
+import { codePoints, pythonStrip } from '../kernel/pythonText';
 
 /**
  * 作者当前视图：把「作者此刻正看着哪一段」解码成可注入循环的文本块。
@@ -23,9 +23,8 @@ export type AuthorView = {
   readonly content: string;
 };
 
-const points = (text: string) => Array.from(text);
 const cpSlice = (text: string, start: number, end?: number) =>
-  points(text).slice(start, end).join('');
+  codePoints(text).slice(start, end).join('');
 const text = (value: unknown): string | null =>
   typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
 const nonNegativeInt = (value: unknown): number =>
@@ -52,7 +51,7 @@ export const authorViewHasView = (view: AuthorView): boolean =>
 /** 码点下标版的 str.find / str.rfind（只用于 ASCII 子串）。 */
 function cpFind(haystack: string, needle: string, fromEnd = false): number {
   const index = fromEnd ? haystack.lastIndexOf(needle) : haystack.indexOf(needle);
-  return index < 0 ? -1 : points(haystack.slice(0, index)).length;
+  return index < 0 ? -1 : codePoints(haystack.slice(0, index)).length;
 }
 
 /**
@@ -70,14 +69,14 @@ export function cursorWindow(
   const end = Math.max(0, Math.min(cursorLine, lines.length));
   let head = lines.slice(0, end).join('\n');
   let tail = lines.slice(end).join('\n');
-  if (points(head).length > beforeChars) {
+  if (codePoints(head).length > beforeChars) {
     head = cpSlice(head, -beforeChars);
     // 从段落边界起头，避免上文以半句开始误导模型对语感的判断。
     const boundary = cpFind(head, '\n\n');
     if (boundary !== -1 && boundary < Math.floor(beforeChars / 2))
       head = cpSlice(head, boundary + 2);
   }
-  if (points(tail).length > afterChars) {
+  if (codePoints(tail).length > afterChars) {
     tail = cpSlice(tail, 0, afterChars);
     const boundary = cpFind(tail, '\n\n', true);
     if (boundary !== -1 && boundary > Math.floor(afterChars / 2)) tail = cpSlice(tail, 0, boundary);
@@ -116,6 +115,6 @@ export function buildPinnedContextBlock(contextBlock: string | null | undefined)
 export const authorViewSummary = (view: AuthorView) => ({
   file_path: view.file_path,
   cursor_line: view.cursor_line,
-  selection_chars: points(view.selection_text).length,
-  content_chars: points(view.content).length,
+  selection_chars: codePoints(view.selection_text).length,
+  content_chars: codePoints(view.content).length,
 });

@@ -9,7 +9,7 @@ import {
   type JsonValue,
 } from './json';
 import type { LlmPort } from './llmPort';
-import { compactText, pythonSplitlines, pythonStrip } from './pythonText';
+import { compactText, cpLen, pythonSplitlines, pythonStrip } from './pythonText';
 import {
   characterAgentIssues,
   contextFiles,
@@ -36,18 +36,16 @@ export type ReviewSubagentResult = {
   coverage: { [key: string]: unknown } | null;
 };
 
-const length = (text: string) => Array.from(text).length;
-
 export function reviewCoverage(content: string, bundle: Bundle, sent: boolean) {
   const files = contextFiles(bundle);
   const budget = bundle && typeof bundle === 'object' ? bundle.budget : undefined;
   return {
     body_scope: sent ? 'full_provided_text' : 'heuristic_signals_only',
-    content_chars_provided: length(content),
-    content_chars_sent: sent ? length(content) : 0,
+    content_chars_provided: cpLen(content),
+    content_chars_sent: sent ? cpLen(content) : 0,
     context_files_sent: sent ? files.length : 0,
     context_excerpt_chars_sent: sent
-      ? files.reduce((sum, item) => sum + length(String(item.excerpt || '')), 0)
+      ? files.reduce((sum, item) => sum + cpLen(String(item.excerpt || '')), 0)
       : 0,
     context_scope: 'admitted_excerpts_not_full_source_files',
     upstream_context_truncated:
@@ -207,7 +205,7 @@ export function llmReviewReasoner(options: {
         options.checkInterruption?.();
         try {
           const prompt = reviewUserPrompt(key, content, contextBundle, authorInstruction);
-          if (length(prompt) > MAX_REVIEW_PROMPT_CHARS)
+          if (cpLen(prompt) > MAX_REVIEW_PROMPT_CHARS)
             throw new RangeError('审稿输入超过完整处理预算；本轮不能宣称全文模型审稿。');
           const result = await options.callLlm({
             systemPrompt: reviewSystemPrompt(key),

@@ -12,7 +12,7 @@ import {
   resolveScopedPath,
 } from '../kernel/fsTools';
 import { GenerationSourceCapture, MAX_MANIFEST_BYTES } from '../kernel/generationSources';
-import { compareCodePoints, dumpJson, InputDomainError } from '../kernel/json';
+import { compareCodePoints, dumpJson, InputDomainError, isObj, type Obj } from '../kernel/json';
 import { PREVIOUS_FULL_MAX_CHARS, previousChapterTail } from '../kernel/previousChapter';
 import { ProjectTreeError } from '../kernel/projectTree';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
@@ -26,10 +26,6 @@ import {
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { AgentOrchestrationError } from './runPayloads';
 import { writingContextSourcesUnchanged } from './writingContextRecovery';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const VERSION = 2;
 const FIXED_SOURCES = [

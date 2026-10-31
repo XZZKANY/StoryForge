@@ -10,7 +10,7 @@ import { InputDomainError, isJsonObject, type JsonObject, type JsonValue } from 
 import { isManuscriptPath } from './manuscript';
 import { matchPythonPath } from './pathMatch';
 import { MAX_READ_BYTES } from './projectTree';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { cpSlice, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { locateQuote } from './quoteLocation';
 
 // 正文文件名 `第NNN章.md` 约定；Python 的 \d 是 Unicode 十进制数字。
@@ -32,7 +32,6 @@ export const DEFAULT_FACTS_MAX_CHARS = 2000;
 const objects = (value: JsonValue | undefined): JsonObject[] =>
   Array.isArray(value) ? value.filter(isJsonObject) : [];
 const isInt = (value: JsonValue | undefined): value is number => typeof value === 'number';
-const slicePoints = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 /** Unicode 十进制数字串是否大于 0（每段 Nd 都是连续的 0–9）。 */
 function positiveDecimal(digits: string): boolean {
@@ -162,7 +161,7 @@ async function activeHooksBlock(
           stale = true;
           staleCount += 1;
           staleDetail.push(
-            `「${slicePoints(description, 40)}」自第 ${reference[0]} 章${reference[1]}后已沉睡 ${diff} 章`,
+            `「${cpSlice(description, 40)}」自第 ${reference[0]} 章${reference[1]}后已沉睡 ${diff} 章`,
           );
         }
       }
@@ -200,7 +199,7 @@ function hookAgendaBlock(current: number | null, hooks: JsonObject): string | nu
       .map((id) => {
         const hook = byId.get(id as string);
         const description = hook ? hook.description || id : id;
-        return `「${slicePoints(description as string, 60)}」`;
+        return `「${cpSlice(description as string, 60)}」`;
       })
       .join('、');
   const lines: string[] = [];

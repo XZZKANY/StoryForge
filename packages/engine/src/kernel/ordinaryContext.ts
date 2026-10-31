@@ -4,7 +4,7 @@ import { InputDomainError, isJsonObject, parseJson, type JsonValue } from './jso
 import { hasKnowledgeBlockMarker } from './knowledgeEntries';
 import { normcase } from './generationSources';
 import { readProjectContextFile } from './projectKnowledgeFiles';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { codePoints, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { redactSensitiveText, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 
@@ -29,7 +29,6 @@ export const UNSAFE_CONTEXT_KEYS = new Set([
   'ui_debug_json',
 ]);
 const WHITESPACE_RUN = new RegExp(`${PYTHON_WHITESPACE}+`, 'u');
-const points = (text: string) => Array.from(text);
 
 /** 整段文本看起来像运行时内部载荷（事件、补丁、权限、调试 JSON），不得当作作者资料注入。 */
 export function looksLikeHarnessPayload(text: string): boolean {
@@ -78,7 +77,7 @@ export type CollectedOrdinaryContext = {
 };
 
 export function ordinaryContextFileAsContext(file: OrdinaryContextFile) {
-  return { ...file, excerpt_chars: points(file.excerpt).length, source_state: 'current' };
+  return { ...file, excerpt_chars: codePoints(file.excerpt).length, source_state: 'current' };
 }
 
 /** 有界地现读作者显式选中的普通来源，并只保留仍然成立的摘录。 */
@@ -131,8 +130,8 @@ export async function collectOrdinaryContext(
     let excerpt: string;
     if (oldBody && normalized.includes(oldBody)) excerpt = oldExcerpt;
     else if (kind === 'draft')
-      excerpt = points(normalized).slice(-CONTEXT_FILE_TEXT_LIMIT).join('');
-    else excerpt = points(normalized).slice(0, CONTEXT_FILE_TEXT_LIMIT).join('');
+      excerpt = codePoints(normalized).slice(-CONTEXT_FILE_TEXT_LIMIT).join('');
+    else excerpt = codePoints(normalized).slice(0, CONTEXT_FILE_TEXT_LIMIT).join('');
     if (!pythonStrip(excerpt)) {
       omitted.push([path, kind, selection, 'empty_source']);
       warnings.push(`context source omitted: ${path} (empty_source)`);
@@ -148,8 +147,8 @@ export async function collectOrdinaryContext(
       excerpt,
       source_text_sha256: sha256Hex(raw),
       selection_source: selection,
-      source_chars: points(raw).length,
-      truncated: points(normalized).length > points(excerpt).length,
+      source_chars: codePoints(raw).length,
+      truncated: codePoints(normalized).length > codePoints(excerpt).length,
     });
   }
   return { files, omitted, warnings };
@@ -183,7 +182,7 @@ export function sourceDeliveryManifest(
     const raw =
       typeof item.excerpt === 'string' ? item.excerpt : item.excerpt ? String(item.excerpt) : '';
     const excerpt =
-      points(redactSensitiveText(pythonStrip(raw), secrets))
+      codePoints(redactSensitiveText(pythonStrip(raw), secrets))
         .slice(0, PROMPT_EXCERPT_TEXT_LIMIT)
         .join('') || '无摘录。';
     refs.push({
@@ -193,7 +192,7 @@ export function sourceDeliveryManifest(
       source_state: item.source_state || (item.knowledge_id ? 'structured' : 'unverified'),
       source_text_sha256: item.source_text_sha256 ?? null,
       excerpt_sha256: sha256Hex(excerpt),
-      delivered_chars: points(excerpt).length,
+      delivered_chars: codePoints(excerpt).length,
       disposition: 'delivered',
       truncated: Boolean(item.truncated),
       ...(item.knowledge_id

@@ -9,7 +9,7 @@ import {
 } from './fsTools';
 import { compareCodePoints } from './json';
 import { matchPythonPath } from './pathMatch';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { cpSlice, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 
 const MAX_TERMS = 30;
 const MAX_FILES = 2_000;
@@ -37,8 +37,6 @@ const CLAUSE_SPLIT_PATTERN = new RegExp(
   `[，。！？；：、\\n“”「」『』…—${PYTHON_WHITESPACE.slice(1, -1)}]+`,
   'u',
 );
-
-const slicePoints = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 function countOccurrences(line: string, term: string): number {
   let count = 0;
@@ -167,7 +165,7 @@ export async function consistencyScan(
           path: relative,
           line: index + 1,
           marker,
-          excerpt: slicePoints(pythonStrip(line), EXCERPT_MAX_CHARS),
+          excerpt: cpSlice(pythonStrip(line), EXCERPT_MAX_CHARS),
         });
       }
     }
@@ -186,7 +184,7 @@ export async function consistencyScan(
     .sort(([a, left], [b, right]) => right - left || compareCodePoints(a, b))
     .filter(([, count]) => count >= MIN_CLAUSE_REPEATS)
     .map(([clause, count]) => ({
-      clause: slicePoints(clause, CLAUSE_MAX_CHARS),
+      clause: cpSlice(clause, CLAUSE_MAX_CHARS),
       count,
       files: clauseFiles.get(clause)!.slice(0, 5),
     }))

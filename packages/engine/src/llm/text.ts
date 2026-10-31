@@ -1,4 +1,4 @@
-import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { codePoints, PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import {
   insensitive,
   REDACTED,
@@ -109,7 +109,6 @@ const CANDIDATE = new RegExp(
   'u',
 );
 const TOKEN_CHAR = /^[A-Za-z0-9._:/+=@-]$/;
-const codePoints = (text: string) => Array.from(text);
 
 /** 任意位置剥 think 块，并把不完整的密钥扣到能判定为止再发布。 */
 export class VisibleTextFilter {

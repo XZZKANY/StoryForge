@@ -1,4 +1,5 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
+import { cpLen } from './pythonText';
 import { redactSensitiveText, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 
@@ -12,12 +13,11 @@ export class AgentOrchestrationError extends Error {
   }
 }
 
-const length = (text: string) => Array.from(text).length;
 type Issue = { [key: string]: unknown };
 
 function boundedInstruction(text: string, secrets: SecretContext): string {
   const redacted = redactSensitiveText(text, secrets);
-  if (length(redacted) > INSTRUCTION_BUDGET)
+  if (cpLen(redacted) > INSTRUCTION_BUDGET)
     throw new AgentOrchestrationError(
       '脱敏后的修订范围超过指令预算，请分批选择审稿问题；未生成修订。',
     );
@@ -44,7 +44,7 @@ export function composeScopedInstruction(
     issues.length || actions.length
       ? [...blocks, review, suffix].join('\n\n')
       : blocks.join('\n\n');
-  const available = INSTRUCTION_BUDGET - length(mandatory);
+  const available = INSTRUCTION_BUDGET - cpLen(mandatory);
   if (available < 0)
     throw new AgentOrchestrationError(
       '修订范围超过指令预算，请缩短指令或分批选择审稿问题；未生成修订。',
@@ -56,13 +56,13 @@ export function composeScopedInstruction(
     if (typeof evidence !== 'string' || !evidence) return header;
     const label = ' 证据：';
     const marker = '（证据摘录已截断）';
-    if (length(label) + length(evidence) <= quoteBudget) return header + label + evidence;
-    if (quoteBudget > length(label) + length(marker))
+    if (cpLen(label) + cpLen(evidence) <= quoteBudget) return header + label + evidence;
+    if (quoteBudget > cpLen(label) + cpLen(marker))
       return (
         header +
         label +
         Array.from(evidence)
-          .slice(0, quoteBudget - length(label) - length(marker))
+          .slice(0, quoteBudget - cpLen(label) - cpLen(marker))
           .join('') +
         marker
       );

@@ -1,5 +1,5 @@
 import { canonicalPunctuation } from './punctuation';
-import { pythonStrip } from './pythonText';
+import { codePoints, pythonStrip } from './pythonText';
 
 // 中转在长输出途中掐断、却照样回终止标记时（10-28 总纲：finish_reason=stop、没有 usage），
 // 传输层认不出来，只能看成稿本身：原文末尾整段在新稿里找不到，新稿又停在半句。
@@ -23,7 +23,6 @@ export type TruncationWarning = {
 type LineKind = 'heading' | 'list' | 'table' | 'quote' | 'plain';
 
 const contentLines = (text: string) => text.split('\n').map(pythonStrip).filter(Boolean);
-const codePoints = (text: string) => Array.from(text);
 /** 去掉标记后不足 4 个字的行（分隔线、「略」之类）前后都可能出现，当不了定位锚。 */
 const distinctive = (line: string) => codePoints(line.replace(MARKUP, '')).length >= 4;
 

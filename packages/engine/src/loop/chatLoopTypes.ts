@@ -1,12 +1,8 @@
-import { pythonTruthy, type JsonValue } from '../kernel/json';
+import { isObj, pythonTruthy, type JsonValue, type Obj } from '../kernel/json';
 import type { AgentExecutionOutcome } from './runPayloads';
 import { reviewFeedback, reviseFeedback } from './toolFeedback';
 import type { ToolArtifact } from './tools/execution';
 import type { AgentToolTrace } from './traces';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** 补丁的线上载荷原样保留；循环只关心它要不要等作者点接受。 */
 export class PatchProposal {

@@ -1,4 +1,5 @@
 import { JsonFloat } from '../kernel/json';
+import { cpLen } from '../kernel/pythonText';
 import { optionalFloat, type LlmSource } from './config';
 
 export type UsageSource = 'provider_usage' | 'estimated_split' | 'unavailable' | (string & {});
@@ -20,7 +21,6 @@ const isRecord = (value: unknown): value is JsonRecord =>
   !(value instanceof JsonFloat);
 const isInt = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value);
-const length = (text: string) => Array.from(text).length;
 
 /**
  * provider 回报的 prompt 前缀缓存命中 token 数；没报返回 null。
@@ -55,7 +55,7 @@ export function tokenUsage(data: unknown, prompt: string, content: string): Lega
       };
     }
     if (isInt(total) && total > 0) {
-      const estimatedPrompt = Math.max(0, Math.floor(length(prompt) / 4));
+      const estimatedPrompt = Math.max(0, Math.floor(cpLen(prompt) / 4));
       return {
         token_usage: total,
         prompt_tokens: estimatedPrompt,
@@ -65,8 +65,8 @@ export function tokenUsage(data: unknown, prompt: string, content: string): Lega
       };
     }
   }
-  const promptTokens = Math.max(1, Math.floor(length(prompt) / 4));
-  const completion = Math.max(1, Math.floor(length(content) / 4));
+  const promptTokens = Math.max(1, Math.floor(cpLen(prompt) / 4));
+  const completion = Math.max(1, Math.floor(cpLen(content) / 4));
   return {
     token_usage: promptTokens + completion,
     prompt_tokens: promptTokens,

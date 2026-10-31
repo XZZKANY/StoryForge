@@ -2,6 +2,7 @@ import { AssistantSessionNotFoundError, type AssistantSessionRef } from '../assi
 import { chapterOrdinals } from '../kernel/canonRebuild';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
+import { isObj, type Obj } from '../kernel/json';
 import { missingSetupBeforeFirstChapter, setupLabels } from '../kernel/projectSetup';
 import {
   buildPlan,
@@ -23,10 +24,7 @@ import { readWriteBatchRecord, type WriteBatchRecord } from './writeBatchRecord'
  * `chapter.write` 运行，由界面按顺序发起；要写哪几章、能不能开跑、预估花多少都在这里算，不调模型。
  */
 
-type Obj = { [key: string]: unknown };
 type Platform = 'windows' | 'posix';
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 

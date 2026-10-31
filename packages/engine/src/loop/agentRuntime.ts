@@ -11,10 +11,10 @@ import {
 } from '../assistant/service';
 import { readProjectFileRaw, resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { FsToolError, fsRead, nativeProjectPath, resolveProjectFile } from '../kernel/fsTools';
-import { pythonTruthy, type JsonObject, type JsonValue } from '../kernel/json';
+import { isObj, pythonTruthy, type JsonObject, type JsonValue, type Obj } from '../kernel/json';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
-import { compactText } from '../kernel/pythonText';
+import { compactText, cpSlice } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
 import {
   missingSetupBeforeFirstChapter,
@@ -98,10 +98,6 @@ import {
 } from './conversationHistory';
 import { pythonStrip } from '../kernel/pythonText';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 const truthy = (value: unknown) => pythonTruthy(value as JsonValue);
 const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 

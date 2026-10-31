@@ -3,17 +3,12 @@ import { readCanon } from './canonFiles';
 import { chapterOrdinals } from './canonRebuild';
 import { isJsonObject, type JsonObject, type JsonValue } from './json';
 import { pythonStrip } from './pythonText';
+import { sha1Id } from './sha1';
 
 export const DEFAULT_STALE_AFTER_CHAPTERS = 30;
 const ACTIVE_UNRESOLVED_STATUSES = new Set(['planted', 'advancing']);
 
 type Issue = { [key: string]: JsonValue };
-
-async function issueId(parts: readonly string[]): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(parts.join('|')));
-  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0'));
-  return `promise_${hex.join('').slice(0, 12)}`;
-}
 
 function promiseId(entry: JsonObject): string | null {
   const value = entry.id;
@@ -45,7 +40,7 @@ async function makeIssue(
   options: { idParts?: string[]; title?: string | null; fields?: Issue } = {},
 ): Promise<Issue> {
   const output: Issue = {
-    id: await issueId([category, id, ...(options.idParts ?? [])]),
+    id: await sha1Id('promise', [category, id, ...(options.idParts ?? [])]),
     category,
     severity,
     promise_id: id,

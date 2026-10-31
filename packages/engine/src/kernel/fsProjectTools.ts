@@ -12,7 +12,7 @@ import {
 } from './fsTools';
 import { matchPythonPath } from './pathMatch';
 import { MAX_READ_BYTES } from './projectTree';
-import { pythonSplitlines, pythonStrip } from './pythonText';
+import { codePoints, pythonSplitlines, pythonStrip } from './pythonText';
 import { scanRegexLines, type RegexScan } from './regexScan';
 
 const LIST_MAX_ENTRIES_DEFAULT = 500;
@@ -25,8 +25,6 @@ const READ_LIMIT_MAX = 200_000;
 const BLANK_PLACEHOLDER_MAX_BYTES = 4_096;
 const MAX_QUERY_CHARS = 2_048;
 const REGEX_TOTAL_SECONDS = 2.0;
-
-const points = (text: string) => Array.from(text);
 
 /** fs.list：列出项目内文件（递归、相对路径、按路径排序）。 */
 export async function fsList(
@@ -89,7 +87,7 @@ export class SearchMatcher {
     options: { useRegex: boolean; compile?: RegexCompiler; clock?: () => number },
   ) {
     if (typeof query !== 'string' || !pythonStrip(query)) throw new FsToolError('query 不能为空。');
-    if (points(query).length > MAX_QUERY_CHARS)
+    if (codePoints(query).length > MAX_QUERY_CHARS)
       throw new FsToolError(`query 超过 ${MAX_QUERY_CHARS} 字符。`);
     const compile = options.compile ?? inProcessRegexCompiler(options.clock);
     try {
@@ -180,7 +178,7 @@ export async function fsSearch(
       matches.push({
         path,
         line: index + 1,
-        excerpt: points(pythonStrip(lines[index])).slice(0, EXCERPT_MAX_CHARS).join(''),
+        excerpt: codePoints(pythonStrip(lines[index])).slice(0, EXCERPT_MAX_CHARS).join(''),
       });
     }
     if (matches.length >= maxMatches && truncated) break;
@@ -241,7 +239,7 @@ export async function readProjectFileRaw(reader: ProjectReader, root: string, pa
     throw new FsToolError('external_writeback_requires_utf8');
   }
   const normalized = text.replace(/\r\n?/g, '\n');
-  if (points(normalized).length > READ_LIMIT_MAX)
+  if (codePoints(normalized).length > READ_LIMIT_MAX)
     throw new FsToolError('external_writeback_input_exceeds_budget');
   return { target, content: normalized, raw };
 }

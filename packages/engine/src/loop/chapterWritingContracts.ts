@@ -12,7 +12,7 @@ import {
 } from '../kernel/json';
 import { iterManuscriptFiles, previousChapterTail } from '../kernel/previousChapter';
 import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
-import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { codePoints, PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
 import type { AvailableWritingStyle } from '../kernel/availableWritingStyles';
@@ -22,7 +22,6 @@ import { chapterChars } from './chapterCheckProtocol';
 import { AgentOrchestrationError } from './runPayloads';
 
 type Obj = { [key: string]: unknown };
-const points = (text: string) => Array.from(text);
 
 export const CHAPTER_BRIEF_ARTIFACT_KIND = 'chapter_brief';
 export const CHAPTER_CHECK_ARTIFACT_KIND = 'chapter_check';
@@ -50,7 +49,7 @@ const MAX_ITEM_CHARS = 300;
 /** Python 的 value.strip()[:limit]，空串视为没有。 */
 export function textValue(value: unknown, limit: number): string | null {
   if (typeof value !== 'string' || !pythonStrip(value)) return null;
-  return points(pythonStrip(value)).slice(0, limit).join('');
+  return codePoints(pythonStrip(value)).slice(0, limit).join('');
 }
 
 export function textList(value: unknown): string[] {
@@ -343,10 +342,11 @@ export function briefConversation(
     if (role === 'user' && text.startsWith(REPAIR_INSTRUCTION_PREFIX)) continue;
     if (role === 'assistant' && REVISION_SUMMARY.test(text)) continue;
     const cap = role === 'user' ? AUTHOR_LINE_MAX_CHARS : AI_LINE_MAX_CHARS;
-    const body = points(text).length > cap ? `${points(text).slice(0, cap).join('')}……` : text;
+    const body =
+      codePoints(text).length > cap ? `${codePoints(text).slice(0, cap).join('')}……` : text;
     const line = `${role === 'user' ? '作者' : 'AI'}：${body}`;
-    if (used + points(line).length > CONVERSATION_MAX_CHARS) break;
-    used += points(line).length;
+    if (used + codePoints(line).length > CONVERSATION_MAX_CHARS) break;
+    used += codePoints(line).length;
     lines.unshift(line);
   }
   return lines.length ? lines.join('\n') : null;

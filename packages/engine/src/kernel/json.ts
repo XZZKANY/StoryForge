@@ -263,6 +263,11 @@ export function isJsonObject(value: JsonValue | undefined): value is JsonObject 
   );
 }
 
+export type Obj = { [key: string]: unknown };
+/** 任意值是不是普通对象：只排除 null 与数组，不像 isJsonObject 那样排除 JsonFloat。 */
+export const isObj = (value: unknown): value is Obj =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 function kindOf(value: JsonValue | undefined): string {
   if (value === undefined) return '缺省';
   if (value === null) return 'null';

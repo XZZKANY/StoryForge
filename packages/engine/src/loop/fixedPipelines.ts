@@ -1,7 +1,7 @@
 import type { AssistantStore } from '../assistant/service';
 import type { SecretContext } from '../kernel/redaction';
 import type { ProjectReader } from '../readPort';
-import { pythonTruthy, type JsonValue } from '../kernel/json';
+import { isObj, pythonTruthy, type JsonValue, type Obj } from '../kernel/json';
 import { revisionReferencesReview } from '../kernel/reviseScope';
 import type { RunRecord, RunStore } from '../store/runs';
 import {
@@ -24,9 +24,6 @@ import {
   type AgentToolTrace,
 } from './traces';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const truthy = (value: unknown) => pythonTruthy(value as JsonValue);
 
 type ArtifactRow = { readonly id: number; readonly kind: string; readonly payload: Obj };

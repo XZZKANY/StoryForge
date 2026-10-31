@@ -1,6 +1,6 @@
-import { compareCodePoints, JsonFloat } from '../../kernel/json';
+import { compareCodePoints, isObj, JsonFloat, type Obj } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
-import { compactText, pythonStrip } from '../../kernel/pythonText';
+import { compactText, cpLen, pythonStrip } from '../../kernel/pythonText';
 import {
   isSensitiveKey,
   REDACTED,
@@ -10,10 +10,6 @@ import {
 import { AgentOrchestrationError, optionalString } from '../runPayloads';
 import { listLoopToolSpecs } from './catalog';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
 /** Python 的 int 包含 bool；非整数的 number 视为 float。 */
 const isPyInt = (value: unknown): value is number | boolean =>
   typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
@@ -174,13 +170,6 @@ export function llmContextInputSummary(snapshot: unknown): Obj {
     },
   };
 }
-
-export const stringList = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === 'string' && Boolean(pythonStrip(item)))
-        .map(pythonStrip)
-    : [];
 
 export const dictList = (value: unknown): Obj[] =>
   Array.isArray(value) ? value.filter(isObj) : [];

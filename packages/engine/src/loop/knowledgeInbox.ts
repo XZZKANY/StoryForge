@@ -1,4 +1,5 @@
 import type { JsonObject, JsonValue } from '../kernel/json';
+import { isObj, type Obj } from '../kernel/json';
 import { KnowledgeEntryError, type KnowledgeEntry } from '../kernel/knowledgeEntries';
 import { compileKnowledgeOperation, materializedSource } from '../kernel/knowledgeMaterialization';
 import {
@@ -20,10 +21,6 @@ import { sha256Hex } from '../kernel/sha256';
 import type { ProjectReader } from '../readPort';
 import type { ArtifactRecord, RunRecord, RunStore } from '../store/runs';
 import { recordAgentArtifact, recordAgentEvent, type RunServices } from './runEvents';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export const KNOWLEDGE_PROPOSAL_REVISED = 'knowledge_proposal_revised';
 export const KNOWLEDGE_PROPOSAL_MATERIALIZED = 'knowledge_proposal_materialized';

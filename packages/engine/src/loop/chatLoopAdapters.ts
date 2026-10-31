@@ -1,5 +1,14 @@
 import { GenerationDeliveryCapture } from '../kernel/generationDelivery';
-import { dumpJson, isJsonObject, JsonFloat, parseJson, type JsonObject } from '../kernel/json';
+import {
+  dumpJson,
+  isJsonObject,
+  isObj,
+  JsonFloat,
+  parseJson,
+  type JsonObject,
+  type Obj,
+} from '../kernel/json';
+import { cpSlice } from '../kernel/pythonText';
 import type { PlainJson } from '../kernel/redaction';
 import {
   ProviderError,
@@ -43,11 +52,6 @@ import type { ToolResult } from './tools/execution';
 import { sanitizeLoopToolArguments } from './tools/runtimeArguments';
 import type { AgentToolTrace } from './traces';
 import type { TokenUsage } from '../llm/contracts';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 const PATCH_TOOL_NAMES: ReadonlySet<string> = new Set(
   loopPatchToolSpecs().map((spec) => spec.name),
