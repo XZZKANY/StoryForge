@@ -7,7 +7,7 @@ import {
   PLUGINS_FILE,
   projectBasename,
 } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError, readBoundedText, resolveProjectRoot } from './fsTools';
 import {
   CODEX_DEFAULT_SKILLS_DIR,
@@ -168,7 +168,7 @@ function pluginEntryFields(
   content: string,
 ): Pick<PluginEntry, 'name' | 'when' | 'body'> {
   const { body } = parseWritingSkill(namePath, content);
-  const header = /^---\n([\s\S]*?)\n---\n?/.exec(content.replace(/\r\n?/g, '\n'));
+  const header = /^---\n([\s\S]*?)\n---\n?/.exec(normalizeNewlines(content));
   const lines = header ? header[1].split('\n') : [];
   const fields: { [key: string]: string } = {};
   for (let index = 0; index < lines.length; index += 1) {

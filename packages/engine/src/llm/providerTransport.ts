@@ -7,6 +7,7 @@ import {
   type JsonValue,
 } from '../kernel/json';
 import { pythonStrip } from '../kernel/pythonText';
+import { decodeUtf8 } from '../readPort';
 import {
   credentialHeaderValues,
   optionalFloat,
@@ -31,8 +32,6 @@ import {
 } from './transport';
 
 const ENCODER = new TextEncoder();
-const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-const UTF8_REPLACE = new TextDecoder('utf-8', { ignoreBOM: true });
 const isOk = (status: number) => status >= 200 && status < 300;
 const elapsedMs = (ctx: LlmContext, startedAt: number) =>
   Math.trunc((ctx.clock() - startedAt) * 1000);
@@ -105,7 +104,7 @@ export async function postJsonWithRetry(
         try {
           let text: string;
           try {
-            text = UTF8.decode(await readBytes(response));
+            text = decodeUtf8(await readBytes(response), { fatal: true });
           } catch (error) {
             if (error instanceof HttpTransportError) throw error;
             throw new HttpTransportError('read', 'UnicodeDecodeError');
@@ -140,7 +139,7 @@ export async function postJsonWithRetry(
       }
       let detail: string;
       try {
-        detail = Array.from(redact(UTF8_REPLACE.decode(await readBytes(response))))
+        detail = Array.from(redact(decodeUtf8(await readBytes(response))))
           .slice(0, 2000)
           .join('');
       } catch {
@@ -291,7 +290,7 @@ export async function* providerSseJson(
       checkRunInterruption(ctx.control, 'before_stream_read');
       const raw = await nextLine();
       if (raw === null) return;
-      const line = pythonStrip(UTF8_REPLACE.decode(raw));
+      const line = pythonStrip(decodeUtf8(raw));
       if (!line.startsWith('data:')) continue;
       const text = pythonStrip(line.slice(5));
       if (!text || text === '[DONE]') continue;

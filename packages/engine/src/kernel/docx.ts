@@ -1,3 +1,4 @@
+import { decodeUtf8, normalizeNewlines } from '../readPort';
 import { InputDomainError } from './json';
 import { pythonStrip } from './pythonText';
 
@@ -40,12 +41,10 @@ type ZipEntry = {
   endOffset: number | null;
 };
 
-const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-
 function decodeName(bytes: Uint8Array, utf8: boolean, source: string): string {
   if (!utf8) return String.fromCharCode(...bytes); // cp437 与 latin-1 在 ASCII 段相同，只用于比对名字
   try {
-    return UTF8.decode(bytes);
+    return decodeUtf8(bytes, { fatal: true });
   } catch {
     throw new InputDomainError(`${source}：zip 内的文件名不是合法的 UTF-8`);
   }
@@ -130,7 +129,7 @@ function readEntries(bytes: Uint8Array, source: string, platform: 'windows' | 'p
         if (version === 1 && nameCrc === crc32(rawName)) {
           let unicode: string;
           try {
-            unicode = UTF8.decode(data.subarray(5));
+            unicode = decodeUtf8(data.subarray(5), { fatal: true });
           } catch {
             throw unreadable();
           }
@@ -276,7 +275,7 @@ type Frame = {
 /** ElementTree 的 root.iter(w:p) → 每段 = 段内（含嵌套）所有 w:t 的 .text 拼接；返回去空白后的非空段。 */
 function wordParagraphs(text: string, source: string): string[] {
   if (!XML_CHARS.test(text)) throw new XmlSyntaxError('invalid character');
-  const doc = text.replace(/\r\n?/g, '\n');
+  const doc = normalizeNewlines(text);
   const accumulators: string[] = [];
   const stack: Frame[] = [];
   let index = doc.charCodeAt(0) === 0xfeff ? 1 : 0;
@@ -472,7 +471,7 @@ export async function readDocxText(
     throw new InputDomainError(`${source}：UTF-16 正文 XML 不在拆书输入范围内`);
   let text: string;
   try {
-    text = UTF8.decode(xml);
+    text = decodeUtf8(xml, { fatal: true });
   } catch {
     throw new DocxReadError('xml');
   }

@@ -17,7 +17,13 @@ import { redactSensitive, type PlainJson, type SecretContext } from '../kernel/r
 import { sha256Hex } from '../kernel/sha256';
 import { ChatMessage, type ChatRequest, type ChatResponse } from '../llm/contracts';
 import { checkRunInterruption, type RunControl } from '../llm/control';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import {
+  decodeUtf8,
+  normalizeNewlines,
+  ProjectReadError,
+  stripBom,
+  type ProjectReader,
+} from '../readPort';
 import { AgentOrchestrationError } from './runPayloads';
 
 export const SYSTEM_COMPACTION_ARTIFACT_KIND = 'system_compaction';
@@ -331,8 +337,7 @@ export type WritebackDisk = { reader: ProjectReader; root: string };
 
 type TargetRead = { text: string } | { state: 'missing' | 'unreadable' };
 
-const normalizedText = (text: string) =>
-  (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text).replace(/\r\n?/g, '\n');
+const normalizedText = (text: string) => normalizeNewlines(stripBom(text));
 
 /** 补丁目标的项目内写法（只做词法归一，不读盘），用来按文件分组；Windows 根下不分大小写。 */
 function patchTarget(root: string, filePath: string): { display: string; key: string } {
@@ -365,7 +370,7 @@ async function readPatchTarget(disk: WritebackDisk, filePath: string): Promise<T
     throw error;
   }
   try {
-    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+    return { text: stripBom(decodeUtf8(bytes, { fatal: true })) };
   } catch {
     return { state: 'unreadable' };
   }

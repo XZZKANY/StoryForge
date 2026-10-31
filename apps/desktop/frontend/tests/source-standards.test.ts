@@ -76,3 +76,33 @@ it('界面只经 lib/api 进引擎，不直接引引擎包或 lib/engine', () =>
     );
   expect(offenders).toEqual([]);
 });
+
+const ENGINE_SRC = '../../../packages/engine/src';
+const isTestSource = (path: string) => /\.test(-support)?\.tsx?$/.test(path);
+
+it('引擎只在 readPort.ts 里解码 UTF-8，别处不自己 new TextDecoder', () => {
+  const files = sourceFiles(ENGINE_SRC).filter((path) => !isTestSource(path));
+  expect(files.length).toBeGreaterThan(100);
+  const decoding = files
+    .filter((path) => /new\s+TextDecoder\b/.test(readFileSync(path, 'utf8')))
+    .map((path) => relative(ENGINE_SRC, path).replace(/\\/g, '/'));
+  expect(decoding).toEqual(['readPort.ts']);
+});
+
+it('正文字数只在 project-core 实现一份，界面与引擎都从那里取', () => {
+  const offenders = ['src', ENGINE_SRC]
+    .flatMap(sourceFiles)
+    .filter((path) => !isTestSource(path))
+    .filter((path) => {
+      const text = readFileSync(path, 'utf8');
+      return (
+        /\b(function|const|let|var)\s+(chapterChars|countProseChars)\b/.test(text) ||
+        /replace\(\/\\s\+?\/[gu]*,\s*''\)\)\.length/.test(text)
+      );
+    })
+    .map(relativePath);
+  expect(offenders).toEqual([]);
+  expect(readFileSync('src/lib/text-metrics.ts', 'utf8')).toContain(
+    "export { countProseChars } from '@storyforge/project-core';",
+  );
+});

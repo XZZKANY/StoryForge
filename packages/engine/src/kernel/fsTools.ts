@@ -1,4 +1,4 @@
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { MAX_READ_BYTES, ProjectTreeError, scanProjectFiles } from './projectTree';
 import { pythonStrip as pythonStripText } from './pythonText';
 
@@ -126,10 +126,8 @@ export async function readBoundedText(
     throw new FsToolError(`文件超过完整读取预算（${MAX_READ_BYTES} 字节）：${name}`);
   if (raw.subarray(0, 1024).includes(0))
     throw new FsBinaryFileError(`不是文本文件，无法读取：${name}`);
-  const content = new TextDecoder('utf-8', { ignoreBOM: true }).decode(raw.subarray(0, cap), {
-    stream: truncated,
-  });
-  return { content: content.replace(/\r\n?/g, '\n'), bytesRead: raw.length, truncated };
+  const content = decodeUtf8(raw.subarray(0, cap), { truncated });
+  return { content: normalizeNewlines(content), bytesRead: raw.length, truncated };
 }
 
 /** Python 返回给调用方的绝对路径（`str(Path)`），由调用方给出的项目根拼出。 */

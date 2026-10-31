@@ -1,3 +1,4 @@
+import { stripBom } from '../readPort';
 import { pythonStrip } from './pythonText';
 import { redactSensitiveText, type SecretContext } from './redaction';
 
@@ -33,7 +34,7 @@ type JsonObject = { [key: string]: unknown };
 function jsonObject(path: string, text: string, problems: string[]): JsonObject | null {
   let data: unknown;
   try {
-    data = JSON.parse(text.replace(/^\uFEFF/, ''));
+    data = JSON.parse(stripBom(text));
   } catch {
     problems.push(`${path} 不是合法的 JSON。`);
     return null;

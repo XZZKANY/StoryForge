@@ -1,5 +1,5 @@
 import { compareManuscriptPaths } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import type { BookContext } from './bookContext';
 import { readBookRoster } from './canonStore';
 import { isManuscriptPath, orderManuscriptFiles } from './manuscript';
@@ -65,10 +65,7 @@ async function previousTail(
     const target = await reader.resolveProjectPath(root, previous);
     const raw = await reader.readProjectBytes(root, target.resolvedRelativePath, MAX_READ_BYTES);
     if (raw.exceeded || raw.bytes.subarray(0, 1024).includes(0)) return null;
-    const text = new TextDecoder('utf-8', { ignoreBOM: true })
-      .decode(raw.bytes)
-      .replace(/\r\n?/g, '\n')
-      .replace(/^\n+|\n+$/g, '');
+    const text = normalizeNewlines(decodeUtf8(raw.bytes)).replace(/^\n+|\n+$/g, '');
     const points = Array.from(text);
     let tail = text;
     if (points.length > 600) {

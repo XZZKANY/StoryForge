@@ -1,4 +1,4 @@
-import { chapterChars } from './chapterCheckProtocol';
+import { countProseChars } from '@storyforge/project-core';
 
 // issue #492：作者让修订改到某个字数，AI 交回的稿子差得很远，补丁上却看不出来。
 // 作者 10-29 拍板：指令里写了明确字数时由程序算实际字数，落在目标外就在补丁上附一条提示；
@@ -325,7 +325,7 @@ export function revisionTargetLength(
 /** 修订稿按正文字数口径（空白以外的每个字）落在目标外才给提示；区间内不提示。 */
 export function targetLengthHint(target: TargetLength | null, after: string): LengthHint | null {
   if (target === null) return null;
-  const actual = chapterChars(after);
+  const actual = countProseChars(after);
   let direction: 'over' | 'under';
   let offBy: number;
   if (target.max !== null && actual > target.max) {

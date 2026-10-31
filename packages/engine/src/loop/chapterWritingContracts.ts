@@ -1,4 +1,4 @@
-import { compareManuscriptPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths, countProseChars } from '@storyforge/project-core';
 import { selectWrittenFacts, type WrittenFact } from '../kernel/canonContext';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
@@ -17,8 +17,7 @@ import { locateQuote } from '../kernel/quoteLocation';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
 import type { AvailableWritingStyle } from '../kernel/availableWritingStyles';
 import { pickWritingSkills, WRITING_SKILL_PICK_MAX } from '../kernel/writingSkills';
-import { ProjectReadError, type ProjectReader } from '../readPort';
-import { chapterChars } from './chapterCheckProtocol';
+import { decodeUtf8, ProjectReadError, type ProjectReader } from '../readPort';
 import { AgentOrchestrationError } from './runPayloads';
 
 type Obj = { [key: string]: unknown };
@@ -212,7 +211,7 @@ export async function earliestChapterChars(
       if (error instanceof ProjectReadError || error instanceof FsToolError) continue;
       throw error;
     }
-    const count = chapterChars(new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes));
+    const count = countProseChars(decodeUtf8(bytes));
     if (count >= MIN_SAMPLE_CHARS) {
       counts.push(count);
       if (counts.length === LENGTH_SAMPLES) break;

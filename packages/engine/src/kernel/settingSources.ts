@@ -1,5 +1,5 @@
 import { compareChapterPaths, isUntouchedProjectGuide } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
 import { projectKnowledgeCandidates } from './projectKnowledge';
@@ -75,7 +75,7 @@ export async function collectSettingSources(
       if (optional(error)) continue;
       throw error;
     }
-    const text = pythonStrip(redactSensitiveText(content.replace(/\r\n?/g, '\n'), options.secrets));
+    const text = pythonStrip(redactSensitiveText(normalizeNewlines(content), options.secrets));
     if (!text || isUntouchedProjectGuide(item.path, text)) continue;
     const points = Array.from(text);
     const cut = points.length > room;

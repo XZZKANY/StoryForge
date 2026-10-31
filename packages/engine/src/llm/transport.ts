@@ -10,6 +10,7 @@ import {
   type JsonValue,
 } from '../kernel/json';
 import { cpLen, cpSlice, pythonStrip } from '../kernel/pythonText';
+import { decodeUtf8 } from '../readPort';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import {
   credentialHeaderValues,
@@ -95,8 +96,6 @@ class ResponseReadError extends Error {
   }
 }
 
-const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-const UTF8_REPLACE = new TextDecoder('utf-8', { ignoreBOM: true });
 const ENCODER = new TextEncoder();
 const elapsedMs = (ctx: LlmContext, startedAt: number) =>
   Math.trunc((ctx.clock() - startedAt) * 1000);
@@ -147,7 +146,7 @@ async function readJsonBody(response: HttpResponse): Promise<JsonValue> {
   }
   let text: string;
   try {
-    text = UTF8.decode(raw);
+    text = decodeUtf8(raw, { fatal: true });
   } catch {
     throw new ResponseReadError('UnicodeDecodeError');
   }
@@ -174,7 +173,7 @@ function interruptClosing(
 
 async function errorBody(response: HttpResponse): Promise<string> {
   try {
-    return UTF8_REPLACE.decode(await readAll(response));
+    return decodeUtf8(await readAll(response));
   } catch {
     return '<无法读取响应体>';
   } finally {
@@ -308,7 +307,7 @@ async function* responseLines(
       checkRunInterruption(control, 'before_stream_read');
       const line = await nextLine();
       if (line === null) return;
-      yield pythonStrip(UTF8_REPLACE.decode(line));
+      yield pythonStrip(decodeUtf8(line));
     }
   } finally {
     await iterator.return?.(undefined);

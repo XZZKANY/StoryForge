@@ -1,6 +1,7 @@
 import { craftPromptClause, sceneDisciplineClause } from '../kernel/craft';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import type { AssistantContextBundle } from '../kernel/writingContext';
+import { normalizeNewlines } from '../readPort';
 
 /**
  * 光标处续写的纯函数层：上文取窗、prompt 组装、生成后确定性后处理。
@@ -24,7 +25,7 @@ export const CONTINUE_SYSTEM_PROMPT =
 const SENTENCE_ENDINGS = '。！？…”』」》!?';
 const LEADING_WS = new RegExp(`^${PYTHON_WHITESPACE}+`, 'u');
 const TRAILING_WS = new RegExp(`${PYTHON_WHITESPACE}+$`, 'u');
-const normalizedLines = (content: string) => content.replace(/\r\n?/g, '\n').split('\n');
+const normalizedLines = (content: string) => normalizeNewlines(content).split('\n');
 const stripNewlines = (text: string) => text.replace(/^\n+|\n+$/g, '');
 const clampLine = (line: number, count: number) => Math.max(0, Math.min(Math.trunc(line), count));
 

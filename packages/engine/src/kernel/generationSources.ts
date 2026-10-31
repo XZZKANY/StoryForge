@@ -1,3 +1,4 @@
+import { normalizeNewlines } from '../readPort';
 import { dumpJson } from './json';
 import { cpLen } from './pythonText';
 import {
@@ -215,7 +216,7 @@ export class GenerationSourceCapture {
       complete: true,
       origin: 'supplied_value',
     });
-    const normalized = content.replace(/\r\n?/g, '\n');
+    const normalized = normalizeNewlines(content);
     const lines = normalized.split('\n');
     const prefix = lines.slice(0, anchorLine).join('\n');
     // Python str.rfind 以码点计位置；只在码点数组上做同样的查找。
