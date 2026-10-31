@@ -65,6 +65,7 @@
   - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
   - `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14251 passed / 2 skipped；`packages/` 无改动，golden 零变化。
   - `npm --prefix apps/desktop/frontend run test`（前端 vitest 全套）：EXIT=0，270 个文件，2747 passed（改前 2745，多的 2 条是 PlainButton 行为与守护）。每换完一个目录都跑过一次全套。
+  - 开分支时 #564 还没合，按约定从 `origin/refactor/ui-single-icon-source` 开；推送前 #564 已合进 master，于是 rebase 到 `origin/master`（`eb3ea379`，无冲突）后四道门复跑：`pnpm lint` EXIT=0（同样 2 条既有 warning）、typecheck EXIT=0、引擎 EXIT=0（111 个文件，14252 passed / 2 skipped，golden 零变化）、前端 EXIT=0（270 个文件，2751 passed，含 master 新合进来的用例）。rebase 后的合并树里，`components/ui/` 以外只有豁免的 4 个文件还有 `<button`。
   - 变异验证（每次单跑对应测试文件，打完按字节定点改回，`git diff` 确认与提交一致后复跑变绿）：
     1. `MessageActions.tsx` 塞回一个手写 `<button type="button">` → ui-primitives 守护红（1 failed / 9 passed，点名该文件）；改回 10 passed。
     2. `Titlebar.tsx` 最小化钮（PlainButton）去掉 `aria-label` → 可达性护栏红（点名这枚 PlainButton）；改回 8 passed。说明护栏扩到 PlainButton 后不再空转。
