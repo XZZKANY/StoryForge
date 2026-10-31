@@ -55,8 +55,8 @@ export function chapterWriteRebuildEvents(fields: {
         intent: 'chapter.write',
         assistant_session_id: 7,
         summary: fields.truncationWarning
-          ? `章节草稿已通过 brief 检查。 ${String(fields.truncationWarning.message)}`
-          : '章节草稿已通过 brief 检查。',
+          ? `章节草稿通过了章纲检查。 ${String(fields.truncationWarning.message)}`
+          : '章节草稿通过了章纲检查。',
         requires_user_confirmation: true,
         proposed_patch: patch,
         blocked_tool: 'chapter.write',

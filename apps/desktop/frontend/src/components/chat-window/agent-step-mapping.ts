@@ -223,7 +223,7 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
   };
 }
 
-/** 等待作者确认的步骤：只有结果要求确认才出现，Chapter Brief 与编辑器 diff 两种文案。 */
+/** 等待作者确认的步骤：只有结果要求确认才出现，章纲与编辑器 diff 两种文案。 */
 export function approvalStepFromAgentResult(
   message: ChatWindowAgentResult,
   hasChapterBrief: boolean,
@@ -236,7 +236,7 @@ export function approvalStepFromAgentResult(
       title: '等待作者确认',
       tool: 'author.approval',
       status: 'waiting',
-      detail: hasChapterBrief ? '等待作者确认 Chapter Brief' : '等待作者在编辑器的对比里确认',
+      detail: hasChapterBrief ? '等待作者确认章纲' : '等待作者在编辑器的对比里确认',
       filePath: patch?.file_path,
       patchId: patch?.id,
     },

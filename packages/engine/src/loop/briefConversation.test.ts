@@ -53,6 +53,16 @@ describe('briefConversation', () => {
     ).toBeNull();
   });
 
+  // 10-31 起那句改说「章纲已准备：」；旧会话里留着的「Chapter Brief 已准备：」照样是分界。
+  it.each([
+    ['现在的说法', '章纲已准备：林舟夜行。'],
+    ['旧会话里的旧说法', 'Chapter Brief 已准备：林舟夜行。确认后才会开始起草。'],
+  ])('stops at the previous brief line (%s)', (_name, line) => {
+    expect(
+      briefConversation([user('第二章写夜行'), ai(line), user('第三章写入城')], '写第三章'),
+    ).toBe('作者：第三章写入城');
+  });
+
   it('caps each line and the total, keeping the newest', () => {
     const long = '长'.repeat(700);
     const lines = briefConversation(

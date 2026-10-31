@@ -97,7 +97,7 @@ export function overviewActivityLabel(status: AgentRunOverviewStatus): string {
     case 'waiting_permission':
       return '等待权限确认';
     case 'waiting_brief':
-      return '等待章节 Brief 确认';
+      return '等待章纲确认';
     case 'waiting_patch':
       return '等待修订确认';
     case 'paused':
