@@ -53,5 +53,5 @@ Open the other owners only when the path points to them: `useSuggestionIntake.ts
 ## Size Gates
 
 - `App.tsx` must remain at or below 400 lines.
-- `ChatWindow.tsx`, `Editor.tsx`, and every owner listed in `tests/source-standards.test.ts` must remain at or below 500 lines, as must every file under `components/app`, `components/chat-window`, and `components/editor` (except the frozen `chat-window/panels.tsx`).
+- Every file under `components/` — the top-level files and every subdirectory — must remain at or below 500 lines. The only exception is the frozen `chat-window/panels.tsx`, to be split once #561 lands. A new subdirectory under `components/` must be added to `LIVE_MODULE_ROOTS` in `tests/source-standards.test.ts`; a test fails until it is.
 - Static layout/ownership tests must move with the owner file rather than silently continuing to inspect an emptied facade.
