@@ -233,7 +233,7 @@ test('附件和权限控件的真实点击只走各自回调，不隐式提交�
   expect(element('[aria-label="添加上下文"]').getAttribute('aria-expanded')).toBe('true');
   await click('[data-testid="permission-profile-selector"]');
   expect(document.querySelector('[role="listbox"]')).not.toBeNull();
-  await click('[data-testid="permission-option-read"]');
+  await click('[data-testid="permission-profile-selector-option-read"]');
   expect(changePermission).toHaveBeenCalledExactlyOnceWith('read');
   expect(element('[data-testid="permission-profile-selector"]').textContent).toContain('只读');
   expect(textarea()).toBe(input);

@@ -51,6 +51,7 @@ import {
 import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
 import type { FileCursor } from '../lib/workspace-session';
 import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
+import { Spinner } from './ui';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -111,9 +112,7 @@ export function EditorLoadStatus({
             '读取文件失败'
           ) : (
             <span className="inline-flex items-center gap-2">
-              <span className="relative inline-block h-3.5 w-3.5">
-                <span className="sf-button-spinner" aria-hidden="true" />
-              </span>
+              <Spinner />
               正在读取文件…
             </span>
           )}
@@ -1048,7 +1047,7 @@ export function Editor({
           className="px-3 py-2 border-b border-border bg-panel text-xs text-agent animate-fade-in flex-shrink-0 flex items-center gap-2"
           data-testid="suggestion-loading"
         >
-          <span className="inline-block w-3 h-3 rounded-full border-2 border-agent border-t-transparent animate-spin" />
+          <Spinner size={12} />
           正在请求 AI 修订…
         </div>
       )}

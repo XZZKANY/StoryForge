@@ -20,6 +20,7 @@ import type { BookContextAvailability } from '../app/useBookContext';
 import { LiveStatus } from './LiveStatus';
 import { displayDocName } from '../../lib/fs-path-ops';
 import { PanelSection } from './PanelSection';
+import { Spinner } from '../ui';
 
 function rosterSpanLabel(entry: RosterEntry): string {
   if (entry.missing) return '正文中尚未登场';
@@ -118,7 +119,7 @@ export function ManuscriptView({
           disabled={busy}
           data-testid="manuscript-refresh"
         >
-          <RefreshCw size={14} strokeWidth={1.6} className={busy ? 'animate-spin' : ''} />
+          <Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />
         </button>
         <button
           type="button"

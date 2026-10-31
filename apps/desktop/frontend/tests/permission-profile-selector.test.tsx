@@ -125,7 +125,9 @@ function permissionTrigger() {
   return host!.querySelector<HTMLButtonElement>('[data-testid="permission-profile-selector"]')!;
 }
 function permissionOption(profile: string) {
-  return document.querySelector<HTMLButtonElement>(`[data-testid="permission-option-${profile}"]`)!;
+  return document.querySelector<HTMLButtonElement>(
+    `[data-testid="permission-profile-selector-option-${profile}"]`,
+  )!;
 }
 function pressKey(target: Element, key: string, options: KeyboardEventInit = {}) {
   const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...options });

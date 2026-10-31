@@ -26,6 +26,8 @@ import {
 import { FactLedgerBody, factLedgerCount, type FactBackfill } from './ObservatoryFacts';
 import type { Observation, ObservationAvailability } from './ObsPanel';
 import { LiveStatus } from './LiveStatus';
+import { PanelSection } from './PanelSection';
+import { Spinner } from '../ui';
 
 const CHECKER_LABELS: Record<string, string> = {
   canon: '设定检查',
@@ -75,37 +77,21 @@ function claimSummary(invariant: string, entry: Record<string, unknown>): string
 }
 
 function Section({
-  title,
   count,
-  testid,
   children,
-}: {
-  title: string;
+  ...props
+}: Omit<Parameters<typeof PanelSection>[0], 'prefix' | 'meta' | 'defaultOpen'> & {
   count?: number | null;
-  testid: string;
-  children: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
   return (
-    <section className="mb-2" data-testid={`obs-section-${testid}`}>
-      <button
-        type="button"
-        className="flex h-8 w-full items-center gap-1.5 px-3 text-2xs font-semibold tracking-[0.06em] text-subtle hover:bg-elevated hover:text-foreground"
-        onClick={() => setOpen((value) => !value)}
-        data-testid={`obs-section-toggle-${testid}`}
-      >
-        {open ? (
-          <ChevronDown size={12} strokeWidth={1.7} />
-        ) : (
-          <ChevronRight size={12} strokeWidth={1.7} />
-        )}
-        <span>{title}</span>
-        {count != null && (
-          <span className="rounded-full bg-elevated px-1.5 font-mono text-3xs">{count}</span>
-        )}
-      </button>
-      {open && <div className="flex flex-col gap-2 px-3 pb-3">{children}</div>}
-    </section>
+    <PanelSection
+      {...props}
+      prefix="obs"
+      meta={count == null ? undefined : String(count)}
+      defaultOpen
+    >
+      <div className="flex flex-col gap-2 px-3">{children}</div>
+    </PanelSection>
   );
 }
 
@@ -704,7 +690,7 @@ export function ObservatoryView({
           disabled={busy}
           data-testid="observatory-rescan"
         >
-          <RefreshCw size={14} strokeWidth={1.6} className={busy ? 'animate-spin' : ''} />
+          <Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />
         </button>
         <button
           type="button"

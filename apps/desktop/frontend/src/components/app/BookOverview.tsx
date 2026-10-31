@@ -19,6 +19,7 @@ import { useChapterHandoff } from './useChapterHandoff';
 import type { ObservatoryPromises } from '../../lib/observations';
 import { BookOpen, ChevronRight, FileText, RefreshCw, Sparkles } from '../icons/shell-icons';
 import { LiveStatus } from '../shell/LiveStatus';
+import { Spinner } from '../ui';
 
 const OVERVIEW_CHAPTER_LIMIT = 8;
 
@@ -88,7 +89,7 @@ function ContextStatus({
           className="inline-flex h-6 items-center gap-1 rounded-md border border-border-strong px-2 text-2xs text-foreground hover:bg-elevated"
           data-testid="book-overview-refresh-context"
         >
-          <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />
+          <Spinner icon={RefreshCw} spinning={refreshing} size={11} />
           重试
         </button>
       ) : null}

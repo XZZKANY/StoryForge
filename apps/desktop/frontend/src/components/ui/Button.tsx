@@ -1,3 +1,4 @@
+import { Spinner } from './Spinner';
 import { Tooltip } from './Tooltip';
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 
@@ -45,7 +46,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         {children}
         {trailingIcon && <span aria-hidden="true">{trailingIcon}</span>}
       </span>
-      {loading && <span className="sf-button-spinner" aria-hidden="true" />}
+      {loading && <Spinner className="sf-button-spinner" />}
     </button>
   );
 });

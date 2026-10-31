@@ -15,7 +15,7 @@ import type { FileTreeActions } from './app/useFileTreeActions';
 import { Command as CommandIcon, FileText } from './icons/shell-icons';
 import { VIEW_ENTRIES } from './shell/ActivityBar';
 import type { SidePanelView } from './shell/useShellState';
-import { Button } from './ui';
+import { Button, Spinner } from './ui';
 
 export type PaletteMode = 'files' | 'commands';
 
@@ -473,9 +473,7 @@ export function CommandPalette({
         >
           {filesLoading ? (
             <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted">
-              <span className="relative inline-block h-3.5 w-3.5 flex-shrink-0">
-                <span className="sf-button-spinner" aria-hidden="true" />
-              </span>
+              <Spinner />
               正在读取作品文件…
             </p>
           ) : filesError ? (

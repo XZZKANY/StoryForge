@@ -33,7 +33,7 @@ import {
   RefreshCw,
   X,
 } from '../icons/shell-icons';
-import { IconButton } from '../ui';
+import { IconButton, Spinner } from '../ui';
 import { PanelSection } from './PanelSection';
 import { LiveStatus } from './LiveStatus';
 
@@ -238,11 +238,7 @@ export function BookProfileView({
           size="xs"
           label="重新读取档案与进度"
           icon={
-            <RefreshCw
-              size={14}
-              strokeWidth={1.6}
-              className={handle.refreshing ? 'animate-spin' : ''}
-            />
+            <Spinner icon={RefreshCw} spinning={handle.refreshing} size={14} strokeWidth={1.6} />
           }
           onClick={handle.refresh}
           disabled={handle.refreshing}

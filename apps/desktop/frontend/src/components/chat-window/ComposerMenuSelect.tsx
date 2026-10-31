@@ -29,6 +29,8 @@ interface ComposerMenuSelectProps<T extends string> {
   /** 返回 Promise 时菜单等它：true 才收起，false 留在原处显示出错原因。 */
   onSelect: (value: T) => void | Promise<boolean>;
   triggerText: ReactNode;
+  /** 文字前的小图标；窄时要不要藏由图标自己的 class 决定。 */
+  triggerIcon?: ReactNode;
   triggerTitle: string;
   ariaLabel: string;
   menuLabel: string;
@@ -45,12 +47,13 @@ interface ComposerMenuSelectProps<T extends string> {
   triggerClassName?: string;
 }
 
-/** 输入框底部的中性色下拉：开合、键盘与无障碍行为照权限下拉。 */
+/** 输入框底部的中性色下拉：权限、模型、思考等级三个共用这一套开合、键盘与无障碍行为。 */
 export function ComposerMenuSelect<T extends string>({
   options,
   selected,
   onSelect,
   triggerText,
+  triggerIcon,
   triggerTitle,
   ariaLabel,
   menuLabel,
@@ -190,6 +193,7 @@ export function ComposerMenuSelect<T extends string>({
         className={`flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs [@container(max-width:26rem)]:px-1.5 text-muted transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent disabled:cursor-not-allowed disabled:opacity-50 ${triggerClassName}`}
         data-testid={testId}
       >
+        {triggerIcon}
         <span className="min-w-0 truncate text-left">{triggerText}</span>
         <ChevronDown
           size={12}
@@ -236,7 +240,7 @@ export function ComposerMenuSelect<T extends string>({
                       {option.label}
                     </span>
                     {option.hint && (
-                      <span className="mt-0.5 block truncate text-2xs leading-snug text-subtle">
+                      <span className="mt-0.5 block text-2xs leading-snug text-subtle">
                         {option.hint}
                       </span>
                     )}
