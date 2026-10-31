@@ -68,7 +68,7 @@ test('不带动作的通知不长出动作键', () => {
 test('撤销必须走守卫写回，不许绕开快照直接落盘', () => {
   // 撤销也是一次写盘，若绕开 performGuardedWriteback（经 writeAcceptedSuggestion）直接
   // TauriFileSystem.writeFile，就会出现「没有写前快照的写盘」，F27 红线被从后门击穿。
-  const srcPath = '../src/components/editor/useSuggestionWriteback.ts';
+  const srcPath = '../src/components/editor/useSuggestionUndo.ts';
   const source = readFileSync(fileURLToPath(new URL(srcPath, import.meta.url)), 'utf8');
   const offerUndo = source.match(/const offerUndo = useCallback\([\s\S]*?\n {2}\);/)?.[0];
   assert.ok(offerUndo, '找不到 offerUndo');

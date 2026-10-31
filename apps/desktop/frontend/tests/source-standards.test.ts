@@ -7,6 +7,7 @@ import { expect, it } from 'vitest';
 const HARD_LINE_LIMITS: Record<string, number> = {
   'src/App.tsx': 400,
   'src/components/ChatWindow.tsx': 500,
+  'src/components/Editor.tsx': 500,
   'src/components/app/AppShell.tsx': 500,
   'src/components/app/useAppPreferences.ts': 500,
   'src/components/app/useEditorWorkspaceTabs.ts': 500,
@@ -22,7 +23,11 @@ const HARD_LINE_LIMITS: Record<string, number> = {
   'src/components/chat-window/useChatWindowState.ts': 500,
   'src/components/chat-window/useRunAuthorAgent.ts': 500,
 };
-const LIVE_MODULE_ROOTS = ['src/components/app', 'src/components/chat-window'];
+const LIVE_MODULE_ROOTS = [
+  'src/components/app',
+  'src/components/chat-window',
+  'src/components/editor',
+];
 const LIVE_MODULE_LINE_LIMIT = 500;
 // 拆分前就有的叶子视图，是冻结的旧账，不作为新模块的先例。
 const LIVE_MODULE_EXCEPTIONS = new Set(['src/components/chat-window/panels.tsx']);

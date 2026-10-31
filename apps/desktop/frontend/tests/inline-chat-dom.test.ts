@@ -188,7 +188,16 @@ test('壳层装配护栏：阶段切换搬焦点、会话结束归还焦点、�
 function readFileSyncHook(): string {
   // vitest module runner 下 import.meta.url 不是 file://，用相对包根的 cwd 路径
   //（与 focus-styles 里 readFileSync('src/index.css') 同款）。
-  return readFileSync('src/components/editor/useInlineChat.ts', 'utf8');
+  // 壳层已按职责拆成入口 + 会话 / diff / 请求三个 hook + Monaco 装配辅助，合起来读。
+  return [
+    'useInlineChat.ts',
+    'useInlineSession.ts',
+    'useInlineDiff.ts',
+    'useInlineRequest.ts',
+    'inline-chat-session.ts',
+  ]
+    .map((name) => readFileSync(`src/components/editor/${name}`, 'utf8'))
+    .join('\n');
 }
 
 test('修订输入明确披露完整行范围，不承诺不会整段重写', () => {
