@@ -23,10 +23,14 @@ const MAX_DISPLAY_ALIASES = 3;
 const ACTIVE_STATUSES = new Set(['active', 'planted']);
 const STALE_HOOK_THRESHOLD = 10;
 // 回放里检查器抽出的已写事实带进起草，交界矛盾 36% → 22%：上一章新记的全带，
-// 更早的按主体是否在本章材料里出现来挑，先挑最伤读者的类别，同类先挑新近的。
+// 更早的按主体是否在本章材料里出现来挑，按人轮流，每人先挑最伤读者的类别，同类先挑新近的。
 const FACTS_HEADING = '[已写事实 · 勿违背]（来自台账；本章若涉及须与之一致，回忆或提及除外）';
 const FACT_PRIORITY = ['生死', '关系', '身份', '数值', '来历', '持有', '处境'];
 const MAX_OLDER_FACT_LINES = 25;
+// 持有、处境、数值变得快，正文往往改了、台账却没跟上，旧版本当「勿违背」带进去，模型会把已经卖掉、
+// 了结的东西写回来（实验书第 21–25 章即如此）：只看最近几章，同一主体同一类只信最近记过的那章。
+const CHURNING_KINDS = new Set(['持有', '处境', '数值']);
+const CHURNING_FACT_WINDOW = 5;
 export const DEFAULT_FACTS_MAX_CHARS = 2000;
 
 const objects = (value: JsonValue | undefined): JsonObject[] =>
@@ -251,12 +255,36 @@ async function pickWrittenFacts(
     const ordinal = typeof fact.path === 'string' ? ordinalOf(fact.path) : null;
     return isActiveFact(fact) && ordinal !== null && ordinal < current;
   });
+  const stateKey = (fact: JsonObject) => `${fact.subject}|${fact.kind}`;
+  const latestState = new Map<string, number>();
+  for (const fact of earlier) {
+    if (!CHURNING_KINDS.has(fact.kind as string)) continue;
+    const ordinal = ordinalOf(fact.path as string)!;
+    if (ordinal > (latestState.get(stateKey(fact)) ?? 0)) latestState.set(stateKey(fact), ordinal);
+  }
+  const stillCurrent = (fact: JsonObject) => {
+    if (!CHURNING_KINDS.has(fact.kind as string)) return true;
+    const ordinal = ordinalOf(fact.path as string)!;
+    return ordinal >= current - CHURNING_FACT_WINDOW && ordinal === latestState.get(stateKey(fact));
+  };
   const rank = (fact: JsonObject) => FACT_PRIORITY.indexOf(fact.kind as string);
-  const older = earlier
-    .filter((fact) => fact.path !== previous && mentioned(fact.subject as string))
+  const candidates = earlier
+    .filter(
+      (fact) => fact.path !== previous && mentioned(fact.subject as string) && stillCurrent(fact),
+    )
     .sort(
       (a, b) => rank(a) - rank(b) || ordinalOf(b.path as string)! - ordinalOf(a.path as string)!,
     );
+  // 名额按人轮流分：每人先一条最要紧的，再轮第二条，主角的琐碎状态挤不掉别人的关键事实。
+  const bySubject = new Map<string, JsonObject[]>();
+  for (const fact of candidates) {
+    const list = bySubject.get(fact.subject as string) ?? [];
+    list.push(fact);
+    bySubject.set(fact.subject as string, list);
+  }
+  const older: JsonObject[] = [];
+  for (let round = 0; older.length < candidates.length; round += 1)
+    for (const list of bySubject.values()) if (round < list.length) older.push(list[round]);
   const ordered = [
     ...earlier.filter((fact) => fact.path === previous).map((fact) => [fact, false] as const),
     ...older.map((fact) => [fact, true] as const),

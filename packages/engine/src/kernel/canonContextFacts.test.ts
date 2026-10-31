@@ -79,6 +79,23 @@ function setup(options: { ledger?: JsonObject[] | string | null; canon?: JsonObj
     });
 }
 
+/** 第 1..n 章都建出来（没给正文的章用占位），章序才和章号一致。 */
+function book(chapters: Record<number, string>, ledger: JsonObject[]) {
+  const last = Math.max(...Object.keys(chapters).map(Number));
+  const files: Record<string, ReturnType<typeof file>> = {};
+  for (let n = 1; n <= last; n += 1)
+    files[`正文/第${String(n).padStart(3, '0')}章.md`] = file(
+      chapters[n] ?? '这一章什么也没发生。',
+    );
+  files['.storyforge/canon/facts.json'] = file(JSON.stringify({ version: 1, facts: ledger }));
+  const project = memoryProject(ROOT, files);
+  return (target: string, mentionText: string, maxChars?: number) =>
+    buildSceneConstraintBlock(project.reader, ROOT, `${ROOT}/${target}`, {
+      platform: 'posix',
+      facts: { mentionText, ...(maxChars ? { maxChars } : {}) },
+    });
+}
+
 describe('written facts in the scene constraint block', () => {
   it('keeps mixed-padding earlier facts and the same chapter window before and after saving', async () => {
     const first = '正文/第1章 旧馆.md';
@@ -191,6 +208,99 @@ describe('written facts in the scene constraint block', () => {
       maxChars: 60,
     }))!;
     expect(block.split('\n')).toHaveLength(2);
+  });
+
+  it('trusts only the latest chapter that recorded a subject’s possessions, situations or numbers', async () => {
+    const block = await book(
+      {
+        1: '林远把三包草和两包矿搬回屋里。林远交了两块灵石押金。',
+        2: '林远手边还剩两包待查的草。',
+        3: '林远把最后一包矿卖了，手里只剩押金。',
+        4: '天亮了。',
+      },
+      [
+        fact('正文/第001章.md', '林远把三包草和两包矿搬回屋里。', {
+          kind: '持有',
+          subject: '林远',
+          attribute: '待查货物',
+          value: '三包草两包矿',
+        }),
+        fact('正文/第001章.md', '林远交了两块灵石押金。', {
+          kind: '关系',
+          subject: '林远',
+          attribute: '寄卖约定',
+          value: '押两块灵石',
+        }),
+        fact('正文/第002章.md', '林远手边还剩两包待查的草。', {
+          kind: '持有',
+          subject: '林远',
+          attribute: '待查余货',
+          value: '两包草',
+        }),
+        fact('正文/第003章.md', '林远把最后一包矿卖了，手里只剩押金。', {
+          kind: '持有',
+          subject: '林远',
+          attribute: '现钱',
+          value: '只剩押金',
+        }),
+      ],
+    )('正文/第005章.md', '林远');
+    expect(block).toContain('林远 · 持有/现钱：只剩押金（第3章');
+    expect(block).not.toContain('待查货物');
+    expect(block).not.toContain('待查余货');
+    expect(block).toContain('林远 · 关系/寄卖约定：押两块灵石（第1章');
+  });
+
+  it('drops possessions, situations and numbers recorded more than five chapters back', async () => {
+    const first = '苏九娘带走了铜鼎。苏九娘是陈默的师姐。苏九娘是药铺掌柜。';
+    const ledger = [
+      fact('正文/第001章.md', '苏九娘带走了铜鼎。', {
+        kind: '持有',
+        subject: '苏九娘',
+        value: '铜鼎',
+      }),
+      fact('正文/第001章.md', '苏九娘是陈默的师姐。', {
+        kind: '关系',
+        subject: '苏九娘',
+        value: '陈默的师姐',
+      }),
+      fact('正文/第001章.md', '苏九娘是药铺掌柜。', {
+        kind: '身份',
+        subject: '苏九娘',
+        value: '药铺掌柜',
+      }),
+    ];
+    const inWindow = await book({ 1: first, 5: '雨停了。' }, ledger)('正文/第006章.md', '苏九娘');
+    expect(inWindow).toContain('苏九娘 · 持有：铜鼎');
+    const later = await book({ 1: first, 6: '雨停了。' }, ledger)('正文/第007章.md', '苏九娘');
+    expect(later).not.toContain('铜鼎');
+    expect(later).toContain('苏九娘 · 关系：陈默的师姐');
+    expect(later).toContain('苏九娘 · 身份：药铺掌柜');
+  });
+
+  it('takes turns between people so one character cannot crowd out the rest', async () => {
+    const lines = Array.from({ length: 30 }, (_, i) => `林远欠第${i + 1}家铺子一笔账。`);
+    const ledger = [
+      ...lines.map((quote, i) =>
+        fact('正文/第001章.md', quote, {
+          kind: '关系',
+          subject: '林远',
+          attribute: `欠账${i + 1}`,
+          value: `第${i + 1}家`,
+        }),
+      ),
+      fact('正文/第002章.md', '周贵被撤下收货台。', {
+        subject: '周贵',
+        attribute: '差事',
+        value: '被撤下收货台',
+      }),
+    ];
+    const block = (await book(
+      { 1: lines.join(''), 2: '周贵被撤下收货台。', 3: '天亮了。' },
+      ledger,
+    )('正文/第004章.md', '林远 周贵', 10000))!;
+    expect(block).toContain('周贵 · 处境/差事：被撤下收货台');
+    expect(block.split('\n').filter((line) => line.startsWith('- '))).toHaveLength(25);
   });
 
   it('keeps canon constraints when the ledger is broken, and stays silent without a ledger', async () => {
