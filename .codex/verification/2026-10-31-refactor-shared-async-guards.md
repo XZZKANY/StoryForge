@@ -49,3 +49,29 @@
   - 没动 Rust，没跑 Rust 测试与 Tauri 冒烟；`lib/host-close.ts` 的三个宿主事件订阅、`useTauriMenuBridge` 的事件通道探针只有 vitest 覆盖，没在真宿主上点过。
   - 与原来不完全一样的三处（都看过读点，判断为不可观察）：`useModelProfiles` 的 `aliveRef` 初值由 true 变 false（布局 effect 之前没有任何读点，读都在异步回来之后或事件里）；`useBookOverviewChapters` 原来只在依赖变化时作废、现在卸载也作废（只多挡掉对已卸载组件的 setState，React 18 里本就是空操作）；`set-state-in-effect` 对迁走的 28 个 effect 体不再生效（exhaustive-deps 仍经 additionalHooks 照查）。
   - 被动阶段的 6 个挂载 ref 没统一，见上表，要统一得作者接受卸载那一刻提前置 false。
+
+## 2026-10-31 补：被动阶段的 6 个挂载 ref 也收进共享写法
+
+协调方要求不等作者：给被动阶段的写法加一个时序逐字等价的变体，6 处改用它。上面表格里「没迁」那一行和「未覆盖」最后一条就此作废。
+
+- 改动：
+  - `lib/async-guards.ts` 加 `usePassiveMountedRef(): { readonly current: boolean }`：`useRef(true)`，被动 `useEffect` 里置 true、其清理里置 false，照原 6 处的写法抄。
+  - 逐个核对 6 处原写法：
+    - `useNewProject` 的 `mounted`、`WriteBatchCard` 的 `mounted`、`usePlugins` 的 `aliveRef`、`useAgentRunRecovery` 的 `alive`：都是 `useRef(true)` + 单独一个 `useEffect(() => { x.current = true; return () => { x.current = false } }, [])`，与变体逐字相同。
+    - `ModelProfileSelector` 的 `aliveRef`：置位写在同一个被动 effect 里，后面跟 `refresh()` 与订阅，清理里先置 false 再退订，依赖 `[refresh]`。
+    - `useChatTextStream` 的 `alive`：置位与 `stream.reset()` 同在一个被动 effect，清理里先置 false 再重置，依赖 `[stream]`。
+    - 后两处拆开后仍等价：`refresh` 是 `useCallback(…, [])`，`stream` 是只依赖 `useState` 的 setter 的 `useMemo`，两者都是稳定引用，这两个 effect 只在挂载 / 卸载时跑；变体的被动 effect 注册在原 effect 之前，于是挂载时仍「先置 true、再取数 / 订阅」，卸载时仍「先置 false、再退订 / 重置」，同在一次被动阶段里。
+  - 6 处都把 `useRef(true)` 原地换成 `usePassiveMountedRef()`（变量名不改），声明处与原 effect 之间没有别的被动 effect，被动 effect 的注册顺序不变。
+  - 照口径把这几个 ref 补进 9 个 `useCallback` / `useMemo` 依赖数组（稳定对象，不改变何时重建；`useChatTextStream` 的 `stream` 仍然稳定）。prettier 因此重排了 `usePlugins` 的 `startImport` 和 `useAgentRunRecovery` 的一个依赖数组。
+  - 守护测试：去掉 6 个豁免，「`…mounted…` / `…alive…` = useRef」在共享模块以外一处都不许有；`smoke-writeback-probe.ts` 的取消标志豁免保留。
+  - 单测加一条：`usePassiveMountedRef` 渲染时就是 true、卸载时布局清理里还是 true、到被动清理才是 false，ref 对象不变。
+- 验证：
+  - `pnpm lint`：EXIT=0，0 error，仍只有 `tests/independent-claim-history.test.ts` 原有的 2 条 warning；prettier 全过。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，272 个文件，2778 passed（多出的 1 条是新单测）。
+  - 变异验证（定点打变异 → 单跑 → 无条件定点改回 → 再跑）：
+    - 变体里的 `useEffect` 改成 `useLayoutEffect` → 新单测红 1 条；改回 6 passed。
+    - 变体初值改成 `useRef(false)` → 新单测红 1 条；改回 6 passed。
+    - `WriteBatchCard.tsx` 把 `usePassiveMountedRef()` 换回 `useRef(true)` → 挂载 ref 守护红 1 条；改回 11 passed。
+  - 这一补的代码部分（不含本记录）`git diff --numstat` 为 +114/−88，`--ignore-all-space` 为 +94/−68，差的是上面两处 prettier 重排的缩进；改动文件全是 LF，改后仍是 LF。
+- 未覆盖：本地仍未跑三个浏览器回归，以 CI 为准；这一补没动引擎（pre-push 钩子照跑引擎测试）。

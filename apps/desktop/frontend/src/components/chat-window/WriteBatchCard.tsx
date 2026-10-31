@@ -1,7 +1,7 @@
 import { WRITE_BATCH_USAGE, type WriteBatchCommand } from '@storyforge/project-core';
 import { Button } from '../ui';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type {
@@ -10,7 +10,7 @@ import type {
   ApiWriteBatchPlan,
 } from '../../lib/api/contracts';
 import { planWriteBatch } from '../../lib/api/write-batch';
-import { useAsyncEffect } from '../../lib/async-guards';
+import { useAsyncEffect, usePassiveMountedRef } from '../../lib/async-guards';
 
 /** 只有不写的章挂小标；要写的是默认，不标。 */
 const STATUS_TAG: Partial<Record<ApiWriteBatchChapter['status'], string>> = {
@@ -134,13 +134,7 @@ export function WriteBatchCard({
   const fetched = useWriteBatchPlan(command, projectPath, permissionProfile, Boolean(givenPlan));
   const [starting, setStarting] = useState(false);
   const [feedback, setFeedback] = useState<WriteBatchStartFeedback | null>(null);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const mounted = usePassiveMountedRef();
   const view: PlanView | null = feedback?.plan
     ? { status: 'ready', plan: feedback.plan }
     : givenPlan

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { usePassiveMountedRef } from '../../lib/async-guards';
 import { createBlankStoryProject } from '../../lib/project-context';
 import { blankStoryProjectPath } from '../../lib/project/create';
 import { parentDir } from '../../lib/fs-path-ops';
@@ -42,7 +43,7 @@ export function useNewProject({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
-  const mounted = useRef(true);
+  const mounted = usePassiveMountedRef();
   const opened = useRef(false);
   const claim = useRef<'create' | 'picker' | null>(null);
   const created = useRef(false);
@@ -53,12 +54,6 @@ export function useNewProject({
     scope.current += 1;
     activeProjectRef.current = activeProject;
   }, [activeProject]);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
 
   const open = useCallback(() => {
     if (claim.current || opened.current) return;
@@ -95,7 +90,7 @@ export function useNewProject({
       claim.current = null;
       if (mounted.current) setChoosingDirectory(false);
     }
-  }, []);
+  }, [mounted]);
 
   const create = useCallback(async () => {
     if (claim.current || !opened.current) return;
@@ -128,7 +123,7 @@ export function useNewProject({
       claim.current = null;
       if (mounted.current) setBusy(false);
     }
-  }, [confirmDiscardFiles, onCreated, openFiles, parentPath, title]);
+  }, [confirmDiscardFiles, mounted, onCreated, openFiles, parentPath, title]);
 
   let targetPath = '';
   try {

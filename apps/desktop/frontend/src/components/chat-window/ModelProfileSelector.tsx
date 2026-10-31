@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePassiveMountedRef } from '../../lib/async-guards';
 import {
   activateLlmProfile,
   listLlmProfiles,
@@ -33,7 +34,7 @@ export function ModelProfileSelector({
 }: ModelProfileSelectorProps) {
   const [list, setList] = useState<LlmProfiles | null>(null);
   const [error, setError] = useState('');
-  const aliveRef = useRef(true);
+  const aliveRef = usePassiveMountedRef();
   const readRef = useRef(0);
 
   const refresh = useCallback(() => {
@@ -48,17 +49,15 @@ export function ModelProfileSelector({
         setError(`读不到模型配置：${reason(failure)}`);
       },
     );
-  }, []);
+  }, [aliveRef]);
 
   useEffect(() => {
-    aliveRef.current = true;
     refresh();
     const unsubscribe = subscribeLlmProfiles((next) => {
       readRef.current += 1;
       setList(next);
     });
     return () => {
-      aliveRef.current = false;
       unsubscribe();
     };
   }, [refresh]);

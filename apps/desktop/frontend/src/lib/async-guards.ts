@@ -44,3 +44,18 @@ export function useMountedRef(): { readonly current: boolean } {
   }, []);
   return mountedRef;
 }
+
+/**
+ * 同一件事的被动阶段时序：初值 true，被动 effect 里置 true、其清理里置 false。卸载时比 useMountedRef
+ * 晚翻 false（布局清理时还是 true）；原来就按这个时序写的几处照旧用它，别和 useMountedRef 互换。
+ */
+export function usePassiveMountedRef(): { readonly current: boolean } {
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  return mountedRef;
+}

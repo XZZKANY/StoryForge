@@ -7,6 +7,7 @@ import {
   pluginTitle,
   type PluginDescription,
 } from '../../lib/api/plugins';
+import { usePassiveMountedRef } from '../../lib/async-guards';
 import { emitPluginsChanged } from '../../lib/plugin-events';
 import {
   commitPluginImport,
@@ -55,16 +56,9 @@ export function usePlugins() {
   const [installing, setInstalling] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [preview, setPreview] = useState<PluginImportPreview | null>(null);
-  const aliveRef = useRef(true);
+  const aliveRef = usePassiveMountedRef();
   const busyRef = useRef(false);
   const loadSeqRef = useRef(0);
-
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-    };
-  }, []);
 
   const reload = useCallback(() => {
     const seq = ++loadSeqRef.current;
@@ -82,35 +76,38 @@ export function usePlugins() {
         setLoadError(errorText(error));
       },
     );
-  }, []);
+  }, [aliveRef]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  const startImport = useCallback(async (source: PluginImportSource = 'folder') => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setImportingFrom(source);
-    let staged: StagedPluginImport | null = null;
-    try {
-      const selected = await pickImportSource(source);
-      if (!selected) return;
-      staged = await stagePluginImport(selected);
-      const description = await describeStagedPlugin(staged.stageRoot);
-      if (!aliveRef.current) {
-        discardQuietly(staged.stageId);
-        return;
+  const startImport = useCallback(
+    async (source: PluginImportSource = 'folder') => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setImportingFrom(source);
+      let staged: StagedPluginImport | null = null;
+      try {
+        const selected = await pickImportSource(source);
+        if (!selected) return;
+        staged = await stagePluginImport(selected);
+        const description = await describeStagedPlugin(staged.stageRoot);
+        if (!aliveRef.current) {
+          discardQuietly(staged.stageId);
+          return;
+        }
+        setPreview({ staged, description });
+      } catch (error) {
+        if (staged) discardQuietly(staged.stageId);
+        emitToast(`导入插件失败：${errorText(error)}`, { tone: 'error' });
+      } finally {
+        busyRef.current = false;
+        if (aliveRef.current) setImportingFrom(null);
       }
-      setPreview({ staged, description });
-    } catch (error) {
-      if (staged) discardQuietly(staged.stageId);
-      emitToast(`导入插件失败：${errorText(error)}`, { tone: 'error' });
-    } finally {
-      busyRef.current = false;
-      if (aliveRef.current) setImportingFrom(null);
-    }
-  }, []);
+    },
+    [aliveRef],
+  );
 
   const cancelImport = useCallback(() => {
     if (!preview || installing) return;
@@ -135,7 +132,7 @@ export function usePlugins() {
       busyRef.current = false;
       if (aliveRef.current) setInstalling(false);
     }
-  }, [preview, reload]);
+  }, [aliveRef, preview, reload]);
 
   const remove = useCallback(
     async (plugin: PluginDescription) => {
@@ -154,7 +151,7 @@ export function usePlugins() {
         if (aliveRef.current) setRemoving(null);
       }
     },
-    [reload],
+    [aliveRef, reload],
   );
 
   return {

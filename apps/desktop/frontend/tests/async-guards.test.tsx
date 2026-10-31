@@ -2,7 +2,12 @@ import { act, useEffect, useLayoutEffect, useState, type ReactNode } from 'react
 import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
 
-import { useAsyncEffect, useAsyncLayoutEffect, useMountedRef } from '../src/lib/async-guards';
+import {
+  useAsyncEffect,
+  useAsyncLayoutEffect,
+  useMountedRef,
+  usePassiveMountedRef,
+} from '../src/lib/async-guards';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -151,4 +156,36 @@ it('useMountedRef：渲染时为 false，布局阶段起为 true，卸载后为 
   view.unmount();
   expect(mountedRef.current).toBe(false);
   expect(seen).toEqual(['渲染 false', '布局 true']);
+});
+
+it('usePassiveMountedRef：渲染时就是 true，卸载时布局清理里还是 true，到被动清理才是 false', () => {
+  const seen: string[] = [];
+  const refs = new Set<{ readonly current: boolean }>();
+  function Probe({ round }: { round: number }) {
+    const mountedRef = usePassiveMountedRef();
+    refs.add(mountedRef);
+    if (round === 0) seen.push(`渲染 ${mountedRef.current}`);
+    useLayoutEffect(
+      () => () => {
+        seen.push(`布局清理 ${mountedRef.current}`);
+      },
+      [mountedRef],
+    );
+    useEffect(
+      () => () => {
+        seen.push(`被动清理 ${mountedRef.current}`);
+      },
+      [mountedRef],
+    );
+    return null;
+  }
+
+  const view = mount(<Probe round={0} />);
+  view.rerender(<Probe round={1} />);
+  expect(refs.size).toBe(1);
+  const [mountedRef] = refs;
+  expect(mountedRef.current).toBe(true);
+  view.unmount();
+  expect(mountedRef.current).toBe(false);
+  expect(seen).toEqual(['渲染 true', '布局清理 true', '被动清理 false']);
 });
