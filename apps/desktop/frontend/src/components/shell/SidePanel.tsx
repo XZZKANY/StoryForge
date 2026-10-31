@@ -1,4 +1,4 @@
-import { FloatingSurface, IconButton, PlainButton } from '../ui';
+import { FloatingSurface, IconButton, MenuItem, MenuItemAction, PlainButton } from '../ui';
 /**
  * 侧面板：宽度可拖（右缘把手，双击复位），全左栏共享一份，存成占窗口宽的比例
  * （换算见 lib/workspace-layout.ts；旧像素 / 按视图设置加载时迁移）。
@@ -211,56 +211,41 @@ function ExplorerView({
               className="w-64 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
             >
               {projects.slice(0, 8).map((project) => (
-                <div
+                <MenuItem
                   key={project}
-                  className={`group flex h-[var(--sf-row-height)] w-full items-center rounded-sm text-xs hover:bg-elevated ${
-                    project === activeProject
-                      ? 'text-foreground'
-                      : 'text-muted hover:text-foreground'
-                  }`}
+                  current={project === activeProject}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (project !== activeProject) onSelectProject(project);
+                  }}
+                  title={project}
+                  actions={
+                    project !== activeProject && (
+                      <MenuItemAction
+                        label={`从最近打开移除 ${titleOf(project)}`}
+                        title="从最近打开移除"
+                        icon={<X size={13} strokeWidth={1.6} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveProject(project);
+                        }}
+                      />
+                    )
+                  }
                 >
-                  <PlainButton
-                    role="menuitem"
-                    className="flex min-w-0 flex-1 items-center px-2 text-left"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      if (project !== activeProject) onSelectProject(project);
-                    }}
-                    title={project}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-left">
-                      {project === activeProject ? '✓ ' : ''}
-                      {titleOf(project)}
-                    </span>
-                  </PlainButton>
-                  {project !== activeProject && (
-                    <PlainButton
-                      role="menuitem"
-                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-subtle opacity-40 hover:bg-surface hover:text-foreground hover:opacity-100 focus-visible:bg-surface focus-visible:opacity-100 group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemoveProject(project);
-                      }}
-                      title="从最近打开移除"
-                      aria-label={`从最近打开移除 ${titleOf(project)}`}
-                    >
-                      <X size={13} strokeWidth={1.6} />
-                    </PlainButton>
-                  )}
-                </div>
+                  {titleOf(project)}
+                </MenuItem>
               ))}
               <div className="my-1 mx-1.5 h-px bg-border" />
-              <PlainButton
-                role="menuitem"
-                className="flex h-[var(--sf-row-height)] w-full items-center gap-2 rounded-sm px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
+              <MenuItem
+                icon={<FolderOpen size={14} strokeWidth={1.6} />}
                 onClick={() => {
                   setMenuOpen(false);
                   onOpenProject();
                 }}
               >
-                <FolderOpen size={14} strokeWidth={1.6} />
                 打开本地作品…
-              </PlainButton>
+              </MenuItem>
             </FloatingSurface>
           </>
         )}

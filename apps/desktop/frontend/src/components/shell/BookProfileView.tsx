@@ -40,10 +40,6 @@ function toDraft(profile: BookProfile): Draft {
   };
 }
 
-function Section(props: Omit<Parameters<typeof PanelSection>[0], 'prefix'>) {
-  return <PanelSection {...props} prefix="book" />;
-}
-
 function GoalBar({ progress, testid, label }: { progress: number; testid: string; label: string }) {
   const percent = Math.round(progress * 100);
   return (
@@ -324,7 +320,7 @@ export function BookProfileView({
           </div>
         </div>
 
-        <Section title="简介" testid="synopsis" defaultOpen>
+        <PanelSection prefix="book" title="简介" testid="synopsis" defaultOpen>
           <textarea
             value={draft.synopsis}
             disabled={handle.loading}
@@ -335,9 +331,9 @@ export function BookProfileView({
             className="sf-input mx-3 w-[calc(100%-1.5rem)] resize-none rounded-sm border border-border bg-panel px-2 py-1.5 text-2xs leading-relaxed text-foreground placeholder:text-subtle"
             data-testid="book-synopsis-input"
           />
-        </Section>
+        </PanelSection>
 
-        <Section title="进度" testid="progress" defaultOpen>
+        <PanelSection prefix="book" title="进度" testid="progress" defaultOpen>
           <div className="px-3">
             {handle.totalsError ? (
               <p className="text-3xs leading-relaxed text-error">统计失败：{handle.totalsError}</p>
@@ -396,9 +392,9 @@ export function BookProfileView({
               </p>
             </div>
           </div>
-        </Section>
+        </PanelSection>
 
-        <Section title="拆书" testid="breakdown" defaultOpen>
+        <PanelSection prefix="book" title="拆书" testid="breakdown" defaultOpen>
           <BookBreakdownBody
             handle={handle}
             onRunBreakdown={onRunBreakdown}
@@ -409,9 +405,10 @@ export function BookProfileView({
             onOpenBreakdown={onOpenBreakdown}
             onAdoptBreakdownSkills={onAdoptBreakdownSkills}
           />
-        </Section>
+        </PanelSection>
 
-        <Section
+        <PanelSection
+          prefix="book"
           title="大纲"
           meta={handle.outline.length > 0 ? String(handle.outline.length) : undefined}
           testid="outline"
@@ -422,9 +419,10 @@ export function BookProfileView({
             outlineGroups={outlineGroups}
             onOpenOutline={onOpenOutline}
           />
-        </Section>
+        </PanelSection>
 
-        <Section
+        <PanelSection
+          prefix="book"
           title="灵感速记"
           meta={openNotes > 0 ? String(openNotes) : undefined}
           testid="notes"
@@ -438,7 +436,7 @@ export function BookProfileView({
             editingNote={editingNote}
             setEditingNote={setEditingNote}
           />
-        </Section>
+        </PanelSection>
       </div>
     </div>
   );

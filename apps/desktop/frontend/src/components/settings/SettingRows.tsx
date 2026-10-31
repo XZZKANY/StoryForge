@@ -1,8 +1,8 @@
 /** 设置页的分组、卡片与各种设置行；行按标题和描述跟着设置搜索自过滤。 */
-import { useContext, useId, type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 import { Button, Field, type FieldControlProps, PlainButton, Select } from '../ui';
-import { SettingsSearchContext } from './search-context';
+import { useSettingsRowVisible } from './search-context';
 
 export function SettingGroup({
   id,
@@ -42,53 +42,71 @@ export function SettingCard({ children }: { children: ReactNode }) {
   return <div className="sf-settings-card overflow-hidden rounded-xl bg-surface">{children}</div>;
 }
 
-export function RowShell({
-  title,
-  description,
-  children,
-  controlId,
-  descriptionId,
-}: {
+const ROW_CLASS = 'min-h-[76px] px-4 py-3';
+
+type RowShellProps = {
   title: string;
   description: string;
-  children: ReactNode | ((control: FieldControlProps) => ReactNode);
-  controlId?: string;
-  descriptionId?: string;
-}) {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
-  if (query && !`${title} ${description}`.toLowerCase().includes(query)) return null;
-  if (controlId)
+  /** 接在说明后面、不参与搜索的补充，如对比度警告。 */
+  note?: ReactNode;
+} & (
+  | {
+      /** 控件能被 <label> 命名（输入框、下拉、开关）：标题渲染成关联到它的 label。 */
+      controlId: string;
+      children: (control: FieldControlProps) => ReactNode;
+    }
+  | {
+      /** 按钮、单选组、只读值不能靠 <label> 命名：标题与说明各带 id，需要时控件自己 aria-labelledby / aria-describedby。 */
+      controlId?: undefined;
+      children: ReactNode | ((ids: { labelId: string; descriptionId: string }) => ReactNode);
+    }
+);
+
+/** 设置行外壳：标题与说明在左、控件在右；搜索词不在标题和说明里就整行不渲染。所有设置行都经这里。 */
+export function RowShell(props: RowShellProps) {
+  const { title, description, note } = props;
+  const visible = useSettingsRowVisible(title, description);
+  const id = useId();
+  if (!visible) return null;
+  const help = note ? (
+    <>
+      {description}
+      {note}
+    </>
+  ) : (
+    description
+  );
+  if (props.controlId !== undefined)
     return (
       <Field
-        id={controlId}
+        id={props.controlId}
         label={title}
-        description={description}
-        descriptionId={descriptionId}
+        description={help}
         layout="horizontal"
-        className="min-h-[76px] px-4 py-3"
+        className={ROW_CLASS}
       >
-        {(control) => (typeof children === 'function' ? children(control) : children)}
+        {props.children}
       </Field>
     );
 
+  // 与 Field 的横排同一套 sf-field 类，只是标题不是 <label>。
+  const labelId = `${id}-label`;
+  const descriptionId = `${id}-description`;
   return (
-    <div className="flex min-h-[76px] items-center gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        {controlId ? (
-          <label htmlFor={controlId} className="text-sm font-medium text-foreground">
-            {title}
-          </label>
-        ) : (
-          <div className="text-sm font-medium text-foreground">{title}</div>
-        )}
-        <div
-          id={descriptionId ?? (controlId ? `${controlId}-description` : undefined)}
-          className="mt-1 text-xs leading-relaxed text-muted"
-        >
-          {description}
+    <div className={`sf-field ${ROW_CLASS}`} data-layout="horizontal">
+      <div className="sf-field-label">
+        <div id={labelId} className="font-medium">
+          {title}
+        </div>
+        <div id={descriptionId} className="sf-field-help">
+          {help}
         </div>
       </div>
-      <div className="flex-shrink-0">{typeof children === 'function' ? null : children}</div>
+      <div className="sf-field-control">
+        {typeof props.children === 'function'
+          ? props.children({ labelId, descriptionId })
+          : props.children}
+      </div>
     </div>
   );
 }

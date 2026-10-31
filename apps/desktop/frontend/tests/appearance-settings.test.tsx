@@ -118,6 +118,22 @@ test('主题与字体是下拉框，改了即生效', async () => {
   assert.equal(view.latest().uiFont, 'dengxian');
 });
 
+test('单选组由所在行的标题命名、说明描述；对比度警告也读在取色框的说明里', async () => {
+  await mount();
+  const textOf = (id: string | null) => (id ? document.getElementById(id)?.textContent : null);
+  const groups = [...host!.querySelectorAll('[role="radiogroup"]')];
+  assert.deepEqual(
+    groups.map((group) => textOf(group.getAttribute('aria-labelledby'))),
+    ['模式', '强调色'],
+  );
+  assert.match(textOf(groups[0]!.getAttribute('aria-describedby')) ?? '', /跟随系统/);
+  assert.match(textOf(groups[1]!.getAttribute('aria-describedby')) ?? '', /紫色留给 AI/);
+
+  const foreground = q<HTMLInputElement>('[data-testid="appearance-foreground"]');
+  await typeInto(foreground, '#222222');
+  assert.match(textOf(foreground.getAttribute('aria-describedby')) ?? '', /正文与界面文字.*对比度/);
+});
+
 test('设置搜索只留下命中的行', async () => {
   await mount('强调');
   assert.ok(host!.querySelector('[data-testid="appearance-accent-mono"]'));
