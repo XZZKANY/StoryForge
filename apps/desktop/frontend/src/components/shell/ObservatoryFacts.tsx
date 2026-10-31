@@ -6,6 +6,7 @@
 import { useState } from 'react';
 
 import { ChevronDown, ChevronRight } from '../icons/shell-icons';
+import { Button, PlainButton } from '../ui';
 import { BACKFILL_BATCH, type UnrecordedChapter } from '../../lib/api/facts';
 import {
   factLabel,
@@ -35,8 +36,7 @@ function FactRow({
   const label = factLabel(fact);
   return (
     <li className="flex items-start gap-1.5" data-testid="obs-fact">
-      <button
-        type="button"
+      <PlainButton
         className="min-w-0 flex-1 rounded-sm text-left text-2xs leading-relaxed text-foreground hover:bg-elevated"
         title={fact.quote ? `原句：「${fact.quote}」` : undefined}
         onClick={() =>
@@ -54,17 +54,17 @@ function FactRow({
             依据已失效
           </span>
         )}
-      </button>
+      </PlainButton>
       {onRetire && (
-        <button
-          type="button"
+        <Button
           onClick={() => onRetire(fact)}
-          className="flex-shrink-0 rounded-sm px-1.5 py-0.5 text-3xs text-subtle hover:bg-elevated hover:text-foreground"
+          variant="ghost"
+          size="mini"
           title="记错了：作废这条，起草不再带它（写 facts.json，先存快照，可撤销）"
           data-testid="obs-fact-retire"
         >
           作废
-        </button>
+        </Button>
       )}
     </li>
   );
@@ -85,8 +85,7 @@ function ChapterGroup({
   const stale = chapter.facts.filter((fact) => !fact.valid).length;
   return (
     <div data-testid="obs-fact-chapter">
-      <button
-        type="button"
+      <PlainButton
         className="flex w-full items-center gap-1 rounded-sm text-2xs text-muted hover:bg-elevated hover:text-foreground"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
@@ -101,7 +100,7 @@ function ChapterGroup({
           {chapterTitle(chapter)} · {chapter.facts.length} 条
         </span>
         {stale > 0 && <span className="text-3xs text-warning">（{stale} 条依据已失效）</span>}
-      </button>
+      </PlainButton>
       {open && (
         <ul className="mt-1 flex flex-col gap-1 pl-4">
           {chapter.facts.map((fact) => (
@@ -158,17 +157,16 @@ function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
             补录{range}，共 {batch} 章，会调用你配置的模型 {batch} 次。
           </p>
           <div className="mt-1 flex justify-end gap-1.5">
-            <button
-              type="button"
-              className="rounded-sm px-1.5 py-0.5 text-3xs text-subtle hover:bg-elevated hover:text-foreground"
+            <Button
+              variant="ghost"
+              size="mini"
               onClick={() => setConfirming(false)}
               data-testid="obs-facts-backfill-cancel"
             >
               取消
-            </button>
-            <button
-              type="button"
-              className="rounded-sm border border-border px-1.5 py-0.5 text-3xs text-foreground hover:bg-elevated"
+            </Button>
+            <Button
+              size="mini"
               onClick={() => {
                 setConfirming(false);
                 backfill.start();
@@ -176,7 +174,7 @@ function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
               data-testid="obs-facts-backfill-confirm"
             >
               确定补录
-            </button>
+            </Button>
           </div>
         </>
       ) : (
@@ -185,14 +183,13 @@ function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
             还有 {unrecorded.length} 章没记账（手写或更早写的章不会自动记）。
             {unrecorded.length > BACKFILL_BATCH ? `一次补 ${BACKFILL_BATCH} 章。` : ''}
           </p>
-          <button
-            type="button"
-            className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-3xs text-muted hover:bg-elevated hover:text-foreground"
+          <Button
+            size="mini"
             onClick={() => setConfirming(true)}
             data-testid="obs-facts-backfill-start"
           >
             补录…
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -230,8 +227,7 @@ function DisputeList({
             : dispute.subject;
           return (
             <li key={dispute.id} data-testid="obs-fact-dispute">
-              <button
-                type="button"
+              <PlainButton
                 className="w-full rounded-sm text-left text-2xs leading-relaxed text-foreground hover:bg-elevated"
                 title={dispute.quote ? `本章原句：「${dispute.quote}」` : undefined}
                 onClick={() =>
@@ -247,26 +243,25 @@ function DisputeList({
                 {dispute.existing
                   ? `，已记（${at(dispute.existing.ordinal)}）「${dispute.existing.value}」`
                   : ''}
-              </button>
+              </PlainButton>
               {onResolve && (
                 <div className="mt-0.5 flex justify-end gap-1.5">
-                  <button
-                    type="button"
-                    className="rounded-sm px-1.5 py-0.5 text-3xs text-subtle hover:bg-elevated hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="mini"
                     title="本章写错了也可以先点这里，再去改正文"
                     onClick={() => onResolve(dispute, 'reject')}
                     data-testid="obs-fact-dispute-reject"
                   >
                     保留已记的
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-sm border border-border px-1.5 py-0.5 text-3xs text-foreground hover:bg-elevated"
+                  </Button>
+                  <Button
+                    size="mini"
                     onClick={() => onResolve(dispute, 'accept')}
                     data-testid="obs-fact-dispute-accept"
                   >
                     以本章为准
-                  </button>
+                  </Button>
                 </div>
               )}
             </li>

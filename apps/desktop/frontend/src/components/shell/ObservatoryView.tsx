@@ -27,7 +27,7 @@ import { FactLedgerBody, factLedgerCount, type FactBackfill } from './Observator
 import type { Observation, ObservationAvailability } from './ObsPanel';
 import { LiveStatus } from './LiveStatus';
 import { PanelSection } from './PanelSection';
-import { Spinner } from '../ui';
+import { Button, IconButton, PlainButton, Spinner } from '../ui';
 
 const CHECKER_LABELS: Record<string, string> = {
   canon: '设定检查',
@@ -102,30 +102,24 @@ function EmptyLine({ children }: { children: ReactNode }) {
 function DismissButton({ onDismiss }: { onDismiss?: () => void }) {
   if (!onDismiss) return null;
   return (
-    <button
-      type="button"
+    <Button
       onClick={onDismiss}
-      className="flex-shrink-0 rounded-sm px-1.5 py-0.5 text-3xs text-subtle hover:bg-elevated hover:text-foreground"
+      variant="ghost"
+      size="mini"
       title="不再摆在这里（canon.json 不动，可撤销）"
       data-testid="proposal-dismiss"
     >
       不要
-    </button>
+    </Button>
   );
 }
 
 function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean }) {
   if (!onMerge) return null;
   return (
-    <button
-      type="button"
-      onClick={onMerge}
-      disabled={busy}
-      className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-3xs text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
-      data-testid="proposal-merge"
-    >
+    <Button onClick={onMerge} disabled={busy} size="mini" data-testid="proposal-merge">
       并入
-    </button>
+    </Button>
   );
 }
 
@@ -261,16 +255,15 @@ function PromiseCard({
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{promise.title}</span>
         <span className="flex-shrink-0 font-mono text-3xs text-subtle">{statusLabel}</span>
         {!resolved && onResolve && (
-          <button
-            type="button"
+          <Button
             onClick={() => onResolve(promise)}
             disabled={busy}
-            className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-3xs text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50"
+            size="mini"
             title="写进 canon.json：状态改成已回收、记下回收章（先存快照，可撤销）"
             data-testid="promise-resolve"
           >
             标为已回收
-          </button>
+          </Button>
         )}
       </div>
       <div className="mt-1 text-2xs text-muted">
@@ -352,9 +345,8 @@ function EntityCard({
         </div>
       )}
       {related.map((observation) => (
-        <button
+        <PlainButton
           key={observation.id}
-          type="button"
           className={`mt-1.5 block w-full rounded-sm border px-2 py-1 text-left text-2xs leading-relaxed ${
             observation.severity === 'error'
               ? 'border-error/40 bg-error/10 text-error'
@@ -368,11 +360,10 @@ function EntityCard({
           data-testid="entity-related-observation"
         >
           {observation.title}
-        </button>
+        </PlainButton>
       ))}
       {entity.provenance.length > 0 && (
-        <button
-          type="button"
+        <PlainButton
           className="mt-1.5 flex items-center gap-1 text-3xs text-subtle hover:text-foreground"
           onClick={() => setProvenanceOpen((value) => !value)}
           data-testid="entity-provenance-toggle"
@@ -383,13 +374,12 @@ function EntityCard({
             <ChevronRight size={10} strokeWidth={1.7} />
           )}
           出现 {entity.totalCount} 处
-        </button>
+        </PlainButton>
       )}
       {provenanceOpen &&
         entity.provenance.map((occurrence) => (
-          <button
+          <PlainButton
             key={`${occurrence.path}-${occurrence.firstLine ?? 0}`}
-            type="button"
             className="mt-0.5 block w-full truncate text-left font-mono text-3xs text-subtle hover:text-foreground"
             onClick={
               onLocateAnchor
@@ -406,7 +396,7 @@ function EntityCard({
             {occurrence.path}
             {occurrence.firstLine != null ? `:${occurrence.firstLine}` : ''}
             {occurrence.count != null ? `（${occurrence.count} 处）` : ''}
-          </button>
+          </PlainButton>
         ))}
       {provenanceOpen && entity.provenanceTruncated && (
         <div className="mt-0.5 text-3xs text-subtle">…仅列前 20 处</div>
@@ -455,8 +445,7 @@ function CheckerFinding({
       data-testid="checker-finding"
       data-resolved={finding.resolved ? 'true' : 'false'}
     >
-      <button
-        type="button"
+      <PlainButton
         className={`min-w-0 flex-1 text-left ${locatable ? 'cursor-pointer' : 'cursor-default'}`}
         onClick={locatable ? () => onLocate?.(finding) : undefined}
         title={locatable ? '定位到原文' : undefined}
@@ -475,10 +464,9 @@ function CheckerFinding({
             {plainDetail(finding.detail)}
           </span>
         )}
-      </button>
+      </PlainButton>
       {onResolve && !finding.resolved && (
-        <button
-          type="button"
+        <PlainButton
           className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full border border-border text-subtle hover:border-success/50 hover:bg-success/15 hover:text-success"
           aria-label={`标记已处理：${finding.title}`}
           title="标记已处理"
@@ -486,7 +474,7 @@ function CheckerFinding({
           data-testid="checker-finding-resolve"
         >
           <Check size={10} strokeWidth={2} />
-        </button>
+        </PlainButton>
       )}
     </li>
   );
@@ -546,8 +534,7 @@ function CheckerRow({
           className={`h-[6px] w-[6px] flex-shrink-0 rounded-full ${ran ? 'bg-success' : 'bg-border-strong'}`}
         />
         {expandable ? (
-          <button
-            type="button"
+          <PlainButton
             className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left hover:bg-elevated"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
@@ -559,21 +546,21 @@ function CheckerRow({
             ) : (
               <ChevronRight size={11} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />
             )}
-          </button>
+          </PlainButton>
         ) : (
           summary
         )}
         {/* 自动跑的那几个只靠绿点表示：窄侧栏（作者常用 220px）里再挂一个「保存时自动」，名字就只剩一个字。 */}
         {ran ? null : prompt && onAsk ? (
-          <button
-            type="button"
-            className="flex-shrink-0 rounded-sm border border-agent/40 px-1.5 py-0.5 text-3xs text-agent hover:bg-agent/10"
+          <Button
+            variant="agent"
+            size="mini"
             title="在对话里请 AI 用这个检查看当前这章（会调用你配置的模型）"
             onClick={() => onAsk(prompt)}
             data-testid="checker-ask"
           >
             让 AI 查
-          </button>
+          </Button>
         ) : (
           <span className="flex-shrink-0 font-mono text-3xs text-subtle">按需</span>
         )}
@@ -681,27 +668,23 @@ export function ObservatoryView({
         {statusLabel && (
           <span className="flex-shrink-0 font-mono text-3xs text-subtle">{statusLabel}</span>
         )}
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-          title="重新扫描（不调用模型）"
-          aria-label="重新扫描世界观"
+        <IconButton
+          size="xs"
+          label="重新扫描世界观"
+          tooltip="重新扫描（不调用模型）"
+          icon={<Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />}
           onClick={onRescan}
           disabled={busy}
           data-testid="observatory-rescan"
-        >
-          <Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />
-        </button>
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到资源管理器 · Ctrl Shift E"
-          aria-label="回到资源管理器"
+        />
+        <IconButton
+          size="xs"
+          label="回到资源管理器"
+          tooltip="回到资源管理器 · Ctrl Shift E"
+          icon={<FileText size={14} strokeWidth={1.6} />}
           onClick={onBackToChat}
           data-testid="observatory-back-to-chat"
-        >
-          <FileText size={14} strokeWidth={1.6} />
-        </button>
+        />
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' ? (

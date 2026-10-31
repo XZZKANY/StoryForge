@@ -1,4 +1,4 @@
-import { FloatingSurface } from '../ui';
+import { Button, FloatingSurface, IconButton, PlainButton } from '../ui';
 /**
  * 中栏编辑器页签行（h-shell-row，与左右两栏头部行同高对齐）：文件 / 预览页签 + 右端「…」文件操作菜单（Q3a）。
  * 预览页签为斜体，单击别的文件会覆盖它；双击预览页签固定（对齐原型 pane-preview 语义）。
@@ -80,8 +80,7 @@ function Tab({
           : 'text-subtle hover:bg-elevated/60 hover:text-muted'
       }`}
     >
-      <button
-        type="button"
+      <PlainButton
         role="tab"
         aria-selected={active}
         tabIndex={active ? 0 : -1}
@@ -100,10 +99,9 @@ function Tab({
       >
         {icon}
         <span className="max-w-[180px] truncate">{label}</span>
-      </button>
+      </PlainButton>
       {onRequestClose && (
-        <button
-          type="button"
+        <PlainButton
           data-testid="editor-tab-close"
           aria-label={dirty ? `关闭 ${label}（有未保存修改）` : `关闭 ${label}`}
           // hover 底色要与页签底色拉开：激活页签本身是 bg-elevated，这里用
@@ -127,7 +125,7 @@ function Tab({
             size={11}
             strokeWidth={2}
           />
-        </button>
+        </PlainButton>
       )}
     </div>
   );
@@ -245,17 +243,18 @@ export function EditorTabs({
       data-testid="editor-tabs"
     >
       {onOverview && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={onOverview}
-          className="my-1 flex flex-shrink-0 items-center gap-1 rounded-md px-3 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          className="my-1"
           data-testid="back-to-book-overview"
           aria-label="返回作品总览"
           title="返回作品总览"
+          leadingIcon="←"
         >
-          <span aria-hidden="true">←</span>
-          <span>作品总览</span>
-        </button>
+          作品总览
+        </Button>
       )}
       {/* 页签列表单独包横向滚动容器：多开/长章节名不再把右端徽标 + …菜单挤出屏外。 */}
       <div
@@ -423,19 +422,16 @@ function PolishActionsMenu({
   };
   return (
     <div className="relative flex items-center">
-      <button
+      <IconButton
         ref={triggerRef}
-        type="button"
+        size="xs"
+        label="润色当前章"
+        icon={<Sparkles size={15} strokeWidth={1.7} />}
         data-testid="editor-polish-btn"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
-        title="润色当前章"
-        aria-label="润色当前章"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
-      >
-        <Sparkles size={15} strokeWidth={1.7} />
-      </button>
+      />
       {open && (
         <>
           <FloatingSurface
@@ -463,15 +459,14 @@ function PolishActionsMenu({
 
 function MenuRow({ label, kbd, onClick }: { label: string; kbd?: string; onClick?: () => void }) {
   return (
-    <button
+    <PlainButton
       role="menuitem"
-      type="button"
       className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
       onClick={onClick}
     >
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {kbd && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{kbd}</span>}
-    </button>
+    </PlainButton>
   );
 }
 
@@ -499,18 +494,16 @@ function EditorActionsMenu({
   };
   return (
     <div className="relative flex items-center">
-      <button
+      <IconButton
         ref={triggerRef}
-        type="button"
+        size="xs"
+        label="文件操作：保存/历史/导出…"
+        icon={<MoreHorizontal size={16} strokeWidth={1.7} />}
         data-testid="editor-more-btn"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
-        title="文件操作：保存/历史/导出…"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-      >
-        <MoreHorizontal size={16} strokeWidth={1.7} />
-      </button>
+      />
       {open && (
         <>
           <FloatingSurface

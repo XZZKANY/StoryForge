@@ -9,7 +9,7 @@ import type { KnowledgeInboxHandle } from '../app/useKnowledgeInbox';
 import { proposalToEdit } from '../app/useKnowledgeInbox';
 import { AppDialogHost, useAppDialog } from '../app/AppDialog';
 import { Check, Eye, Inbox, Pencil, RefreshCw, X } from '../icons/shell-icons';
-import { IconButton, Spinner } from '../ui';
+import { Button, IconButton, PlainButton, Spinner } from '../ui';
 import { LiveStatus } from './LiveStatus';
 import { PanelError } from './PanelError';
 
@@ -95,9 +95,8 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         }}
       >
         {(['pending', 'conflict', 'stale', 'history'] as const).map((value) => (
-          <button
+          <PlainButton
             key={value}
-            type="button"
             role="tab"
             aria-selected={tab === value}
             tabIndex={tab === value ? 0 : -1}
@@ -107,7 +106,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
             onClick={() => setTab(value)}
           >
             {{ pending: '待处理', conflict: '冲突', stale: '待复核', history: '历史' }[value]}
-          </button>
+          </PlainButton>
         ))}
       </div>
       {handle.error && <PanelError title="知识收件箱操作失败" detail={handle.error} compact />}
@@ -158,9 +157,10 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                 )}
                 {!isEditing && ACTIVE_STATES.has(proposal.state) && (
                   <div className="mt-2 flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="flex h-7 items-center gap-1 rounded-sm px-2 text-3xs text-muted hover:bg-elevated hover:text-foreground"
+                    <Button
+                      variant="ghost"
+                      size="mini"
+                      leadingIcon={<Pencil size={11} />}
                       onClick={() =>
                         setEditing({
                           group,
@@ -169,23 +169,26 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                         })
                       }
                     >
-                      <Pencil size={11} /> 编辑
-                    </button>
+                      编辑
+                    </Button>
                     {proposal.operation === 'conflict' ? (
                       <span className="text-3xs text-warning">先编辑并选择裁决方式</span>
                     ) : (
-                      <button
-                        type="button"
-                        className="flex h-7 items-center gap-1 rounded-sm px-2 text-3xs text-muted hover:bg-elevated hover:text-foreground"
+                      <Button
+                        variant="ghost"
+                        size="mini"
+                        leadingIcon={<Eye size={11} />}
                         disabled={handle.busyProposalId === proposal.proposal_id}
                         onClick={() => void handle.materialize(group, proposal)}
                       >
-                        <Eye size={11} /> 审阅
-                      </button>
+                        审阅
+                      </Button>
                     )}
-                    <button
-                      type="button"
-                      className="ml-auto flex h-7 items-center gap-1 rounded-sm px-2 text-3xs text-subtle hover:bg-error/10 hover:text-error"
+                    <Button
+                      variant="danger"
+                      size="mini"
+                      className="ml-auto"
+                      leadingIcon={<X size={11} />}
                       disabled={handle.busyProposalId === proposal.proposal_id}
                       data-testid={`knowledge-reject-${proposal.proposal_id}`}
                       onClick={() =>
@@ -202,8 +205,8 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                           })
                       }
                     >
-                      <X size={11} /> 拒绝
-                    </button>
+                      拒绝
+                    </Button>
                   </div>
                 )}
                 {handle.reviewPatch?.proposal_id === proposal.proposal_id && (
@@ -333,16 +336,12 @@ function ProposalEditor({
         />
       )}
       <div className="flex justify-end gap-1">
-        <button type="button" className="h-7 px-2 text-3xs text-muted" onClick={onCancel}>
+        <Button variant="ghost" size="mini" onClick={onCancel}>
           取消
-        </button>
-        <button
-          type="button"
-          className="flex h-7 items-center gap-1 rounded-sm bg-foreground px-2 text-3xs text-background"
-          onClick={onSave}
-        >
-          <Check size={11} /> 保存修改
-        </button>
+        </Button>
+        <Button variant="primary" size="mini" leadingIcon={<Check size={11} />} onClick={onSave}>
+          保存修改
+        </Button>
       </div>
     </div>
   );
@@ -368,18 +367,19 @@ function KnowledgePatchReview({ handle }: { handle: KnowledgeInboxHandle }) {
         </div>
       </div>
       <div className="mt-2 flex justify-end gap-1">
-        <button type="button" className="h-7 px-2 text-3xs text-muted" onClick={handle.clearReview}>
+        <Button variant="ghost" size="mini" onClick={handle.clearReview}>
           关闭
-        </button>
-        <button
-          type="button"
-          className="flex h-7 items-center gap-1 rounded-sm bg-agent px-2 text-3xs text-agent-foreground"
+        </Button>
+        <Button
+          variant="agent"
+          size="mini"
+          leadingIcon={<Check size={11} />}
           disabled={handle.busyProposalId === patch.proposal_id}
           onClick={() => void handle.accept()}
           data-testid="knowledge-confirm-writeback"
         >
-          <Check size={11} /> 确认写进文件
-        </button>
+          确认写进文件
+        </Button>
       </div>
     </div>
   );

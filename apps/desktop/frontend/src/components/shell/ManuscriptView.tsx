@@ -20,7 +20,7 @@ import type { BookContextAvailability } from '../app/useBookContext';
 import { LiveStatus } from './LiveStatus';
 import { displayDocName } from '../../lib/fs-path-ops';
 import { PanelSection } from './PanelSection';
-import { Spinner } from '../ui';
+import { IconButton, PlainButton, Spinner } from '../ui';
 
 function rosterSpanLabel(entry: RosterEntry): string {
   if (entry.missing) return '正文中尚未登场';
@@ -110,27 +110,23 @@ export function ManuscriptView({
             {scale}
           </span>
         )}
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-          title="重新读取（确定性 · 无 LLM）"
-          aria-label="重新读取手稿"
+        <IconButton
+          size="xs"
+          label="重新读取手稿"
+          tooltip="重新读取（确定性 · 无 LLM）"
+          icon={<Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />}
           onClick={onRefresh}
           disabled={busy}
           data-testid="manuscript-refresh"
-        >
-          <Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />
-        </button>
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到资源管理器 · Ctrl Shift E"
-          aria-label="回到资源管理器"
+        />
+        <IconButton
+          size="xs"
+          label="回到资源管理器"
+          tooltip="回到资源管理器 · Ctrl Shift E"
+          icon={<FileText size={14} strokeWidth={1.6} />}
           onClick={onBackToExplorer}
           data-testid="manuscript-back-to-explorer"
-        >
-          <FileText size={14} strokeWidth={1.6} />
-        </button>
+        />
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -156,8 +152,7 @@ export function ManuscriptView({
                   const current = chapter.relativePath === snapshot.currentRelativePath;
                   return (
                     <li key={chapter.relativePath}>
-                      <button
-                        type="button"
+                      <PlainButton
                         className={`flex h-7 w-full items-center gap-2 px-2 text-left text-xs transition-colors hover:bg-elevated ${
                           current
                             ? 'bg-elevated text-foreground'
@@ -177,15 +172,14 @@ export function ManuscriptView({
                         <span className="flex-shrink-0 font-mono text-3xs text-subtle">
                           {formatEstimatedChars(chapter.estimatedChars)}
                         </span>
-                      </button>
+                      </PlainButton>
                     </li>
                   );
                 })}
               </ul>
             )}
             {onDraftNextChapter && nextChapterOrdinal !== null ? (
-              <button
-                type="button"
+              <PlainButton
                 className="flex h-7 w-full items-center gap-2 px-2 text-left text-xs text-agent transition-colors hover:bg-agent/10"
                 onClick={onDraftNextChapter}
                 data-testid="manuscript-draft-next"
@@ -196,7 +190,7 @@ export function ManuscriptView({
                 <span className="min-w-0 flex-1 truncate">
                   AI 起草下一章 · 第 {nextChapterOrdinal} 章
                 </span>
-              </button>
+              </PlainButton>
             ) : null}
 
             <Section
