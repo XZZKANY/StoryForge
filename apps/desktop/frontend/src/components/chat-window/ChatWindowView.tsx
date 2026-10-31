@@ -328,31 +328,27 @@ export function ChatWindowView({
             />
           )}
 
-          {state.agentRun && !state.chapterBrief && (
-            <RunActionBar
-              run={state.agentRun}
-              controls={agentRunControls}
-              recovery={state.agentRunRecovery}
-              resumePending={state.agentBusy}
-              onTypeAhead={() => inputRef.current?.focus()}
-            />
-          )}
-
           <ComposerBox
             dock={
-              sideRail.visible ? (
-                references('picker')
-              ) : (
-                <>
-                  {batchProgress && writeBatchScheduler && (
-                    <WriteBatchProgressBar
-                      progress={batchProgress}
-                      onStop={writeBatchScheduler.stop}
-                    />
-                  )}
-                  {references('dock')}
-                </>
-              )
+              <>
+                {!sideRail.visible && batchProgress && writeBatchScheduler && (
+                  <WriteBatchProgressBar
+                    progress={batchProgress}
+                    onStop={writeBatchScheduler.stop}
+                  />
+                )}
+                {references(sideRail.visible ? 'picker' : 'dock')}
+                {/* 暂停、要作者拍板的事（权限、要不要写进文件）紧挨着输入框，有侧栏时也在这里。 */}
+                {state.agentRun && !state.chapterBrief && (
+                  <RunActionBar
+                    run={state.agentRun}
+                    controls={agentRunControls}
+                    recovery={state.agentRunRecovery}
+                    resumePending={state.agentBusy}
+                    onTypeAhead={() => inputRef.current?.focus()}
+                  />
+                )}
+              </>
             }
             key={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
             inputRef={inputRef}

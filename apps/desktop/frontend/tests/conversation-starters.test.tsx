@@ -173,7 +173,12 @@ test.each([{ project: 'D:/book' }, { project: null }, { busy: true }, { waiting:
     );
     expect(host.querySelector('textarea')!.disabled).toBe(props.project === null);
     if ('waiting' in props)
-      expect(host.querySelector('[data-testid="run-action-bar"]')).not.toBeNull();
+      // 待确认的选项是输入框顶边小条里的一行，不是悬在输入框上方的卡。
+      expect(
+        host
+          .querySelector('[data-testid="composer-dock"]')!
+          .contains(host.querySelector('[data-testid="run-action-bar"]')),
+      ).toBe(true);
     expect(submit).not.toHaveBeenCalled();
   },
 );

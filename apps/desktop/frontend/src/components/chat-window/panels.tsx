@@ -468,7 +468,7 @@ export function RunActionBar({
 
   const stopButton = (
     <Button
-      size="sm"
+      size="compact"
       variant="danger"
       className={runActionButtonClass}
       onClick={handleStopClick}
@@ -484,32 +484,30 @@ export function RunActionBar({
 
   if (run.deliveryUnknown)
     return (
-      <div className="flex-shrink-0 px-3 pt-2" data-testid="run-action-bar">
-        <div
-          className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-background px-3 py-2`}
-        >
+      <div className="px-3 py-1.5" data-testid="run-action-bar">
+        <div className="flex flex-wrap items-center gap-2">
           <span role="status" className="text-xs text-warning" data-testid="run-action-status">
             本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
           </span>
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             onClick={controls.onReconcileRun}
             data-testid="run-reconcile"
           >
             核对状态
           </Button>
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             onClick={controls.onPauseRun}
             data-testid="run-pause"
           >
             请求暂停
           </Button>
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             onClick={handleStopClick}
             onBlur={cancelStopConfirm}
             data-testid="run-stop"
@@ -527,10 +525,8 @@ export function RunActionBar({
     const approval = run.steps.find((step) => step.id === 'approval');
     const target = approval?.filePath?.split(/[\\/]/).pop();
     return (
-      <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
-        <div
-          className={`${CHAT_COLUMN} flex flex-col gap-1 rounded-lg border border-border bg-background px-2 py-2`}
-        >
+      <div className="px-1.5 py-1.5" data-testid="run-action-bar">
+        <div className="flex flex-col gap-1">
           {waitingForPermission ? (
             <DecisionChoices
               key={`${run.id}:permission`}
@@ -606,10 +602,8 @@ export function RunActionBar({
   const resume = recovery?.checkpointResume;
   // 暂停是一行字加三颗键：恢复的前提说明放在悬停提示里，不再在条上、卡片上各写一遍。
   return (
-    <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
-      <div
-        className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2`}
-      >
+    <div className="px-3 py-0.5" data-testid="run-action-bar">
+      <div className="flex min-h-8 flex-wrap items-center gap-2">
         <span
           className="min-w-0 flex-1 text-xs font-medium text-muted"
           role="status"
@@ -619,7 +613,7 @@ export function RunActionBar({
           已暂停
         </span>
         <Button
-          size="sm"
+          size="compact"
           variant="primary"
           className={runActionButtonClass}
           onClick={controls.onResumeRun}
@@ -631,8 +625,8 @@ export function RunActionBar({
         </Button>
         {resume && controls.onReconcileRun && (
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             className={runActionButtonClass}
             onClick={controls.onReconcileRun}
             data-testid="run-reconcile"
