@@ -9,6 +9,9 @@ import {
   InputDomainError,
   isJsonObject,
   parseJson,
+  parseModelJson,
+  type JsonObject,
+  type JsonValue,
 } from '../kernel/json';
 import { iterManuscriptFiles, previousChapterTail } from '../kernel/previousChapter';
 import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
@@ -442,25 +445,22 @@ function deathAdjustments(planText: string, written: BriefWritten, existing: Obj
   return added;
 }
 
-const STRUCTURED_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
-
 function jsonObject(raw: unknown): Obj {
   if (isJsonObject(raw as never)) return { ...(raw as Obj) };
   if (typeof raw !== 'string') throw new AgentOrchestrationError('模型未返回可解析的结构化结果。');
-  let text = pythonStrip(raw);
-  const fence = STRUCTURED_FENCE.exec(text);
-  if (fence) text = fence[1];
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = parseJson(text, 'chapter brief');
+    parsed = parseModelJson(raw, {
+      source: 'chapter brief',
+      fence: 'block',
+      // 模型把带直引号的计划原文、对白原样抄进字符串时，先用程序转义再解析，不让整份章纲重来。
+      locate: (text) => leadingBriefObject(text) ?? repairedBriefObject(text),
+    });
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
-    parsed = leadingBriefObject(text);
-    // 模型把带直引号的计划原文、对白原样抄进字符串时，先用程序转义再解析，不让整份章纲重来。
-    if (parsed === null) parsed = repairedBriefObject(text);
-    if (parsed === null) throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
+    throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
   }
-  if (!isJsonObject(parsed as never))
+  if (!isJsonObject(parsed))
     throw new AgentOrchestrationError('模型返回的结构化结果必须是 JSON 对象。');
   return parsed as Obj;
 }
@@ -489,7 +489,7 @@ function leadingBracketEnd(text: string, open: '{' | '[', close: '}' | ']'): num
  * 它就另起一行写在对象外面；还常补一段说明。只认开头那个完整对象：紧跟的 fact_adjustments
  * 数组并回对象（写坏或与对象里的同名字段重复就不认），再往后的说明文字不要。
  */
-function leadingBriefObject(text: string): Obj | null {
+function leadingBriefObject(text: string): JsonObject | null {
   const end = leadingBracketEnd(text, '{', '}');
   if (end === null) return null;
   try {
@@ -511,7 +511,7 @@ function leadingBriefObject(text: string): Obj | null {
 }
 
 /** 直引号转义后再解析一次（整份或开头的对象）；仍不成就放弃，交给调用方报错。 */
-function repairedBriefObject(text: string): Obj | null {
+function repairedBriefObject(text: string): JsonObject | null {
   const repaired = escapeStrayQuotes(text);
   if (repaired === text) return null;
   try {

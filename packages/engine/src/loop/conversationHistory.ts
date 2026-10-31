@@ -1,17 +1,18 @@
 import type { ModelObservation } from '../llm/observation';
 import {
   dumpJson,
+  escapeControlCharsAndQuotes,
   InputDomainError,
   isJsonObject,
   JsonFloat,
   parseJson,
+  parseModelJson,
   pythonEquals,
   compareCodePoints,
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
 import { cpLen, pythonStrip } from '../kernel/pythonText';
-import { stripCodeFence } from '../kernel/reviewReasoning';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { redactSensitive, type PlainJson, type SecretContext } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
@@ -640,15 +641,12 @@ function compactionCandidate(response: ChatResponse, secrets: SecretContext): Ob
   let candidate: unknown;
   try {
     // 模型常把整段 JSON 裹进 ```json 代码块；只剥整段外壳，里面仍须是一个合法对象。
-    const text = stripCodeFence(pythonStrip(response.content));
-    let parsed: JsonValue;
-    try {
-      parsed = parseJson(text, 'compaction');
-    } catch (error) {
-      if (!(error instanceof InputDomainError)) throw error;
-      // 摘引原文时模型常把真换行或半角引号直接写进 JSON 字符串；只补转义，字符一个不改。
-      parsed = parseJson(repairJsonStrings(text), 'compaction');
-    }
+    // 摘引原文时模型常把真换行或半角引号直接写进 JSON 字符串；只补转义，字符一个不改。
+    const parsed = parseModelJson(response.content, {
+      source: 'compaction',
+      fence: 'lines',
+      repair: escapeControlCharsAndQuotes,
+    });
     candidate = redactSensitive(parsed as PlainJson, secrets);
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
@@ -657,36 +655,6 @@ function compactionCandidate(response: ChatResponse, secrets: SecretContext): Ob
   if (!isObj(candidate) || Object.keys(candidate).length !== 1 || !('entries' in candidate))
     throw new CompactionRejected('压缩候选结构无效。');
   return candidate;
-}
-
-/**
- * 修补模型常写坏的 JSON 字符串：字面量里的裸控制字符补成转义；字面量里的半角引号只有后面紧跟
- * 「, } ] :」或结尾才算收尾，否则当作内容补上转义。修出来的条目仍要逐字核验来源，修错只会被拒。
- */
-function repairJsonStrings(text: string): string {
-  let out = '';
-  let inString = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (!inString) {
-      out += char;
-      if (char === '"') inString = true;
-      continue;
-    }
-    const code = char.charCodeAt(0);
-    if (code < 0x20) out += '\\u' + code.toString(16).padStart(4, '0');
-    else if (char === '\\') {
-      out += char + (text[index + 1] ?? '');
-      index += 1;
-    } else if (char === '"') {
-      const rest = text.slice(index + 1).trimStart();
-      if (!rest || ',}]:'.includes(rest[0])) {
-        out += char;
-        inString = false;
-      } else out += '\\"';
-    } else out += char;
-  }
-  return out;
 }
 
 const FOLLOW_UP_NOTE =

@@ -1,6 +1,6 @@
 import { countProseChars } from '@storyforge/project-core';
 import { normalizeNewlines } from '../readPort';
-import { InputDomainError, isJsonObject, parseJson, type JsonValue } from './json';
+import { isJsonObject, ModelJsonNotFound, parseModelJson, type JsonValue } from './json';
 import { pythonStrip } from './pythonText';
 
 /** 拆书产出的写法 skill（作者在作品档案里点「放进 写法/」才落进作品）；每次拆书整份覆盖。 */
@@ -125,16 +125,13 @@ export function skillFileContent(
 export function parseBreakdownSkills(raw: unknown, source: string): BreakdownSkill[] {
   if (typeof raw !== 'string' || !pythonStrip(raw))
     throw new BreakdownSkillsError('写法 skill 返回为空。');
-  const text = pythonStrip(raw);
   let parsed: JsonValue;
   try {
-    parsed = parseJson(text, 'writing skills');
+    parsed = parseModelJson(raw, { source: 'writing skills', locate: 'objectSpan' });
   } catch (error) {
-    if (!(error instanceof InputDomainError)) throw error;
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new BreakdownSkillsError('写法 skill 不是有效 JSON。');
-    parsed = parseJson(text.slice(start, end + 1), 'writing skills');
+    if (error instanceof ModelJsonNotFound)
+      throw new BreakdownSkillsError('写法 skill 不是有效 JSON。');
+    throw error;
   }
   const list = isJsonObject(parsed) ? parsed.skills : undefined;
   if (!Array.isArray(list)) throw new BreakdownSkillsError('写法 skill 缺少 skills 列表。');

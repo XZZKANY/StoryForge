@@ -1,4 +1,5 @@
 import { decodeUtf8 } from '../readPort';
+import { PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
 
 /**
  * 内核读取 JSON 文件的唯一入口：标准 JSON，范围外直接报错，不复刻 Python json 的宽松行为。
@@ -239,6 +240,172 @@ export function escapeStrayQuotes(text: string): string {
     out += char;
   }
   return out;
+}
+
+/**
+ * 修补模型常写坏的 JSON 字符串：字面量里的裸控制字符（真换行等）补成 \u 转义；字面量里的半角引号
+ * 只有后面（跳过空白）紧跟「, } ] :」或结尾才算收尾，否则当作内容补上转义。
+ * 比 {@link escapeStrayQuotes} 宽：逗号、冒号后面不看是不是下一个键或值。
+ */
+export function escapeControlCharsAndQuotes(text: string): string {
+  let out = '';
+  let inString = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (!inString) {
+      out += char;
+      if (char === '"') inString = true;
+      continue;
+    }
+    const code = char.charCodeAt(0);
+    if (code < 0x20) out += '\\u' + code.toString(16).padStart(4, '0');
+    else if (char === '\\') {
+      out += char + (text[index + 1] ?? '');
+      index += 1;
+    } else if (char === '"') {
+      const rest = text.slice(index + 1).trimStart();
+      if (!rest || ',}]:'.includes(rest[0])) {
+        out += char;
+        inString = false;
+      } else out += '\\"';
+    } else out += char;
+  }
+  return out;
+}
+
+/**
+ * 模型回复外面那层代码块怎么剥。各调用方原来的规矩不一样，收进来时逐字保留：
+ * - none：不剥。
+ * - lines：回复以 ``` 开头就删首行，末行（去空白后）以 ``` 开头也删。
+ * - strictLines：至少两行、首行恰是 ```json 或 ```（不分大小写）、末行恰是 ``` 才剥。
+ * - block：整条回复是一个 ```json … ``` 块才取块内，块内两端空白按 JS 的 \s 去。
+ * - blockPython：同 block，空白按 Python 的空白去。
+ */
+export type ModelJsonFence = 'none' | 'lines' | 'strictLines' | 'block' | 'blockPython';
+
+const FENCE_BLOCK = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
+const FENCE_BLOCK_PYTHON = new RegExp(
+  `^${PYTHON_WHITESPACE}*\`\`\`(?:json)?${PYTHON_WHITESPACE}*([\\s\\S]*?)${PYTHON_WHITESPACE}*\`\`\`${PYTHON_WHITESPACE}*$`,
+  'iu',
+);
+
+function unwrapFence(text: string, fence: ModelJsonFence): string {
+  if (fence === 'block' || fence === 'blockPython') {
+    const match = (fence === 'block' ? FENCE_BLOCK : FENCE_BLOCK_PYTHON).exec(text);
+    return match ? match[1] : text;
+  }
+  if (fence === 'strictLines') {
+    const lines = pythonSplitlines(text);
+    if (
+      lines.length >= 2 &&
+      ['```json', '```'].includes(pythonStrip(lines[0]).toLowerCase()) &&
+      pythonStrip(lines[lines.length - 1]) === '```'
+    )
+      return pythonStrip(lines.slice(1, -1).join('\n'));
+    return text;
+  }
+  if (fence === 'none' || !text.startsWith('```')) return text;
+  let lines = pythonSplitlines(text);
+  if (lines.length && lines[0].startsWith('```')) lines = lines.slice(1);
+  if (lines.length && pythonStrip(lines[lines.length - 1]).startsWith('```'))
+    lines = lines.slice(0, -1);
+  return pythonStrip(lines.join('\n'));
+}
+
+/**
+ * 整体解析失败后去哪找片段：objectSpan / arraySpan 取第一个开括号到最后一个闭括号；
+ * balancedArray 取第一个括号配平的数组（认得字符串里的转义与括号）；自定义时返回 null 表示没找到。
+ */
+export type ModelJsonLocate =
+  | 'objectSpan'
+  | 'arraySpan'
+  | 'balancedArray'
+  | ((text: string) => JsonValue | null);
+
+function balancedArray(text: string): string | null {
+  const start = text.indexOf('[');
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index++) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === '[') depth += 1;
+    else if (char === ']') {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+function bracketSpan(text: string, open: string, close: string): string | null {
+  const start = text.indexOf(open);
+  const end = text.lastIndexOf(close);
+  return start < 0 || end <= start ? null : text.slice(start, end + 1);
+}
+
+/**
+ * 回复整体不是 JSON、按 locate 也没找到片段。消息沿用整体解析失败的原因；
+ * name 仍是 InputDomainError，上层按它认的地方、记下的类型名都不变。
+ */
+export class ModelJsonNotFound extends InputDomainError {}
+
+export type ModelJsonOptions = {
+  /** 只用于报错。 */
+  source: string;
+  fence?: ModelJsonFence;
+  uniqueKeys?: boolean;
+  /** 整体解析失败后修一遍再解析；修不出变化就接着按 locate 找，没有 locate 就按原错误失败。 */
+  repair?: (text: string) => string;
+  locate?: ModelJsonLocate;
+};
+
+/**
+ * 从模型回复里取 JSON 的唯一入口：去两端空白 → 剥代码块 → 解析，失败时按选项修复或定位片段再解析。
+ * 解析不了抛 InputDomainError（没找到片段抛 {@link ModelJsonNotFound}）；顶层类型与对外措辞由调用方把关。
+ */
+export function parseModelJson(raw: string, options: ModelJsonOptions): JsonValue {
+  const text = unwrapFence(pythonStrip(raw), options.fence ?? 'none');
+  const parse = (json: string) =>
+    parseJson(json, options.source, { uniqueKeys: options.uniqueKeys });
+  try {
+    return parse(text);
+  } catch (error) {
+    if (!(error instanceof InputDomainError)) throw error;
+    if (options.repair) {
+      const repaired = options.repair(text);
+      if (repaired !== text) return parse(repaired);
+    }
+    const { locate } = options;
+    if (locate === undefined) throw error;
+    if (typeof locate === 'function') {
+      const found = locate(text);
+      if (found === null) throw new ModelJsonNotFound(error.message);
+      return found;
+    }
+    const span =
+      locate === 'balancedArray'
+        ? balancedArray(text)
+        : locate === 'objectSpan'
+          ? bracketSpan(text, '{', '}')
+          : bracketSpan(text, '[', ']');
+    if (span === null) throw new ModelJsonNotFound(error.message);
+    return parse(span);
+  }
 }
 
 /** 文件字节：只收不带 BOM 的合法 UTF-8。 */

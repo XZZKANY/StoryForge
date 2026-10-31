@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p1-context.windows.json';
 import {
+  escapeControlCharsAndQuotes,
+  escapeStrayQuotes,
   InputDomainError,
   JsonFields,
   JsonFloat,
   MAX_JSON_DEPTH,
+  ModelJsonNotFound,
   parseJson,
   parseJsonBytes,
+  parseModelJson,
   type JsonObject,
+  type ModelJsonOptions,
 } from './json';
 import { fromPythonFact, type TypedValue } from './pythonFacts.test-support';
 
@@ -181,5 +186,139 @@ describe('domain JSON parser', () => {
     const object = parseJson('{"constructor":1}', 's') as JsonObject;
     expect(fields.member(object, 'constructor')).toBe(1);
     expect(fields.member({ a: 1 }, 'toString')).toBeUndefined();
+  });
+});
+
+// 样本取自各调用方的 golden 夹具与原有测试；每组选项就是收进来之前那一处的规矩。
+describe('parseModelJson', () => {
+  const failure = (raw: string, options: ModelJsonOptions) => {
+    try {
+      parseModelJson(raw, options);
+    } catch (error) {
+      return error;
+    }
+    throw new Error('expected a failure');
+  };
+
+  it('lines + objectSpan (book breakdown): fenced, embedded, missing and malformed replies', () => {
+    const options: ModelJsonOptions = { source: 's', fence: 'lines', locate: 'objectSpan' };
+    expect(parseModelJson('```json\n{"conflict_and_rhythm": "围栏"}\n```', options)).toEqual({
+      conflict_and_rhythm: '围栏',
+    });
+    expect(
+      parseModelJson('模型说明：{"craft_methods": {"summary": "对象"}} 结尾', options),
+    ).toEqual({ craft_methods: { summary: '对象' } });
+    expect(parseModelJson('[1, 2]', options)).toEqual([1, 2]);
+    expect(failure('not json', options)).toBeInstanceOf(ModelJsonNotFound);
+    const malformed = failure('{"a": 1} 多余 }', options);
+    expect(malformed).toBeInstanceOf(InputDomainError);
+    expect(malformed).not.toBeInstanceOf(ModelJsonNotFound);
+    // 整条回复只有一行时首行就是全部，剥完是空串。
+    expect(failure('```json {"a": 1}```', options)).toBeInstanceOf(ModelJsonNotFound);
+  });
+
+  it('none + objectSpan (writing skills): a fence is skipped by the span, not stripped', () => {
+    const options: ModelJsonOptions = { source: 's', locate: 'objectSpan' };
+    expect(parseModelJson('```json\n{"skills": []}\n```', options)).toEqual({ skills: [] });
+    expect(failure('不是 JSON', options)).toBeInstanceOf(ModelJsonNotFound);
+  });
+
+  it('lines + arraySpan (review issues): a missing span keeps the whole-reply parse error', () => {
+    const options: ModelJsonOptions = { source: 's', fence: 'lines', locate: 'arraySpan' };
+    expect(parseModelJson('模型说明：\n[{"code":"x"}, 5] 后记', options)).toEqual([
+      { code: 'x' },
+      5,
+    ]);
+    expect(parseModelJson('```\n{"a": 1}\n```', options)).toEqual({ a: 1 });
+    const error = failure('not json at all', options) as Error;
+    expect(error).toBeInstanceOf(ModelJsonNotFound);
+    expect(error.name).toBe('InputDomainError');
+    expect(error.message).toBe((failure('not json at all', { source: 's' }) as Error).message);
+  });
+
+  it('strictLines, then balancedArray (semantic judge)', () => {
+    expect(parseModelJson('```JSON\n[1]\n```', { source: 's', fence: 'strictLines' })).toEqual([1]);
+    expect(failure('```js\n[1]\n```', { source: 's', fence: 'strictLines' })).toBeInstanceOf(
+      InputDomainError,
+    );
+    const embedded = '说明 [{"a": "]"}] 尾巴 ]';
+    expect(parseModelJson(embedded, { source: 's', locate: 'balancedArray' })).toEqual([
+      { a: ']' },
+    ]);
+    expect(failure(embedded, { source: 's', locate: 'arraySpan' })).not.toBeInstanceOf(
+      ModelJsonNotFound,
+    );
+  });
+
+  it('block keeps JS whitespace inside the fence, blockPython keeps Python whitespace', () => {
+    const nel = String.fromCharCode(0x85);
+    const bom = String.fromCharCode(0xfeff);
+    expect(parseModelJson('```json\n{"a": 1}\n```', { source: 's', fence: 'block' })).toEqual({
+      a: 1,
+    });
+    expect(parseModelJson('```{"a": 1}```', { source: 's', fence: 'block' })).toEqual({ a: 1 });
+    expect(
+      parseModelJson(`\`\`\`json${bom}{"a": 1}\`\`\``, { source: 's', fence: 'block' }),
+    ).toEqual({ a: 1 });
+    expect(
+      failure(`\`\`\`json${bom}{"a": 1}\`\`\``, { source: 's', fence: 'blockPython' }),
+    ).toBeInstanceOf(InputDomainError);
+    expect(
+      parseModelJson(`\`\`\`json${nel}{"a": 1}\`\`\``, { source: 's', fence: 'blockPython' }),
+    ).toEqual({ a: 1 });
+    expect(
+      failure(`\`\`\`json${nel}{"a": 1}\`\`\``, { source: 's', fence: 'block' }),
+    ).toBeInstanceOf(InputDomainError);
+  });
+
+  it('block + uniqueKeys + escapeStrayQuotes (chapter check)', () => {
+    const options: ModelJsonOptions = {
+      source: 's',
+      fence: 'block',
+      uniqueKeys: true,
+      repair: escapeStrayQuotes,
+    };
+    expect(parseModelJson('```json\n{"goal": "他说"快走"然后离开"}\n```', options)).toEqual({
+      goal: '他说"快走"然后离开',
+    });
+    expect(failure('{"a": 1, "a": 2}', options)).toBeInstanceOf(InputDomainError);
+    const broken = '{"a": "他说"好"';
+    expect((failure(broken, options) as Error).message).toBe(
+      (failure(escapeStrayQuotes(broken), { source: 's' }) as Error).message,
+    );
+  });
+
+  it('a custom locate (chapter brief) runs only after the whole reply fails', () => {
+    const seen: string[] = [];
+    const locate = (text: string) => {
+      seen.push(text);
+      return text.startsWith('{') ? { found: true } : null;
+    };
+    const options: ModelJsonOptions = { source: 's', fence: 'block', locate };
+    expect(parseModelJson('```json\n{"a": 1}\n```', options)).toEqual({ a: 1 });
+    expect(parseModelJson('```json\n{"a": 1} 说明\n```', options)).toEqual({ found: true });
+    expect(failure('说明', options)).toBeInstanceOf(ModelJsonNotFound);
+    expect(seen).toEqual(['{"a": 1} 说明', '说明']);
+  });
+
+  it('lines + escapeControlCharsAndQuotes (compaction) also fixes raw newlines', () => {
+    const options: ModelJsonOptions = {
+      source: 's',
+      fence: 'lines',
+      repair: escapeControlCharsAndQuotes,
+    };
+    const reply = '```json\n{"entries": [{"quote": "第一行\n第二行", "note": "他说"走"吧"}]}\n```';
+    expect(parseModelJson(reply, options)).toEqual({
+      entries: [{ quote: '第一行\n第二行', note: '他说"走"吧' }],
+    });
+    expect(failure(reply, { ...options, repair: escapeStrayQuotes })).toBeInstanceOf(
+      InputDomainError,
+    );
+  });
+
+  it('the two repairers close a string on a comma differently', () => {
+    const text = '{"line": "他说"好",她笑了", "count": 1}';
+    expect(parseJson(escapeStrayQuotes(text), 's')).toEqual({ line: '他说"好",她笑了', count: 1 });
+    expect(() => parseJson(escapeControlCharsAndQuotes(text), 's')).toThrow(InputDomainError);
   });
 });
