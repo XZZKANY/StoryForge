@@ -6,14 +6,13 @@ import {
   resolveProjectRoot,
   resolveScopedPath,
 } from '../../kernel/fsTools';
+import type { Obj } from '../../kernel/json';
 import { codePoints, cpSlice, pythonStrip } from '../../kernel/pythonText';
 import type { LlmSource } from '../../llm/config';
 import type { ProjectReader } from '../../readPort';
 import type { ToolHandler } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { requiredString } from './runtimeArguments';
-
-type Obj = { [key: string]: unknown };
 
 // 人物目录喂「角色声音约束」槽位，其余设定文件喂「必含事实」槽位，对齐 judge 提示的类别触发条件。
 const CHARACTER_DIR = '人物';

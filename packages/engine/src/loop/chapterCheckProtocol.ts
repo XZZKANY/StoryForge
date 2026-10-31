@@ -7,12 +7,11 @@ import {
   isJsonObject,
   parseModelJson,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
 import { codePoints, pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
 import { sha256Hex } from '../kernel/sha256';
-
-type Obj = { [key: string]: unknown };
 
 /** 带版本、失败即关闭的章节检查：只对确切的草稿与 brief 下结论（chapter_check_protocol）。 */
 export const CHECK_PROTOCOL_VERSION = 2;

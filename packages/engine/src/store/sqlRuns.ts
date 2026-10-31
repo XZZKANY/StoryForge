@@ -1,3 +1,4 @@
+import type { Obj } from '../kernel/json';
 import {
   decodeJsonColumn,
   encodeJsonColumn,
@@ -9,7 +10,6 @@ import {
 import {
   RunPublicIdConflictError,
   type ArtifactRecord,
-  type Obj,
   type RunEventFields,
   type RunEventRecord,
   type RunPatch,

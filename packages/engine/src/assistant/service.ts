@@ -5,7 +5,7 @@ import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import { FsToolError } from '../kernel/fsTools';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import { GenerationSourceBudgetError, GenerationSourceCapture } from '../kernel/generationSources';
-import { InputDomainError } from '../kernel/json';
+import { InputDomainError, type Obj } from '../kernel/json';
 import {
   PREVIOUS_FULL_MAX_CHARS,
   previousChapterPassage,
@@ -46,7 +46,6 @@ import {
 } from './prompts';
 import { REVISION_SYSTEM_PROMPT, reviseText, RevisionQualityRejected } from './revision';
 
-type Obj = { [key: string]: unknown };
 type Platform = 'windows' | 'posix';
 
 // ---- 错误：状态码与文本照 Python 的 DomainError 子类 ----

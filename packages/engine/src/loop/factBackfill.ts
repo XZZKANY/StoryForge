@@ -7,7 +7,7 @@ import {
   type FactCandidate,
 } from '../kernel/factLedger';
 import { resolveProjectRoot } from '../kernel/fsTools';
-import { isJsonObject, type JsonObject } from '../kernel/json';
+import { isJsonObject, type JsonObject, type Obj } from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
 import { readOptionalProjectText, type ProjectReader } from '../readPort';
@@ -18,8 +18,6 @@ import {
   parseFactExtraction,
 } from './chapterCheckProtocol';
 import { canonicalNames, conflictSummaries } from './factRecord';
-
-type Obj = { [key: string]: unknown };
 
 /** 一次补录最多几章：每章一次模型调用，书长了不能一点就几百次。 */
 export const MAX_BACKFILL_CHAPTERS = 20;

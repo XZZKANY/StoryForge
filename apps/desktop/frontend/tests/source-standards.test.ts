@@ -275,6 +275,7 @@ it('正文字数只在 project-core 实现一份，界面与引擎都从那里�
 const ENGINE_SHARED_HELPERS: Record<string, string> = {
   isPyInt: 'kernel/json.ts',
   strOr: 'kernel/json.ts',
+  strOrNull: 'kernel/json.ts',
   countOf: 'kernel/pythonText.ts',
   stripNewlines: 'kernel/pythonText.ts',
   optionalString: 'kernel/pythonText.ts',
@@ -298,4 +299,13 @@ it('引擎的共享小函数各只定义一次，在 kernel/json.ts 或 kernel/p
       .map(([name, home]) => `${home}: ${name}`)
       .sort(),
   );
+});
+
+it('引擎里值为 unknown 的 Obj 类型只在 kernel/json.ts 定义，别处从那里取', () => {
+  const files = sourceFiles(ENGINE_SRC).filter((path) => !isTestSource(path));
+  expect(files.length).toBeGreaterThan(100);
+  const homes = files
+    .filter((path) => /\b(?:type\s+Obj\s*=|interface\s+Obj\b)/.test(readFileSync(path, 'utf8')))
+    .map((path) => relative(ENGINE_SRC, path).replace(/\\/g, '/'));
+  expect(homes).toEqual(['kernel/json.ts']);
 });

@@ -664,3 +664,7 @@ export function pythonTruthy(value: JsonValue | undefined): boolean {
 /** Python `str(value) if value else fallback`。 */
 export const strOr = (value: JsonValue | undefined, fallback: string) =>
   pythonTruthy(value) ? pythonStr(value) : fallback;
+
+/** Python `None if value is None else str(value)`，undefined 也当 None。 */
+export const strOrNull = (value: unknown) =>
+  value === undefined || value === null ? null : pythonStr(value as JsonValue);

@@ -6,6 +6,7 @@ import {
   pythonStr,
   pythonTruthy,
   strOr,
+  strOrNull,
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
@@ -64,8 +65,6 @@ const ERROR_CATEGORIES: Record<string, ProviderErrorCategory> = {
 
 const positiveInt = (value: unknown) =>
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 0;
-const strOrNull = (value: JsonValue | undefined) =>
-  value === undefined || value === null ? null : pythonStr(value);
 const own = (object: JsonObject, key: string) => Object.prototype.hasOwnProperty.call(object, key);
 
 function argumentsObject(call: ToolCall): JsonObject {
