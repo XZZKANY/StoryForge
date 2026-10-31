@@ -53,22 +53,23 @@ pub struct FileEntry {
     pub extension: Option<String>,
 }
 
-/// 读取文件内容
-#[tauri::command]
-pub fn read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| format!("无法读取文件 {}: {}", path, e))
-}
-
 /// 读取项目文件前解析真实路径，阻止项目内 symlink 指向项目外部文件。
+/// 作品内但还不存在的文件报「作品文件不存在」，前端据此认出「还没建」。
 #[tauri::command]
 pub fn read_project_file(project_root: String, path: String) -> Result<String, String> {
-    let root = fs::canonicalize(&project_root)
-        .map_err(|e| format!("无法解析作品目录 {}: {}", project_root, e))?;
-    let candidate =
-        fs::canonicalize(&path).map_err(|e| format!("无法解析作品文件 {}: {}", path, e))?;
-    if candidate == root || !candidate.starts_with(&root) {
-        return Err(format!("文件不在当前作品内: {}", path));
-    }
+    let root = canonical_project_root(&project_root)?;
+    let target = Path::new(&path);
+    let candidate = match fs::canonicalize(target) {
+        Ok(candidate) => candidate,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // 先确认落在作品内再报不存在，作品外的路径不能借报错文字探出有没有。
+            let ancestor = canonicalize_existing_ancestor(target)?;
+            ensure_canonical_path_inside_project(&root, &ancestor, target, true)?;
+            return Err(format!("作品文件不存在: {}", path));
+        }
+        Err(error) => return Err(format!("无法解析作品文件 {}: {}", path, error)),
+    };
+    ensure_canonical_path_inside_project(&root, &candidate, target, false)?;
     if !candidate.is_file() {
         return Err(format!("路径不是作品文件: {}", path));
     }
@@ -553,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn write_file_creates_parent_dirs_and_read_file_returns_content() {
+    fn write_file_creates_parent_dirs_and_read_project_file_returns_content() {
         let temp = TempDir::new("read-write");
         let file_path = temp.join("chapters/chapter-001.md");
 
@@ -564,7 +565,7 @@ mod tests {
         )
             .expect("write should succeed");
 
-        let content = read_file(file_path).expect("read should succeed");
+        let content = read_project_file(temp.root(), file_path).expect("read should succeed");
         assert_eq!(content, "# Chapter 1\n\nOpening.");
     }
 
@@ -678,7 +679,7 @@ mod tests {
         let error = read_project_file(project.path.to_string_lossy().to_string(), outside_file)
             .expect_err("external file must be rejected");
 
-        assert!(error.contains("文件不在当前作品内"));
+        assert!(error.contains("路径不在当前作品内"));
     }
 
     #[test]
@@ -703,7 +704,63 @@ mod tests {
         )
         .expect_err("symlink escape must be rejected");
 
-        assert!(error.contains("文件不在当前作品内"));
+        assert!(error.contains("路径不在当前作品内"));
+    }
+
+    #[test]
+    fn read_project_file_rejects_project_root_itself() {
+        let project = TempDir::new("project-read-root-itself");
+
+        let error = read_project_file(project.root(), project.root())
+            .expect_err("project root must not be read as a file");
+
+        assert!(error.contains("路径不在当前作品内"), "{}", error);
+    }
+
+    #[test]
+    fn read_project_file_reports_missing_inside_file_as_not_found() {
+        let project = TempDir::new("project-read-missing");
+
+        for missing in [project.join("book.md"), project.join(".storyforge/book.json")] {
+            let error = read_project_file(project.root(), missing)
+                .expect_err("missing file must be reported");
+            assert!(error.contains("作品文件不存在"), "{}", error);
+        }
+    }
+
+    #[test]
+    fn read_project_file_fences_missing_external_paths_before_reporting_missing() {
+        let project = TempDir::new("project-read-missing-root");
+        let outside = TempDir::new("project-read-missing-outside");
+
+        let error = read_project_file(project.root(), outside.join("nested/secret.md"))
+            .expect_err("missing external file must be rejected");
+
+        assert!(error.contains("路径不在当前作品内"), "{}", error);
+        assert!(!error.contains("不存在"), "{}", error);
+    }
+
+    #[test]
+    fn read_project_file_fences_missing_paths_under_symlinked_dir() {
+        let project = TempDir::new("project-read-missing-link-root");
+        let outside = TempDir::new("project-read-missing-link-outside");
+        let link = project.path.join("linked-dir");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside.path, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_dir(&outside.path, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let error = read_project_file(
+            project.root(),
+            link.join("missing.md").to_string_lossy().to_string(),
+        )
+        .expect_err("missing file behind a symlinked dir must be rejected");
+
+        assert!(error.contains("路径不在当前作品内"), "{}", error);
     }
 
     #[test]
@@ -719,7 +776,7 @@ mod tests {
         assert!(staged.exists(), "临时文件应已写好");
         assert_ne!(staged, target.to_path_buf(), "临时文件不能就是目标本身");
         assert_eq!(
-            read_file(file_path.clone()).expect("target should stay readable"),
+            read_project_file(temp.root(), file_path.clone()).expect("target should stay readable"),
             "committed-v1",
             "暂存阶段绝不能改动目标文件（原子性不变量）"
         );
@@ -740,7 +797,7 @@ mod tests {
             .expect("overwrite should succeed");
 
         assert_eq!(
-            read_file(file_path).expect("read should succeed"),
+            read_project_file(temp.root(), file_path).expect("read should succeed"),
             "v2-longer-body"
         );
         // rename 提交后临时文件必须已被消费，目录里不留 .tmp 残渣。
@@ -836,7 +893,7 @@ mod tests {
         assert!(!path_exists(from));
         assert!(path_exists(to.clone()));
         assert_eq!(
-            read_file(to).expect("renamed file should be readable"),
+            read_project_file(temp.root(), to).expect("renamed file should be readable"),
             "draft"
         );
     }

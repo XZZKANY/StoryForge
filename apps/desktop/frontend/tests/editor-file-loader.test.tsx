@@ -22,6 +22,7 @@ function Harness({ filePath }: { filePath: string | null }) {
   useLayoutEffect(() => {
     filePathRef.current = filePath;
   }, [filePath]);
+  const projectPathRef = useRef<string | null>('D:/book');
   const isDirtyRef = useRef(false);
   const autoSaveTimerRef = useRef<number | null>(null);
   const modelCacheRef = useRef<EditorModelCache>(new Map());
@@ -30,6 +31,7 @@ function Harness({ filePath }: { filePath: string | null }) {
     originalContentRef,
     issueDecorationsRef,
     filePathRef,
+    projectPathRef,
     isDirtyRef,
     autoSaveTimerRef,
     resetSuggestionWriteback: noop,

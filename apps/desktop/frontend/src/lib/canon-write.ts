@@ -60,7 +60,7 @@ async function undoCanonWrite(
   written: string,
 ): Promise<void> {
   const current = (await TauriFileSystem.pathExists(before.path))
-    ? await TauriFileSystem.readFile(before.path)
+    ? await TauriFileSystem.readProjectFile(projectPath, before.path)
     : null;
   if (current !== written) {
     throw new Error('canon.json 之后又改过，不能直接撤销；写入前的那一份在版本记录里。');

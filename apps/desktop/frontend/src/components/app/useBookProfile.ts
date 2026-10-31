@@ -71,9 +71,9 @@ function message(error: unknown): string {
 }
 
 /** 文件不存在返回 null；其它读错照常抛出。 */
-async function readTextOrNull(path: string): Promise<string | null> {
+async function readTextOrNull(projectPath: string, path: string): Promise<string | null> {
   try {
-    return await TauriFileSystem.readFile(path);
+    return await TauriFileSystem.readProjectFile(projectPath, path);
   } catch (error) {
     const detail = message(error).toLowerCase();
     // 档案 / 灵感文件尚未创建是常态，不是错误；其它 I/O 错误必须暴露。
@@ -95,9 +95,13 @@ function isProfileObject(raw: string): boolean {
   }
 }
 
-async function readTextOrEmpty(path: string, allowMissing = true): Promise<string> {
-  if (!allowMissing) return await TauriFileSystem.readFile(path);
-  return (await readTextOrNull(path)) ?? '';
+async function readTextOrEmpty(
+  projectPath: string,
+  path: string,
+  allowMissing = true,
+): Promise<string> {
+  if (!allowMissing) return await TauriFileSystem.readProjectFile(projectPath, path);
+  return (await readTextOrNull(projectPath, path)) ?? '';
 }
 
 async function scanOutline(projectPath: string): Promise<OutlineEntry[]> {
@@ -105,7 +109,7 @@ async function scanOutline(projectPath: string): Promise<OutlineEntry[]> {
   const files = index.files.filter((file) => file.kind === 'outline');
   const entries: OutlineEntry[] = [];
   for (const file of files) {
-    const content = await readTextOrEmpty(file.path, false);
+    const content = await readTextOrEmpty(projectPath, file.path, false);
     for (const heading of parseHeadings(content)) {
       entries.push({ ...heading, path: file.path, relativePath: file.relativePath });
     }
@@ -187,12 +191,12 @@ export function useBookProfile({
       let rawProfile: string | null | undefined;
       let rawNotes: string | null | undefined;
       try {
-        rawProfile = await readTextOrNull(bookProfilePath(activeProject));
+        rawProfile = await readTextOrNull(activeProject, bookProfilePath(activeProject));
       } catch (error) {
         if (!cancelled) setProfileError(message(error));
       }
       try {
-        rawNotes = await readTextOrNull(ideaNotesPath(activeProject));
+        rawNotes = await readTextOrNull(activeProject, ideaNotesPath(activeProject));
       } catch {
         // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
         rawNotes = undefined;

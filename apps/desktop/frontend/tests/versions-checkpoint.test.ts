@@ -28,7 +28,8 @@ vi.mock('../src/lib/tauri-fs', () => ({
       if (path.endsWith('.meta.json') && metaWriteError) throw metaWriteError;
       disk.set(normalize(path), { content });
     },
-    readFile: async (path: string) => {
+    readProjectFile: async (root: string, path: string) => {
+      if (!normalize(path).startsWith(`${normalize(root)}/`)) throw new Error(`作品外: ${path}`);
       const file = disk.get(normalize(path));
       if (!file) throw new Error(`不存在: ${path}`);
       return file.content;
