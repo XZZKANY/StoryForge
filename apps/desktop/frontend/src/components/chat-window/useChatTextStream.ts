@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
+import { usePassiveMountedRef } from '../../lib/async-guards';
 import type { AgentTextFrame } from '../../lib/api/agent-text-stream';
 import type { AgentRunStatus, AgentTextSettlement, Message } from './types';
 
@@ -61,7 +62,7 @@ function replaceTrailingStream(
 export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]>>) {
   const draft = useRef<Draft | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const alive = useRef(true);
+  const alive = usePassiveMountedRef();
   const revision = useRef(0);
 
   const stream = useMemo(() => {
@@ -247,12 +248,10 @@ export function useChatTextStream(setMessages: Dispatch<SetStateAction<Message[]
         draft.current = null;
       },
     };
-  }, [setMessages]);
+  }, [alive, setMessages]);
 
   useEffect(() => {
-    alive.current = true;
     return () => {
-      alive.current = false;
       stream.reset();
     };
   }, [stream]);

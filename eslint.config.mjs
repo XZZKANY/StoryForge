@@ -72,6 +72,11 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // 共享的 useAsyncEffect / useAsyncLayoutEffect 原样转交依赖数组，调用点照 useEffect 检查依赖。
+      'react-hooks/exhaustive-deps': [
+        'warn',
+        { additionalHooks: '^(useAsyncEffect|useAsyncLayoutEffect)$' },
+      ],
     },
   },
   {

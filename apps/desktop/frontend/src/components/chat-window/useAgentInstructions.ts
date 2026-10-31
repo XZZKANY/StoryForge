@@ -4,6 +4,7 @@ import {
   loadAuthorInstructions,
   type AuthorInstructionsState,
 } from '../../lib/api/author-instructions';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { normalizePathForMatch } from '../../lib/project/path';
@@ -58,19 +59,18 @@ export function useAgentInstructions(projectPath: string | null) {
     return () => window.removeEventListener(FS_MUTATION_EVENT, onMutation);
   }, []);
 
-  useEffect(() => {
-    if (!projectPath) return;
-    let cancelled = false;
-    const settle = (view: AgentInstructionsView) => {
-      if (!cancelled) setLoaded({ projectPath, view });
-    };
-    loadAuthorInstructions(projectPath).then(settle, (error: unknown) =>
-      settle({ status: 'error', message: errorText(error) }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, version]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) return;
+      const settle = (view: AgentInstructionsView) => {
+        if (isCurrent()) setLoaded({ projectPath, view });
+      };
+      loadAuthorInstructions(projectPath).then(settle, (error: unknown) =>
+        settle({ status: 'error', message: errorText(error) }),
+      );
+    },
+    [projectPath, version],
+  );
 
   const create = useCallback(async () => {
     if (!projectPath || creating) return;

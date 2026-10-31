@@ -12,6 +12,7 @@ import {
   type SemanticKind,
 } from '../lib/project-context';
 import { invalidateFileSystemCache } from '../lib/tauri-fs';
+import { useAsyncEffect } from '../lib/async-guards';
 import { FileText, RefreshCw } from './icons/shell-icons';
 import { PanelError } from './shell/PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
@@ -107,42 +108,40 @@ export function StoryNavigator({
   }, [projectPath, reload]);
   const treeRefresh = refreshVersion + localRefresh;
 
-  useEffect(() => {
-    if (!projectPath || activeTab !== 'story') {
-      indexProjectRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 项目或视图失效时同步清空派生索引
-      setIndex(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    // 同一本书重读时不闪「加载中」，索引原地换新。
-    if (indexProjectRef.current !== projectPath) setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
-        const nextIndex = await buildProjectIndex(projectPath);
-        if (!cancelled) {
-          indexProjectRef.current = projectPath;
-          setIndex(nextIndex);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          indexProjectRef.current = null;
-          setError(err instanceof Error ? err.message : '加载故事索引失败');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath || activeTab !== 'story') {
+        indexProjectRef.current = null;
+        // 项目或视图失效时同步清空派生索引
+        setIndex(null);
+        setError(null);
+        setLoading(false);
+        return;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, projectPath, treeRefresh, retryNonce]);
+      // 同一本书重读时不闪「加载中」，索引原地换新。
+      if (indexProjectRef.current !== projectPath) setLoading(true);
+      setError(null);
+
+      void (async () => {
+        try {
+          const nextIndex = await buildProjectIndex(projectPath);
+          if (isCurrent()) {
+            indexProjectRef.current = projectPath;
+            setIndex(nextIndex);
+          }
+        } catch (err) {
+          if (isCurrent()) {
+            indexProjectRef.current = null;
+            setError(err instanceof Error ? err.message : '加载故事索引失败');
+          }
+        } finally {
+          if (isCurrent()) setLoading(false);
+        }
+      })();
+    },
+    [activeTab, projectPath, treeRefresh, retryNonce],
+  );
 
   const storyGroups = useMemo(() => buildStoryNavigationGroups(index?.files ?? []), [index]);
 

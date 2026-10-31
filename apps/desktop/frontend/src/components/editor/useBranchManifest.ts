@@ -11,6 +11,7 @@ import {
   type BranchInfo,
   type BranchManifest,
 } from '../../lib/branches';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { emitToast } from '../../lib/toast';
 
 export function useBranchManifest(projectPath: string | null, filePath: string | null) {
@@ -28,30 +29,29 @@ export function useBranchManifest(projectPath: string | null, filePath: string |
     branchManifestRef.current = branchManifest;
   });
 
-  useEffect(() => {
-    if (!filePath) {
-      const empty = emptyManifest();
-      manifestOwnerRef.current = null;
-      branchManifestRef.current = empty;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- filePath 清空时同步重置分支清单，React18 合法模式
-      setBranchManifest(empty);
-      return;
-    }
-    let cancelled = false;
-    const key = `${projectPath}::${filePath}`;
-    const writeMark = manifestWriteMarkRef.current.get(key) ?? 0;
-    void (async () => {
-      const manifest = await loadBranchManifest(projectPath, filePath);
-      // 只淘汰同一文档写入之前的旧读；A 的迟到保存不能使 B 的有效加载失效。
-      if (cancelled || (manifestWriteMarkRef.current.get(key) ?? 0) !== writeMark) return;
-      manifestOwnerRef.current = key;
-      branchManifestRef.current = manifest;
-      setBranchManifest(manifest);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, filePath]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!filePath) {
+        const empty = emptyManifest();
+        manifestOwnerRef.current = null;
+        branchManifestRef.current = empty;
+        // filePath 清空时同步重置分支清单
+        setBranchManifest(empty);
+        return;
+      }
+      const key = `${projectPath}::${filePath}`;
+      const writeMark = manifestWriteMarkRef.current.get(key) ?? 0;
+      void (async () => {
+        const manifest = await loadBranchManifest(projectPath, filePath);
+        // 只淘汰同一文档写入之前的旧读；A 的迟到保存不能使 B 的有效加载失效。
+        if (!isCurrent() || (manifestWriteMarkRef.current.get(key) ?? 0) !== writeMark) return;
+        manifestOwnerRef.current = key;
+        branchManifestRef.current = manifest;
+        setBranchManifest(manifest);
+      })();
+    },
+    [projectPath, filePath],
+  );
 
   const runManifestTask = useCallback(
     (

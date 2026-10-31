@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { useAsyncEffect } from '../../lib/async-guards';
 import { buildGraph, type BranchManifest, type GraphNode } from '../../lib/branches';
 import { buildPatchHunks, type PatchHunk } from '../../lib/patch-hunks';
 import {
@@ -123,23 +124,22 @@ export function VersionHistory({
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const list = await listVersions(projectPath, filePath);
-        if (!cancelled) {
-          setVersionState({ scope, items: list });
-          setError(null);
+  useAsyncEffect(
+    (isCurrent) => {
+      void (async () => {
+        try {
+          const list = await listVersions(projectPath, filePath);
+          if (isCurrent()) {
+            setVersionState({ scope, items: list });
+            setError(null);
+          }
+        } catch (err) {
+          if (isCurrent()) setError(err instanceof Error ? err.message : '读取版本失败');
         }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : '读取版本失败');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, filePath, retryNonce, scope]);
+      })();
+    },
+    [projectPath, filePath, retryNonce, scope],
+  );
 
   const retryLoad = () => {
     setError(null);

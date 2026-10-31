@@ -1,5 +1,5 @@
 import { executionOutcomeFromResult } from '../../lib/api/execution-outcome';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
 import {
   emitFileSuggestion,
@@ -8,6 +8,7 @@ import {
 } from '../../lib/assistant-events';
 import { createRemoteFileSuggestion } from '../../lib/assistant-suggestions';
 import { getAgentRunSavePoints, type AgentResultMessage } from '../../lib/api-client';
+import { usePassiveMountedRef } from '../../lib/async-guards';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import {
   writingContextFromAgentResult,
@@ -70,13 +71,7 @@ export function useAgentRunRecovery(
   } = state;
 
   const recoveryRevision = useRef(0);
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
+  const alive = usePassiveMountedRef();
 
   const updateAgentStep = useCallback(
     (stepId: string, patch: Partial<AgentStep>) => {
@@ -146,7 +141,14 @@ export function useAgentRunRecovery(
         }
       }
     },
-    [agentRunIdRef, projectPathRef, assistantSessionIdRef, draftNonceRef, setAgentRunRecovery],
+    [
+      agentRunIdRef,
+      alive,
+      projectPathRef,
+      assistantSessionIdRef,
+      draftNonceRef,
+      setAgentRunRecovery,
+    ],
   );
 
   const applyResumedAgentResult = useCallback(

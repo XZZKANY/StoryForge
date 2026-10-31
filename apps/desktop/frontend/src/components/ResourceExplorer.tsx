@@ -4,7 +4,6 @@
  */
 
 import {
-  useEffect,
   useRef,
   useState,
   useMemo,
@@ -12,6 +11,7 @@ import {
   useCallback,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
+import { useAsyncEffect } from '../lib/async-guards';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
 import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
@@ -60,45 +60,43 @@ export function ResourceExplorer({
   const [retryNonce, setRetryNonce] = useState(0);
   const loadedProjectRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!projectPath) {
-      loadedProjectRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步清空资源树派生态，React18 合法模式
-      setFiles([]);
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-    // 同一本书重读时不闪「加载中」：树不卸载，作者折起来的文件夹也就不会被重新展开。
-    if (loadedProjectRef.current !== projectPath) setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
-        const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
-        const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
-
-        if (!cancelled) {
-          loadedProjectRef.current = projectPath;
-          setFiles(filteredEntries);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          loadedProjectRef.current = null;
-          setError(err instanceof Error ? err.message : '加载文件失败');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) {
+        loadedProjectRef.current = null;
+        // 无项目时同步清空资源树派生态
+        setFiles([]);
+        setError(null);
+        return;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, refreshVersion, retryNonce]);
+      // 同一本书重读时不闪「加载中」：树不卸载，作者折起来的文件夹也就不会被重新展开。
+      if (loadedProjectRef.current !== projectPath) setLoading(true);
+      setError(null);
+
+      void (async () => {
+        try {
+          const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
+          const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
+
+          if (isCurrent()) {
+            loadedProjectRef.current = projectPath;
+            setFiles(filteredEntries);
+          }
+        } catch (err) {
+          if (isCurrent()) {
+            loadedProjectRef.current = null;
+            setError(err instanceof Error ? err.message : '加载文件失败');
+          }
+        } finally {
+          if (isCurrent()) {
+            setLoading(false);
+          }
+        }
+      })();
+    },
+    [projectPath, refreshVersion, retryNonce],
+  );
 
   const tree = useMemo(() => {
     if (!projectPath) return [];

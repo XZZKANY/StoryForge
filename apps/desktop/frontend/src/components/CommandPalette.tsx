@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAsyncEffect } from '../lib/async-guards';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
 import { Command as CommandIcon, FileText } from './icons/shell-icons';
@@ -77,28 +78,27 @@ export function CommandPalette({
     activeItemRef.current?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  useEffect(() => {
-    if (mode !== 'files' || !projectPath) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
-        const md = entries
-          .filter(isOpenableProjectFileEntry)
-          .sort((a, b) => a.path.localeCompare(b.path));
-        if (!cancelled) {
-          setFileLoadState({ projectPath, status: 'loaded', files: md });
+  useAsyncEffect(
+    (isCurrent) => {
+      if (mode !== 'files' || !projectPath) return;
+      void (async () => {
+        try {
+          const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
+          const md = entries
+            .filter(isOpenableProjectFileEntry)
+            .sort((a, b) => a.path.localeCompare(b.path));
+          if (isCurrent()) {
+            setFileLoadState({ projectPath, status: 'loaded', files: md });
+          }
+        } catch {
+          if (isCurrent()) {
+            setFileLoadState({ projectPath, status: 'error', files: [] });
+          }
         }
-      } catch {
-        if (!cancelled) {
-          setFileLoadState({ projectPath, status: 'error', files: [] });
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fileLoadRequest, mode, projectPath]);
+      })();
+    },
+    [fileLoadRequest, mode, projectPath],
+  );
 
   const files = useMemo(
     () => (fileLoadState.projectPath === projectPath ? fileLoadState.files : []),

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { probeProviderHealth } from '../../lib/api-client';
+import { useMountedRef } from '../../lib/async-guards';
 import {
   activateLlmProfile,
   deleteLlmProfile,
@@ -87,7 +88,7 @@ function failedHealth(profile: LlmProfile, error: unknown) {
 
 /** 设置页「模型服务」：多套配置的列表、切换、增删改与草稿探测。写操作一次只走一件。 */
 export function useModelProfiles() {
-  const aliveRef = useRef(true);
+  const aliveRef = useMountedRef();
   const busyRef = useRef<Busy | null>(null);
   const readRef = useRef(0);
   const fetchRef = useRef(0);
@@ -104,9 +105,7 @@ export function useModelProfiles() {
   const [saveError, setSaveError] = useState('');
 
   useLayoutEffect(() => {
-    aliveRef.current = true;
     return () => {
-      aliveRef.current = false;
       readRef.current += 1;
       fetchRef.current += 1;
     };
@@ -134,7 +133,7 @@ export function useModelProfiles() {
         setLoadError(message(error));
       },
     );
-  }, []);
+  }, [aliveRef]);
   useEffect(() => {
     void load();
   }, [load]);

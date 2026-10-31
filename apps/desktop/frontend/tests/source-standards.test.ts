@@ -207,6 +207,44 @@ it('引擎只在 kernel/json.ts 里剥模型回复外面的 ```json 代码块', 
   expect(stripping).toEqual(['kernel/json.ts']);
 });
 
+// effect 卸载或依赖变了就丢掉过期结果：只走 lib/async-guards 的 useAsyncEffect / useAsyncLayoutEffect；
+// 组件还挂着没有：只走 useMountedRef / usePassiveMountedRef。按运行 / 会话 / 文件身份防串台的序号与 run id、真去取消请求的
+// AbortController 是另外两件事，不在这两条里。
+const ASYNC_GUARDS_MODULE = 'src/lib/async-guards.ts';
+const HANDWRITTEN_CANCEL_FLAG =
+  /\blet\s+(?:is)?(?:cancell?ed|active|alive|live|disposed|stale|ignored?|mounted|unmounted)\s*=\s*(?:true|false)\b/i;
+const CANCEL_FLAG_EXEMPT = [
+  // 不是 React effect：冒烟探针装上到撤下之间的开关。
+  'src/lib/smoke-writeback-probe.ts',
+];
+const HANDWRITTEN_MOUNTED_REF = /\b\w*(?:mounted|alive)(?:Ref)?\s*=\s*useRef\b/i;
+
+function filesMatching(pattern: RegExp): string[] {
+  return sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => path !== ASYNC_GUARDS_MODULE)
+    .filter((path) => pattern.test(readFileSync(path, 'utf8')));
+}
+
+it('effect 里不手写取消标志，一律用 useAsyncEffect 给的 isCurrent', () => {
+  expect(readFileSync(ASYNC_GUARDS_MODULE, 'utf8')).toMatch(
+    /export function useAsyncEffect\b[\s\S]*export function useAsyncLayoutEffect\b/,
+  );
+  const flagged = filesMatching(HANDWRITTEN_CANCEL_FLAG);
+  expect(flagged.filter((path) => !CANCEL_FLAG_EXEMPT.includes(path))).toEqual([]);
+  expect(
+    CANCEL_FLAG_EXEMPT.filter((path) => !flagged.includes(path)),
+    '不再手写了：从豁免里去掉',
+  ).toEqual([]);
+});
+
+it('「组件还挂着」的 ref 只由 useMountedRef / usePassiveMountedRef 建', () => {
+  expect(readFileSync(ASYNC_GUARDS_MODULE, 'utf8')).toMatch(
+    /export function useMountedRef\b[\s\S]*export function usePassiveMountedRef\b/,
+  );
+  expect(filesMatching(HANDWRITTEN_MOUNTED_REF)).toEqual([]);
+});
+
 it('正文字数只在 project-core 实现一份，界面与引擎都从那里取', () => {
   const offenders = ['src', ENGINE_SRC]
     .flatMap(sourceFiles)

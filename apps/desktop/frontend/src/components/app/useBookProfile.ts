@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { useAsyncEffect } from '../../lib/async-guards';
 import { importCoverImage, readCoverDataUrl } from '../../lib/book-cover';
 import {
   bookProfilePath,
@@ -175,75 +176,73 @@ export function useBookProfile({
 
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
 
-  useEffect(() => {
-    if (!activeProject || !active) return;
-    let cancelled = false;
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!activeProject || !active) return;
 
-    void (async () => {
-      setLoading(true);
-      setRefreshing(true);
-      setTotalsError(null);
-      setProfileError(null);
-      setOutlineError(null);
-      setSaveError(null);
-      let rawProfile: string | null | undefined;
-      let rawNotes: string | null | undefined;
-      try {
-        rawProfile = await readTextOrNull(activeProject, bookProfilePath(activeProject));
-      } catch (error) {
-        if (!cancelled) setProfileError(message(error));
-      }
-      try {
-        rawNotes = await readTextOrNull(activeProject, ideaNotesPath(activeProject));
-      } catch {
-        // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
-        rawNotes = undefined;
-      }
-      if (cancelled) return;
-      const broken = typeof rawProfile === 'string' && !isProfileObject(rawProfile);
-      if (broken) setProfileError('book.json 不是有效的 JSON 对象，先在编辑器里修好');
-      profileSource.current =
-        rawProfile === undefined || broken
-          ? undefined
-          : { project: activeProject, raw: rawProfile };
-      const loaded = parseBookProfile(rawProfile ?? '');
-      setProfile(loaded);
-      notesSource.current =
-        rawNotes === undefined ? undefined : { project: activeProject, content: rawNotes };
-      setNotes(parseIdeaNotes(rawNotes ?? ''));
-      setLoading(false);
-
-      if (loaded.cover) {
-        const url = await readCoverDataUrl(activeProject, loaded.cover);
-        if (!cancelled) setCoverUrl(url);
-      }
-
-      setOutlineLoading(true);
-      try {
-        const outline = await scanOutline(activeProject);
-        if (!cancelled) setOutlineAll(outline);
-      } catch (error) {
-        if (!cancelled) {
-          setOutlineAll([]);
-          setOutlineError(message(error));
+      void (async () => {
+        setLoading(true);
+        setRefreshing(true);
+        setTotalsError(null);
+        setProfileError(null);
+        setOutlineError(null);
+        setSaveError(null);
+        let rawProfile: string | null | undefined;
+        let rawNotes: string | null | undefined;
+        try {
+          rawProfile = await readTextOrNull(activeProject, bookProfilePath(activeProject));
+        } catch (error) {
+          if (isCurrent()) setProfileError(message(error));
         }
-      } finally {
-        if (!cancelled) setOutlineLoading(false);
-      }
+        try {
+          rawNotes = await readTextOrNull(activeProject, ideaNotesPath(activeProject));
+        } catch {
+          // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
+          rawNotes = undefined;
+        }
+        if (!isCurrent()) return;
+        const broken = typeof rawProfile === 'string' && !isProfileObject(rawProfile);
+        if (broken) setProfileError('book.json 不是有效的 JSON 对象，先在编辑器里修好');
+        profileSource.current =
+          rawProfile === undefined || broken
+            ? undefined
+            : { project: activeProject, raw: rawProfile };
+        const loaded = parseBookProfile(rawProfile ?? '');
+        setProfile(loaded);
+        notesSource.current =
+          rawNotes === undefined ? undefined : { project: activeProject, content: rawNotes };
+        setNotes(parseIdeaNotes(rawNotes ?? ''));
+        setLoading(false);
 
-      try {
-        const value = await scanManuscriptTotals(activeProject);
-        if (!cancelled) setTotals({ projectPath: activeProject, value });
-      } catch (error) {
-        if (!cancelled) setTotalsError(message(error));
-      }
-      if (!cancelled) setRefreshing(false);
-    })();
+        if (loaded.cover) {
+          const url = await readCoverDataUrl(activeProject, loaded.cover);
+          if (isCurrent()) setCoverUrl(url);
+        }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProject, active, nonce]);
+        setOutlineLoading(true);
+        try {
+          const outline = await scanOutline(activeProject);
+          if (isCurrent()) setOutlineAll(outline);
+        } catch (error) {
+          if (isCurrent()) {
+            setOutlineAll([]);
+            setOutlineError(message(error));
+          }
+        } finally {
+          if (isCurrent()) setOutlineLoading(false);
+        }
+
+        try {
+          const value = await scanManuscriptTotals(activeProject);
+          if (isCurrent()) setTotals({ projectPath: activeProject, value });
+        } catch (error) {
+          if (isCurrent()) setTotalsError(message(error));
+        }
+        if (isCurrent()) setRefreshing(false);
+      })();
+    },
+    [activeProject, active, nonce],
+  );
 
   useEffect(() => {
     const lifetime = ++saveLifetimeRef.current;
