@@ -1,5 +1,6 @@
 import type { AssistantDeps } from '../../assistant/service';
 import type { GenerationDeliveryCapture } from '../../kernel/generationDelivery';
+import type { Obj } from '../../kernel/json';
 import { getAgentRole, isRoleAllowedTool, listSubagentRoles } from '../../kernel/roleCatalog';
 import type { PatchProposal } from '../chatLoopTypes';
 import type { LlmSource } from '../../llm/config';
@@ -12,8 +13,6 @@ import {
   deriveRequiresConfirmation,
   type AgentRuntimeToolSpec,
 } from './specModels';
-
-type Obj = { [key: string]: unknown };
 
 export type ToolArtifact = {
   readonly kind: string;

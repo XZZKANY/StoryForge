@@ -7,6 +7,7 @@ import {
   pythonFloatRepr,
   pythonTruthy,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
 import { codePoints, pythonStrip } from '../kernel/pythonText';
 import { envValue, providerFamily, type LlmSource } from '../llm/config';
@@ -14,8 +15,6 @@ import { RunInterrupted } from '../llm/control';
 import { pythonStrRepr } from '../llm/pythonRepr';
 import { RequestEvidenceError } from '../loop/requestEvidence';
 import { JUDGE_FEW_SHOT, JUDGE_SYSTEM_PROMPT } from './prompts';
-
-type Obj = { [key: string]: unknown };
 
 /** 语义评审入参（judge.schemas.SemanticJudgeInput，不落 judge 实体）。 */
 export type SemanticJudgeInput = {

@@ -1,5 +1,5 @@
 import type { AssistantStore } from '../assistant/service';
-import type { JsonObject } from '../kernel/json';
+import type { JsonObject, Obj } from '../kernel/json';
 import type { SecretContext } from '../kernel/redaction';
 import type { ProjectReader } from '../readPort';
 import { LlmConfigError, requiredEnv, type LlmSource } from '../llm/config';
@@ -42,8 +42,6 @@ import { ToolCallingRuntime } from './sdkLoop';
 import { runtimeLimits } from './sdkState';
 import type { TextObserver } from './textStream';
 import type { ToolDefinition } from './tools/execution';
-
-type Obj = { [key: string]: unknown };
 
 export const LOOP_MAX_ROUNDS = 8;
 export const LOOP_MAX_DURATION_SECONDS = RUN_MAX_DURATION_SECONDS;

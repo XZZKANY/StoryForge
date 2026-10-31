@@ -1,5 +1,6 @@
 import type { AssistantStore } from '../assistant/service';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
+import type { Obj } from '../kernel/json';
 import type { SecretContext } from '../kernel/redaction';
 import type { LlmSource } from '../llm/config';
 import { ToolCall, type ChatResponse, type ProviderError } from '../llm/contracts';
@@ -11,8 +12,6 @@ import type { RuntimeCheckpoint } from './sdkState';
 import type { TextObserver } from './textStream';
 import type { ToolDefinition, ToolResult } from './tools/execution';
 import type { AgentToolTrace } from './traces';
-
-type Obj = { [key: string]: unknown };
 
 /**
  * 执行一个循环工具：参数已由模型给出、尚未清洗；路径、正文与可信上下文由执行方补。

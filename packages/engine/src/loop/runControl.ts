@@ -1,7 +1,6 @@
+import type { Obj } from '../kernel/json';
 import { RunControl, type RunProgress } from '../llm/control';
 import type { ChatLoopOutcome } from './chatLoopTypes';
-
-type Obj = { [key: string]: unknown };
 
 /** 一次 agent 调用的总时长预算（秒），所有路径共用同一个截止时间。 */
 export const RUN_MAX_DURATION_SECONDS = 900;

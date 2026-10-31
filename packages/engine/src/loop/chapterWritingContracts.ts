@@ -12,6 +12,7 @@ import {
   parseModelJson,
   type JsonObject,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
 import { iterManuscriptFiles, previousChapterTail } from '../kernel/previousChapter';
 import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
@@ -22,8 +23,6 @@ import type { AvailableWritingStyle } from '../kernel/availableWritingStyles';
 import { pickWritingSkills, WRITING_SKILL_PICK_MAX } from '../kernel/writingSkills';
 import { decodeUtf8, ProjectReadError, type ProjectReader } from '../readPort';
 import { AgentOrchestrationError } from './runPayloads';
-
-type Obj = { [key: string]: unknown };
 
 export const CHAPTER_BRIEF_ARTIFACT_KIND = 'chapter_brief';
 export const CHAPTER_CHECK_ARTIFACT_KIND = 'chapter_check';

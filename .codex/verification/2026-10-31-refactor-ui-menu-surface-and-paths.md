@@ -94,3 +94,7 @@
   - `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14268 passed / 2 skipped；本分支对 `origin/master` 的 `packages/` diff 为空，golden 零变化。
   - 行尾：冲突的两个 CRLF 文件解决后仍全 CRLF，`source-standards.test.ts` 仍全 LF，无 CRCRLF。
 - 未覆盖：同上一段（浏览器回归以 CI 为准；没跑 Rust 测试与 Tauri 冒烟）。
+
+## 2026-10-31 再次合并 origin/master（#584 合入后，`cc55de3e`）
+
+- `tests/source-standards.test.ts` 末尾两边各加了守护而冲突，两个都保留（master 的「引擎 Obj 类型只在 kernel/json.ts 定义」在前，本分支的分隔符守护在后）。合并后 `source-standards` 单跑 15 passed；`pnpm lint` EXIT=0（0 新 warning）；前端 typecheck EXIT=0；前端全套 273 个文件 2816 passed；引擎（含 golden）111 个文件 14268 passed / 2 skipped，`packages/` 与 `origin/master` 无差异。

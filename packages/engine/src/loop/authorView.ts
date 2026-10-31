@@ -13,7 +13,7 @@ export const CURSOR_AFTER_CHARS = 600;
 // @ 钉上下文摘录上限（bundle 已在前端逐文件截断，这里只兜总量）。
 export const PINNED_CONTEXT_MAX_CHARS = 6_000;
 
-type Obj = { readonly [key: string]: unknown };
+type ReadonlyObj = { readonly [key: string]: unknown };
 
 export type AuthorView = {
   readonly file_path: string | null;
@@ -28,10 +28,10 @@ const cpSlice = (text: string, start: number, end?: number) =>
 const nonNegativeInt = (value: unknown): number =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
 
-export function authorViewFromPayload(args: Obj): AuthorView {
+export function authorViewFromPayload(args: ReadonlyObj): AuthorView {
   const raw = args.author_view;
-  const view: Obj =
-    typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Obj) : {};
+  const view: ReadonlyObj =
+    typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as ReadonlyObj) : {};
   const selection = view.selection_text;
   return {
     file_path: optionalString(view.file_path) ?? optionalString(args.file_path),
