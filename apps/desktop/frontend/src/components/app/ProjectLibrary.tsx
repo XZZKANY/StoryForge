@@ -1,4 +1,4 @@
-import { Button, Input, InputShell } from '../ui';
+import { Button, IconButton, Input, InputShell, PlainButton } from '../ui';
 
 import { useId, useState } from 'react';
 import { ChevronRight, BookOpen, FolderOpen, Plus, Search, X } from '../icons/shell-icons';
@@ -78,8 +78,7 @@ export function ProjectLibrary({
           </div>
         </header>
         {activeProject && (
-          <button
-            type="button"
+          <PlainButton
             data-testid="library-resume-project"
             onClick={onResumeProject}
             className="flex w-full items-center gap-4 rounded-lg bg-panel px-5 py-4 text-left transition-colors hover:bg-elevated"
@@ -95,7 +94,7 @@ export function ProjectLibrary({
               继续写作
               <ChevronRight size={16} aria-hidden="true" />
             </span>
-          </button>
+          </PlainButton>
         )}
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -130,8 +129,7 @@ export function ProjectLibrary({
             <ul className="space-y-2">
               {matching.map((path) => (
                 <li key={path} className="group/row relative">
-                  <button
-                    type="button"
+                  <PlainButton
                     data-project-path={path}
                     title={path}
                     onClick={() => {
@@ -157,18 +155,18 @@ export function ProjectLibrary({
                       aria-hidden="true"
                       className="shrink-0 text-subtle group-hover:text-foreground"
                     />
-                  </button>
+                  </PlainButton>
                   {onRemoveProject && path !== activeProject && (
-                    <button
-                      type="button"
-                      aria-label={`从作品库移除：${titleOf(path)}`}
-                      title="从作品库移除（文件夹不动，随时可以再打开）"
-                      onClick={() => onRemoveProject(path)}
-                      data-testid="library-remove-project"
-                      className="absolute right-12 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100"
-                    >
-                      <X size={14} aria-hidden="true" />
-                    </button>
+                    <span className="absolute right-12 top-1/2 flex -translate-y-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
+                      <IconButton
+                        size="xs"
+                        label={`从作品库移除：${titleOf(path)}`}
+                        tooltip="从作品库移除（文件夹不动，随时可以再打开）"
+                        icon={<X size={14} />}
+                        onClick={() => onRemoveProject(path)}
+                        data-testid="library-remove-project"
+                      />
+                    </span>
                   )}
                 </li>
               ))}
@@ -188,13 +186,9 @@ export function ProjectLibrary({
         </div>
         <footer className="flex flex-wrap items-center justify-between gap-3 pt-5 text-xs text-muted">
           <span>作品保存在本地文件夹中</span>
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="rounded-md px-2 py-1 hover:bg-elevated hover:text-foreground"
-          >
+          <Button onClick={onOpenSettings} variant="ghost" size="compact">
             设置
-          </button>
+          </Button>
         </footer>
       </div>
     </section>
