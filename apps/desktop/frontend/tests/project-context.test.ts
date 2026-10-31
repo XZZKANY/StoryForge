@@ -297,6 +297,27 @@ test('context bundle selection prioritizes pinned files and reports truncation/m
   );
 });
 
+test('pinned-only selection sends just the pins and reports no overflow for a long book', () => {
+  const projectPath = 'D:\\StoryForge\\Books\\雾港回声';
+  const index = serialProjectIndex(projectPath, 30);
+
+  const selection = selectContextBundleFiles({
+    index,
+    currentFile: `${projectPath}\\正文\\第030章.md`,
+    maxFiles: 8,
+    pinnedFiles: ['人物\\林岚.md', '不存在.md'],
+    automatic: false,
+  });
+
+  assert.deepEqual(
+    selection.files.map((file) => file.relativePath),
+    ['人物\\林岚.md'],
+  );
+  assert.equal(selection.overflowCount, 0);
+  assert.equal(selection.truncated, false);
+  assert.deepEqual(selection.missingPinnedFiles, ['不存在.md']);
+});
+
 function serialProjectIndex(projectPath: string, chapterCount: number) {
   const entries = [
     ['总纲.md', '大纲\\总纲.md'],

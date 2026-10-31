@@ -160,13 +160,20 @@ export function selectContextBundleFiles(params: {
   currentFile: string | null;
   maxFiles: number;
   pinnedFiles?: string[];
+  automatic?: boolean;
 }): {
   files: SemanticFile[];
   truncated: boolean;
   overflowCount: number;
   missingPinnedFiles: string[];
 } {
-  const { index, currentFile, maxFiles, pinnedFiles = [] } = params;
+  const {
+    index,
+    currentFile,
+    maxFiles,
+    pinnedFiles = [],
+    automatic: withAutomatic = true,
+  } = params;
   const draftOrder = buildDraftOrder(index.files, currentFile);
   const eligible = index.files
     .filter((file) => !currentFile || file.path !== currentFile)
@@ -198,7 +205,11 @@ export function selectContextBundleFiles(params: {
   // 只排车道**内**的次序；类目之间谁先谁后交给 allocateSeatsByPriority 单点裁决。
   const automatic = eligible
     .filter(
-      (file) => !pinnedPaths.has(file.path) && file.kind !== 'other' && file.kind !== 'knowledge',
+      (file) =>
+        withAutomatic &&
+        !pinnedPaths.has(file.path) &&
+        file.kind !== 'other' &&
+        file.kind !== 'knowledge',
     )
     .sort((a, b) => {
       if (a.kind === 'draft' && b.kind === 'draft') {
@@ -277,6 +288,11 @@ type ContextBundleParams = {
   maxFiles?: number;
   maxExcerptChars?: number;
   pinnedFiles?: string[];
+  /**
+   * false 时只带作者固定的文件。对话 Agent 有读文件工具、读过的会传给后续工具，
+   * 发送前替它猜 8 份摘录反而让「没带上的」看起来像丢了；没有工具的单次调用（行间续写）保持 true。
+   */
+  automatic?: boolean;
 };
 
 export async function buildContextBundle(params: ContextBundleParams): Promise<ContextBundle> {
@@ -286,13 +302,21 @@ export async function buildContextBundle(params: ContextBundleParams): Promise<C
     maxFiles = MAX_CONTEXT_FILES,
     maxExcerptChars = 1200,
     pinnedFiles = [],
+    automatic = true,
   } = params;
   attachFsMutationListener();
   // Selection order is author intent. Freeze it before I/O; never sort the key
   // while consuming a different (or externally mutable) order in the collector.
   const pins = pinnedFiles.map((item) => item.trim());
   const root = normalizeRoot(projectPath);
-  const cacheKey = [root, currentFile ?? '', maxFiles, maxExcerptChars, ...pins].join('\u0000');
+  const cacheKey = [
+    root,
+    currentFile ?? '',
+    maxFiles,
+    maxExcerptChars,
+    automatic ? 'auto' : 'pinned-only',
+    ...pins,
+  ].join('\u0000');
 
   for (let attempt = 0; attempt < CONTEXT_BUNDLE_COLLECTION_ATTEMPTS; attempt += 1) {
     const lifetime = contextBundleLifetimes.get(root) ?? {};
@@ -307,6 +331,7 @@ export async function buildContextBundle(params: ContextBundleParams): Promise<C
       maxFiles,
       maxExcerptChars,
       pinnedFiles: pins,
+      automatic,
     });
     // Save/delete/rename must invalidate requests already reading, not only
     // entries already cached. Never publish a mixture or resurrect old evidence.
@@ -318,9 +343,15 @@ export async function buildContextBundle(params: ContextBundleParams): Promise<C
 }
 
 async function collectContextBundle(params: Required<ContextBundleParams>): Promise<ContextBundle> {
-  const { projectPath, currentFile, maxFiles, maxExcerptChars, pinnedFiles } = params;
+  const { projectPath, currentFile, maxFiles, maxExcerptChars, pinnedFiles, automatic } = params;
   const index = await buildProjectIndex(projectPath);
-  const selection = selectContextBundleFiles({ index, currentFile, maxFiles, pinnedFiles });
+  const selection = selectContextBundleFiles({
+    index,
+    currentFile,
+    maxFiles,
+    pinnedFiles,
+    automatic,
+  });
 
   const files: ContextBundleFile[] = [];
   for (const file of selection.files) {
