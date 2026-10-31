@@ -3,7 +3,10 @@ import type { JsonObject } from '../../kernel/json';
 export type LoopInputMode = 'project' | 'existing_file' | 'new_file';
 export type LoopTraceOwner = 'generic' | 'handler';
 
-/** chat 循环暴露给模型的 function 描述与参数 schema；没有它的工具只走固定管线。 */
+/**
+ * chat 循环暴露给模型的 function 描述与参数 schema；没有它的工具只走固定管线。
+ * 只描述模型看到的参数形状、只在 SDK 边界校验；处理器入参是后端拼的另一份形状，由 runtimeArguments 读取。
+ */
 export type LoopToolSchema = { readonly description: string; readonly parameters: JsonObject };
 
 export type ToolCatalogReferences = {
