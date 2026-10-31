@@ -1,6 +1,11 @@
-## 2026-10-31 工具参数只在一处校验：摸底后停下，未改代码
+## 2026-10-31 工具参数校验：钉住「模型参数只在 SDK 边界校验」，删 `ToolDefinition` 上两个死字段
 
-- 背景：作者要求「架构与组件统一」。本刀原计划做一个统一的工具参数校验入口，对话循环与固定管线都经过它，再删处理器里被它覆盖的手写形状校验。按任务要求先摸底；摸底结果是「统一校验」必然改变固定管线的行为，所以停在这里回报，**没有改任何代码**。分支起点 `origin/refactor/engine-model-json`（#570 未合并）。
+- 背景：作者要求「架构与组件统一」。审查说工具参数有「两套校验」（对话循环按 `loop_schema` 校验、固定管线不校验，处理器里又手写一堆）。本刀先摸底（下面五节），结论是：**审查时说的「两套校验」实为两份约定、各自已单入口，故不合并**——`loop_schema` 管模型看到的参数形状，只在 SDK 边界校验一次；处理器入参是后端拼的另一份形状，处理器经 `runtimeArguments` 读取。硬把 `loop_schema` 套到公共入口，会拒掉固定管线现有的每一次审稿 / 修订 / 润色。摸底后停下回报，作者选了方案 A（见「方案与取舍」）。分支起点 `origin/refactor/engine-model-json`（#570 未合并），PR base 仍是 master。
+- 改动（方案 A）：
+  1. 删 `ToolDefinition`（`loop/tools/execution.ts`）上从没人读、也不进任何输出的 `input_schema` / `output_schema` 两个副本字段（类型与 `toolDefinitionFromSpec` 各 2 行）。工具声明 `AgentRuntimeToolSpec` 上的同名字段与 golden `p3-tool-catalog.json` 里那份不动。
+  2. 在 `LoopToolSchema` 类型定义处（`loop/tools/specModels.ts`）加一行注释：只描述模型看到的参数形状、只在 SDK 边界校验；处理器入参是后端拼的另一份形状，由 `runtimeArguments` 读取。
+  3. 加守护测试（`loop/chatLoop.test.ts`「模型参数在 SDK 边界按 loop_schema 校验」）：真跑 `runChatLoop`，模型第一轮对每个交给它的工具各发一条不合 `loop_schema` 的调用（有必填就全不给，没必填就把第一个字段给成错类型），外加一条合法的 `fs_list` 作对照；断言处理器只被调了 `fs.list` 一次，每条非法调用回给模型的都是「工具参数解析失败：Tool arguments do not match the declared schema: …」，并核对交给模型的工具覆盖了全部循环工具（`skill.read` 按有无插件技能决定给不给，不算在内）。
+  4. 处理器里的手写校验一条没删（理由见摸底三）；两个结果类型不合并（理由见摸底五）。
 
 ### 摸底一：对话循环的校验做了什么
 
@@ -40,8 +45,8 @@
 ### 摸底四：`input_schema` / `output_schema`
 
 - `AgentRuntimeToolSpec` 上的两个字段 29 个全是 `{}`，生产代码没人读：不进发给模型的工具列表（`buildLoopToolSchemas` 只用 `loop_schema`）、不进帧、前端没有引用。
-- 但它们**进了 golden**：`p3-tool-catalog.json` 的 `specs[*]` 逐字段录了 `"input_schema": {}` / `"output_schema": {}`，`catalog.test.ts`「28 个工具声明逐字段一致」用 `toEqual(golden.specs)` 比。删字段或改成引用 `loop_schema.parameters` 都会让这条 golden 测试红。按任务要求停下，没动。
-- `ToolDefinition`（`tools/execution.ts`）上那两个是 `toolDefinitionFromSpec` 拷过去的副本，没人读、也不进任何序列化输出（golden 里没有 `ToolDefinition` 形状）。这两个可以零风险删，留给作者定方案后一起做。
+- 但它们**进了 golden**：`p3-tool-catalog.json` 的 `specs[*]` 逐字段录了 `"input_schema": {}` / `"output_schema": {}`，`catalog.test.ts`「28 个工具声明逐字段一致」用 `toEqual(golden.specs)` 比。删字段或改成引用 `loop_schema.parameters` 都会让这条 golden 测试红，所以没动。
+- `ToolDefinition`（`tools/execution.ts`）上那两个是 `toolDefinitionFromSpec` 拷过去的副本，没人读、也不进任何序列化输出（golden 里没有 `ToolDefinition` 形状）。本刀删了这两个。
 - 另：SDK 的 `RuntimeTool.outputSchema` 是另一回事（StoryForge 工具注册时不传，恒为 `{}`，`sdkLoop.ts` 遇空跳过），只在 SDK 自己的 golden 用例里用到。
 
 ### 摸底五：两个结果类型
@@ -50,17 +55,27 @@
 - `RuntimeToolResult`（`sdkTools.ts`）是从 Python 搬来的通用 SDK 的结果：成功 / 失败、`errorCode`、`retryable`（重试策略用）、带 `reference` 的产物，SDK 自己有 golden（`p3-sdk-runtime.json`）。
 - `chatLoopAdapters.ts::executeLoopTool` 把前者转成后者（反馈文字、产物映射、异常转 `storyforge_tool_error`）。这是内部契约与 SDK 之间的适配层，合理分层，不是重复，不该合并。
 
-### 可选方案（等作者定）
+### 方案与取舍（作者选 A）
 
-- **A（推荐，零行为变化、零 golden 变化、改动小）**：承认是两份契约、各自已经只有一个入口——模型参数只在 SDK 边界按 `loop_schema` 校验（现状），处理器入参由代码拼、处理器经 `runtimeArguments` 的 `requiredString` / `requiredText` 读（现状）。只做：删 `ToolDefinition` 上的两个死副本；加一条守护测试钉住「对话路径里不合 `loop_schema` 的调用在 SDK 边界被拒、处理器没被调用」，并在 `loop_schema` 声明处写明它只描述模型形状、不要拿去校验固定管线。
+- **A（已做，零行为变化、零 golden 变化）**：承认是两份契约、各自已经只有一个入口——模型参数只在 SDK 边界按 `loop_schema` 校验（现状），处理器入参由代码拼、处理器经 `runtimeArguments` 的 `requiredString` / `requiredText` 读（现状）。只做：删 `ToolDefinition` 上的两个死副本；加一条守护测试钉住「对话路径里不合 `loop_schema` 的调用在 SDK 边界被拒、处理器没被调用」，并在 `loop_schema` 声明处写明它只描述模型形状、不要拿去校验固定管线。
 - **B（真统一处理器入参，不推荐）**：给 29 个工具补处理器形状的 `input_schema`，在 `agentRuntime.ts::executeTool` 统一校验、用来源参数区分受保护键，再删处理器形状校验。代价：`p3-tool-catalog` golden 变；`p3-tool-handlers` / `p3-patch-tools` 里约 25 条形状类处理器报错文字要么保留（那就删不掉），要么让入口拼出同样的中文（等于另起一套映射）；固定管线开始拒前端的畸形参数（行为变）。
 - **C（只删那 12 处被覆盖的类型校验）**：处理器 golden 测试改为先过 SDK 同一个校验函数，把那 12 条 golden 记录改判为「在入口被拒」。golden 文件字节不动，但等于放宽 Python 预言机比对，需要作者点头。收益约 checkHandlers / canonHandlers 共 -30 行。
 
 ### 验证
 
-- 只跑了带临时插桩的引擎全套：`pnpm --filter @storyforge/engine exec vitest run` EXIT=0，111 个文件，14266 passed、2 skipped（插桩只写 stderr、不拦）。插桩用定点替换删掉后 `git status --short` 为空，`agentRuntime.ts` 仍是纯 LF（0 个 CRLF）。
-- 没改代码，没跑 lint / 类型检查 / 前端单测。
+- 摸底实测：临时在 `agentRuntime.ts::executeTool` 插桩跑引擎全套（111 个文件，14266 passed、2 skipped，插桩只写 stderr、不拦），插桩已定点删掉，`git diff` 为空。
+- 守护测试变异验证（都用带 `assert count==1` 的定点替换打、再定点换回）：
+  - 打在校验本身：`sdkTools.ts::parseToolArguments` 的 `validateJsonSchema(...)` 换成空数组 → 新测试红（处理器被调了 23 次：22 条非法 + 1 条对照），同文件 golden 回放 `invalid-and-unknown` 也红；换回后新测试绿。
+  - 打在接线上：`chatLoopAdapters.ts::buildStoryforgeToolRegistry` 交给 SDK 的 schema 换成 `{ type: 'object' }` → 同文件 35 条红（含新测试；其余是 golden 回放，因为发给模型的工具 schema 也变了）；换回后 `git status` 只剩本刀改动。
+- `pnpm lint`：EXIT=0（0 error；2 条 warning 在没动的 `apps/desktop/frontend/tests/independent-claim-history.test.ts`，原来就有）。
+- `pnpm --filter @storyforge/engine typecheck`：EXIT=0。
+- `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+- `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14267 passed、2 skipped（比改前多 1 条，即新守护测试）。`git status --short packages/engine/golden` 为空，golden 零变化。
+- `npm --prefix apps/desktop/frontend run test`：EXIT=0，270 个文件，2752 passed。
+- 行尾：改动的 3 个源文件与本记录都是纯 LF，与改前一致；`git diff --numstat` 与 `--ignore-all-space --numstat` 一致。
 
 ### 未覆盖
 
-- 本刀未实施；PR 未开。三个浏览器回归、Rust 测试、Tauri 冒烟、真宿主探针、真模型都没跑。
+- 本地没跑三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话），本机有别的会话在跑 headless Chrome、会互相拖超时，以 CI（`Windows Verify` 的 `pnpm verify`）为准。
+- 没动 Rust、没改引擎与宿主之间的接口，没跑 Rust 测试、Tauri 冒烟、真宿主探针；不调模型。
+- 没做的：处理器形状校验（方案 B / C）、给 `validateJsonSchema` 补 `minItems` / `maxItems`、给 `loop_schema` 补非空白或上下限——都会改行为或 golden，留作者另定。

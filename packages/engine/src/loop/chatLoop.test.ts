@@ -36,8 +36,12 @@ import type { ConversationSources } from './conversationHistory';
 import { RunControlScope } from './runControl';
 import { pendingToolCall, RuntimeCheckpoint } from './sdkState';
 import type { TextFrame } from './textStream';
-import { listLoopToolSpecs } from './tools/catalog';
-import { toolDefinitionFromSpec, type ToolResult } from './tools/execution';
+import { listLoopToolSpecs, llmToolName } from './tools/catalog';
+import {
+  toolDefinitionFromSpec,
+  type ToolExecutionContext,
+  type ToolResult,
+} from './tools/execution';
 import { buildRuntimeInterruptionPayload, traceAsDict } from './traces';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
@@ -504,5 +508,101 @@ describe('chat loop guards', () => {
     expect(new StoryForgeRuntimePolicy(context).decideTool(tool, pending).kind).toBe('allow');
     await tool.handler(context, {});
     expect([...context.handledCallIds]).toEqual(['c9']);
+  });
+});
+
+/**
+ * 模型参数只在 SDK 边界按 loop_schema 校验一次；处理器入参是后端拼的另一份形状，不再按 loop_schema 校验。
+ * 这条钉住前一半：不合 loop_schema 的调用到不了处理器。
+ */
+describe('模型参数在 SDK 边界按 loop_schema 校验', () => {
+  /** 有必填就一个都不给；没有必填就把第一个字段给成错的类型。 */
+  const invalidArguments = (parameters: Obj): Obj => {
+    if (Array.isArray(parameters.required) && parameters.required.length) return {};
+    const [key, schema] = Object.entries(parameters.properties as Obj)[0] as [string, Obj];
+    return { [key]: schema.type === 'string' ? 1 : 'x' };
+  };
+
+  it('交给模型的每个工具：参数不合 loop_schema 就被拒，处理器一次都没被调用', async () => {
+    const specs = new Map(listLoopToolSpecs().map((spec) => [llmToolName(spec.name), spec]));
+    const handled: string[] = [];
+    const definitions = listLoopToolSpecs().map((item) =>
+      toolDefinitionFromSpec(item, async () => {
+        handled.push(item.name);
+        return {
+          status: 'completed',
+          output: { entries: [], truncated: false },
+          trace: { tool_name: item.name, status: 'completed', input_summary: {} },
+        } satisfies ToolResult;
+      }),
+    );
+    const byName = new Map(definitions.map((definition) => [definition.name, definition]));
+    const requests: ChatRequest[] = [];
+    let offered: string[] = [];
+    const complete = async (request: ChatRequest) => {
+      requests.push(request);
+      if (requests.length > 1) return chatResponse({ content: '完', finishReason: 'stop' });
+      offered = request.tools.map((tool) => tool.name);
+      const calls = offered.map(
+        (name, index) =>
+          new ToolCall(
+            `bad-${index}`,
+            name,
+            JSON.stringify(invalidArguments(specs.get(name)!.loop_schema!.parameters)),
+          ),
+      );
+      // 对照：同一批里一条合法调用照常走到处理器，证明这条路是通的。
+      calls.push(new ToolCall('ok', 'fs_list', '{}'));
+      return chatResponse({ content: '', toolCalls: calls, finishReason: 'tool_calls' });
+    };
+    const provider: LoopProvider = {
+      streaming: false,
+      complete,
+      async *stream(request): AsyncIterable<StreamEvent> {
+        const final = await complete(request);
+        yield { kind: 'completed', response: final, usage: final.usage };
+      },
+    };
+    const outcome = await runChatLoop(
+      {
+        reader: memoryProject(ROOT, FILES).reader,
+        conversation: emptyConversation,
+        platform,
+        assistant: evidenceStore([]),
+        secrets: { values: [SECRET] },
+        buildProvider: () => provider,
+        checkpoints: new LoopCheckpointStore(),
+        scope: new RunControlScope(() => null, { clock: () => 1000, wait: async () => {} }),
+        newStreamId: () => 'stream-1',
+      },
+      {
+        run: { public_id: 'run-1', permission_profile: 'ask' },
+        definitions,
+        source: golden.source as Record<string, string>,
+        assistantSessionId: 1,
+        userMessage: '查一下',
+        projectPath: ROOT,
+        currentFile: null,
+        executeTool: async (registryName, args) =>
+          byName.get(registryName)!.handler({} as ToolExecutionContext, args),
+        onTrace: () => {},
+      },
+    );
+    expect(outcome.answer).toBe('完');
+    expect(offered.filter((name) => name !== 'skill_read').sort()).toEqual(
+      [...specs.keys()].filter((name) => name !== 'skill_read').sort(),
+    );
+    expect(handled).toEqual(['fs.list']);
+    const feedback = new Map(
+      requests[1].messages
+        .filter((message) => message.role === 'tool')
+        .map((message) => [message.toolCallId, JSON.parse(message.content!).error as string]),
+    );
+    offered.forEach((_name, index) =>
+      expect(feedback.get(`bad-${index}`)).toMatch(
+        /^工具参数解析失败：Tool arguments do not match the declared schema: /,
+      ),
+    );
+    expect(feedback.get('ok')).toBeUndefined();
   });
 });
