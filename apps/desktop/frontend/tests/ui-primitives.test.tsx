@@ -140,3 +140,31 @@ it('手画的 StoryIcons 已删，界面里也不再手写 <svg>', () => {
   expect(filesContaining('StoryIcons')).toEqual([]);
   expect(filesContaining('<svg')).toEqual([]);
 });
+
+// 按钮只留三种写法：像按钮的用 Button，纯图标的用 IconButton，列表行 / 卡片 / 页签 / 树节点 / 文字链接用
+// PlainButton（外观照旧由 className 定，只统一 type、焦点环与禁用光标）。别处再手写 <button>，就又各抄一遍。
+// components/editor/inline-chat-dom.ts 在 Monaco 视图区里用 DOM API 造按钮，不是 JSX，不在此列。
+const BUTTON_EXEMPT = new Set([
+  // 等 #561 合了再收：这几个文件另一会话正在改，本刀没动（ChatSideRail / ContextSummaryPanel / ComposerDock 是它新加的）。
+  'src/components/chat-window/ChatSideRail.tsx',
+  'src/components/chat-window/ChatWindowView.tsx',
+  'src/components/chat-window/Composer.tsx',
+  'src/components/chat-window/ComposerDock.tsx',
+  'src/components/chat-window/ContextPanel.tsx',
+  'src/components/chat-window/ContextSummaryPanel.tsx',
+  'src/components/chat-window/WriteBatchPanel.tsx',
+  'src/components/chat-window/panels.tsx',
+]);
+
+it('JSX <button> 只写在 components/ui 里（#561 在改的文件暂时豁免）', () => {
+  const jsxButton = /<button\b/;
+  expect(jsxButton.test('<button type="button">')).toBe(true);
+  expect(jsxButton.test('<PlainButton className="flex">')).toBe(false);
+  const files = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => path.endsWith('.tsx') && jsxButton.test(readFileSync(path, 'utf8')));
+  expect(files).toContain('src/components/ui/Button.tsx');
+  expect(
+    files.filter((path) => !path.startsWith('src/components/ui/') && !BUTTON_EXEMPT.has(path)),
+  ).toEqual([]);
+});

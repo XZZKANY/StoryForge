@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { act, createRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
-import { Button, IconButton } from '../src/components/ui';
+import { Button, IconButton, PlainButton } from '../src/components/ui';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const roots: Array<{ root: ReturnType<typeof createRoot>; host: HTMLElement }> = [];
 function mount(element: React.ReactNode) {
@@ -70,4 +70,34 @@ test('图标按钮名称/装饰和状态由公共入口派生', () => {
   assert.equal(button.dataset.variant, 'danger');
   assert.equal(button.dataset.size, 'xs');
   assert.ok(button.querySelector('[aria-hidden="true"] svg'));
+});
+test('PlainButton 不带按钮外观：默认不提交、显式 submit 保留、className 原样接在后面、ref 与禁用照常', () => {
+  const ref = createRef<HTMLButtonElement>();
+  const click = vi.fn();
+  const submit = vi.fn((e: React.FormEvent) => e.preventDefault());
+  const { host, render } = mount(
+    <form onSubmit={submit}>
+      <PlainButton ref={ref} className="flex w-full" onClick={click} data-testid="row">
+        行
+      </PlainButton>
+      <PlainButton type="submit">提交</PlainButton>
+    </form>,
+  );
+  assert.equal(ref.current?.type, 'button');
+  assert.equal(ref.current?.className, 'sf-plain-button flex w-full');
+  assert.equal(ref.current?.dataset.testid, 'row');
+  assert.equal(ref.current?.hasAttribute('data-variant'), false);
+  act(() => ref.current?.click());
+  assert.equal(click.mock.calls.length, 1);
+  assert.equal(submit.mock.calls.length, 0);
+  act(() => host.querySelectorAll('button')[1].click());
+  assert.equal(submit.mock.calls.length, 1);
+  render(
+    <PlainButton ref={ref} onClick={click} disabled>
+      行
+    </PlainButton>,
+  );
+  assert.equal(ref.current?.className, 'sf-plain-button');
+  act(() => ref.current?.click());
+  assert.equal(click.mock.calls.length, 1);
 });
