@@ -283,7 +283,7 @@ export function useGuardedSuggestionWrite(
             ? `${settlementWarning ?? '正文已写入。'} 后续处理提示：${loopRecord.receipt.detail}。请核对作品状态，不要重新应用修订。`
             : settlementWarning;
           const retryCaches =
-            loopRecord.receipt.detail?.startsWith('canon 派生缓存未失效: ') &&
+            loopRecord.receipt.detailKind === 'canon-cache-stale' &&
             loopRecord.receipt.receiptPersisted
               ? async () => {
                   if (projectPathRef.current !== projectRoot)

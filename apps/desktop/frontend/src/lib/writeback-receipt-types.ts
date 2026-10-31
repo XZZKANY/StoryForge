@@ -15,8 +15,24 @@ export type WritebackReceipt = {
   createdFile: boolean;
   /** False after a successful write whose applied marker could not be flushed. */
   receiptPersisted: boolean;
+  /** 给作者看的文字；界面判断一律看 detailKind。 */
   detail?: string;
+  detailKind?: WritebackDetailKind;
 };
+
+/**
+ * 回执 detail 的类别（宿主 `fs_writeback_receipts.rs` 的 `DetailKind`），其余失败没有：
+ * canon-cache-stale 是正文已写入、canon 派生缓存没清掉；drift 是登记写入后撞上磁盘漂移、没写进去。
+ */
+export type WritebackDetailKind = 'canon-cache-stale' | 'drift';
+const DETAIL_KINDS: readonly unknown[] = ['canon-cache-stale', 'drift'];
+
+// 加 detailKind 之前写下的回执只有 detail 文字，读回执时按当时的前缀认一次；别处一律只看 detailKind。
+function legacyDetailKind(detail: string): WritebackDetailKind | undefined {
+  if (detail.startsWith('canon 派生缓存未失效: ')) return 'canon-cache-stale';
+  if (detail.startsWith('磁盘内容已变化，已拒绝覆盖')) return 'drift';
+  return undefined;
+}
 
 /** Decode the native IPC boundary; a new/invalid state must never mean applied. */
 export function decodeWritebackReceipt(value: unknown): WritebackReceipt {
@@ -39,10 +55,14 @@ export function decodeWritebackReceipt(value: unknown): WritebackReceipt {
     ) ||
     typeof record.createdFile !== 'boolean' ||
     typeof record.receiptPersisted !== 'boolean' ||
-    !(record.detail === undefined || typeof record.detail === 'string')
+    !(record.detail === undefined || typeof record.detail === 'string') ||
+    !(record.detailKind === undefined || DETAIL_KINDS.includes(record.detailKind))
   )
     throw new Error('写入回执字段无效，结果未知；已禁止自动重复写入');
-  return record as WritebackReceipt;
+  const receipt = record as WritebackReceipt;
+  if (receipt.detailKind !== undefined || receipt.detail === undefined) return receipt;
+  const detailKind = legacyDetailKind(receipt.detail);
+  return detailKind === undefined ? receipt : { ...receipt, detailKind };
 }
 
 /** Read-only Native description, not approval, admission, or proof of writeback. */

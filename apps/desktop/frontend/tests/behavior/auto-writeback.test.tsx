@@ -83,7 +83,7 @@ vi.mock('../../src/lib/tauri-fs', () => ({
       if (
         expected.kind === 'missing' ? diskContent !== undefined : diskContent !== expected.content
       )
-        throw new Error('磁盘内容已变化');
+        throw new DiskDriftError(`磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: ${path}`);
       diskContent = content;
       calls.push('write');
       writes.push({ path, content });
@@ -763,6 +763,34 @@ test('宿主漂移拒写一路带着类型到补丁面板：不提示可重试�
   await clickAccept();
   assert.deepEqual(writes, []);
   assert.equal(status(), '操作失败：接受失败: 无法写入文件: 拒绝访问。 (os error 5)，可重试');
+});
+
+test('登记写入后才撞上的漂移落成回执：补丁面板同样不提示可重试，再点一次也一样', async () => {
+  act(() => root.render(<Harness key="panel" filePath={FILE} withPanel />));
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+  });
+  const status = () =>
+    container.querySelector('[data-testid="patch-action-status"]')?.textContent ?? '';
+  // 回执替身不做登记前的比对，磁盘被改过就落成 not_written 回执，等同宿主登记意图之后才撞上漂移。
+  diskContent = '作者在别处改过的一章。';
+  const drift = `磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: ${FILE}`;
+  const expected = `操作失败：接受失败: 上次写入被拒绝，文件没有改动；请重新读取并生成修订。${drift}`;
+
+  await clickAccept();
+  assert.deepEqual(writes, []);
+  assert.equal(status(), expected);
+  const stored = [...receiptFiles]
+    .filter(([path]) => path.includes('/writeback-receipts/'))
+    .map(([, raw]) => JSON.parse(raw).receipt);
+  assert.deepEqual(
+    stored.map((receipt) => [receipt.state, receipt.detailKind]),
+    [['not_written', 'drift']],
+  );
+
+  await clickAccept();
+  assert.deepEqual(writes, []);
+  assert.equal(status(), expected, '再点读的是落盘的回执，仍按漂移处理');
 });
 
 /** 批量写章这一批的授权，登记上这一轮的运行 id（调度器发起每一章时就是这么做的）。 */

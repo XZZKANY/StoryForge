@@ -363,9 +363,9 @@ test('projectFolderExists 只在打开作品前核对作品文件夹的地方用
   assert.deepEqual(callers, PROJECT_FOLDER_EXISTS_CALLERS);
 });
 
-// 宿主报错只按 lib/host-file-errors 的类判断。扫的是把这些字放进正则或 includes / startsWith 之类
-// 的写法；确有必要的非宿主用途写进白名单（键是「文件:去掉缩进的那一行」，值写原因），目前没有。
-const HOST_ERROR_WORDS = String.raw`(?:不存在|找不到|内容已变化|not found|no such file|enoent)`;
+// 宿主报错只按 lib/host-file-errors 的类判断，写入回执的失败原因只按 detailKind 判断。扫的是把这些字
+// 放进正则或 includes / startsWith 之类的写法；确有必要的写进白名单（键是「文件:去掉缩进的那一行」，值写原因）。
+const HOST_ERROR_WORDS = String.raw`(?:不存在|找不到|内容已变化|派生缓存未失效|not found|no such file|enoent)`;
 const QUOTE = String.raw`['"\x60]`;
 const HOST_ERROR_TEXT_MATCHES = [
   new RegExp(
@@ -376,7 +376,17 @@ const HOST_ERROR_TEXT_MATCHES = [
   new RegExp(String.raw`\.(?:match|search|replace|split)\(\s*/[^/\n]*${HOST_ERROR_WORDS}`, 'i'),
   new RegExp(String.raw`RegExp\(\s*${QUOTE}[^'"\x60\n]*${HOST_ERROR_WORDS}`, 'i'),
 ];
-const HOST_ERROR_TEXT_MATCH_ALLOWED = new Map<string, string>();
+const OLD_RECEIPT_COMPAT = '加 detailKind 之前写下的回执只有文字，读回执的唯一入口按旧前缀认一次';
+const HOST_ERROR_TEXT_MATCH_ALLOWED = new Map<string, string>([
+  [
+    "lib/writeback-receipt-types.ts:if (detail.startsWith('canon 派生缓存未失效: ')) return 'canon-cache-stale';",
+    OLD_RECEIPT_COMPAT,
+  ],
+  [
+    "lib/writeback-receipt-types.ts:if (detail.startsWith('磁盘内容已变化，已拒绝覆盖')) return 'drift';",
+    OLD_RECEIPT_COMPAT,
+  ],
+]);
 
 test('前端不靠宿主报错的文字做判断', () => {
   const offenders = sourceFiles().flatMap(({ name, text }) =>
