@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent } from 'react';
-import { Button, Field, Input } from '../ui';
+import { Button, Field, Input, PlainButton } from '../ui';
 import {
   getProviderPreset,
   PROVIDER_OPTIONS,
@@ -44,15 +44,14 @@ export function ModelProfileEditor({ draft, model }: Props) {
           {preset.baseUrl && !draft.editAddress ? (
             <p className="text-xs text-muted" data-testid="model-profile-address">
               地址：<span className="font-mono">{draft.baseUrl}</span>
-              <button
-                type="button"
+              <PlainButton
                 className="ml-2 rounded-sm text-accent hover:underline"
                 onClick={() => model.updateDraft({ editAddress: true })}
                 disabled={saving}
                 data-testid="model-profile-edit-address"
               >
                 改地址
-              </button>
+              </PlainButton>
             </p>
           ) : (
             <Field
@@ -184,9 +183,8 @@ function ProviderChips({
         {PROVIDER_OPTIONS.map((option, index) => {
           const selected = option.value === value;
           return (
-            <button
+            <PlainButton
               key={option.value}
-              type="button"
               role="radio"
               aria-checked={selected}
               tabIndex={index === focusIndex ? 0 : -1}
@@ -201,7 +199,7 @@ function ProviderChips({
               }`}
             >
               {option.label}
-            </button>
+            </PlainButton>
           );
         })}
       </div>
@@ -303,15 +301,14 @@ function ModelPicker({
             <span className="min-w-0 truncate" title={name}>
               {name}
             </span>
-            <button
-              type="button"
+            <PlainButton
               onClick={() => toggle(name)}
               disabled={disabled}
               aria-label={`去掉 ${name}`}
               className="grid h-4 w-4 flex-shrink-0 place-items-center rounded-sm opacity-80 hover:opacity-100"
             >
               ×
-            </button>
+            </PlainButton>
           </span>
         ))}
       </div>
@@ -335,9 +332,8 @@ function ModelPicker({
           {listed.map((name) => {
             const on = picked.includes(name);
             return (
-              <button
+              <PlainButton
                 key={name}
-                type="button"
                 onClick={() => toggle(name)}
                 disabled={disabled}
                 aria-pressed={on}
@@ -349,7 +345,7 @@ function ModelPicker({
                 title={name}
               >
                 {name}
-              </button>
+              </PlainButton>
             );
           })}
         </div>

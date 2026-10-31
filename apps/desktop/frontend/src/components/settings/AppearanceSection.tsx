@@ -1,6 +1,6 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 
-import { Button, Field, Input, Select } from '../ui';
+import { Button, Field, Input, PlainButton, Select } from '../ui';
 import {
   ACCENT_CHOICES,
   baseColors,
@@ -358,9 +358,8 @@ function ModePicker({
       {MODE_OPTIONS.map((option) => {
         const selected = option.value === value;
         return (
-          <button
+          <PlainButton
             key={option.value}
-            type="button"
             role="radio"
             aria-checked={selected}
             tabIndex={selected ? 0 : -1}
@@ -388,7 +387,7 @@ function ModePicker({
               )}
             </span>
             {option.label}
-          </button>
+          </PlainButton>
         );
       })}
     </div>
@@ -423,9 +422,8 @@ function AccentPicker({
         const palette = derivePalette(mode, { ...settings, accent: key });
         const fill = rgb(palette, 'accent');
         return (
-          <button
+          <PlainButton
             key={key}
-            type="button"
             role="radio"
             aria-checked={selected}
             aria-label={ACCENT_CHOICES[key].label}
@@ -447,7 +445,7 @@ function AccentPicker({
                     : fill,
               }}
             />
-          </button>
+          </PlainButton>
         );
       })}
     </div>
