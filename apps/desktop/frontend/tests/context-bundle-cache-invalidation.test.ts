@@ -18,7 +18,7 @@ vi.mock('../src/lib/tauri-fs', async (importOriginal) => {
     ...actual,
     TauriFileSystem: {
       readProjectFile: vi.fn(),
-      listDir: vi.fn(),
+      listProjectDir: vi.fn(),
     },
   };
 });
@@ -48,7 +48,7 @@ beforeEach(() => {
     if (content === undefined) throw new Error(`no such file: ${path}`);
     return content;
   });
-  vi.mocked(TauriFileSystem.listDir).mockImplementation(async () => entries(['规则.md']));
+  vi.mocked(TauriFileSystem.listProjectDir).mockImplementation(async () => entries(['规则.md']));
 });
 
 function fireMutation(path?: string): void {

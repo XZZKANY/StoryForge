@@ -115,7 +115,7 @@ export type CanonDeclaration = {
 /** 读作者的 canon.json：不存在就从空骨架起头；存在但不是合法 JSON 对象就拒绝。 */
 export async function readCanonDeclaration(projectPath: string): Promise<CanonDeclaration> {
   const path = canonDeclarationPathFor(projectPath);
-  if (!(await TauriFileSystem.pathExists(path))) {
+  if (!(await TauriFileSystem.projectPathExists(projectPath, path))) {
     return { path, raw: null, canon: { version: 1, entities: [], invariants: {} } };
   }
   const raw = await TauriFileSystem.readProjectFile(projectPath, path);

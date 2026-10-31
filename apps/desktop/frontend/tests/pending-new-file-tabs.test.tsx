@@ -66,10 +66,13 @@ async function diskWith(journals: Array<{ name?: string; target: string; raw: st
     disk.files.set(path, journal.raw);
     disk.journals.push({ name, path, isDir: false, size: journal.raw.length, modified: 0 });
   }
-  vi.spyOn(TauriFileSystem, 'pathExists').mockImplementation(
-    async (path) => path === PROJECT || path === JOURNALS || disk.files.has(path),
+  const exists = (path: string) => path === PROJECT || path === JOURNALS || disk.files.has(path);
+  vi.spyOn(TauriFileSystem, 'projectFolderExists').mockImplementation(async (path) => exists(path));
+  vi.spyOn(TauriFileSystem, 'projectPathExists').mockImplementation(async (_root, path) =>
+    exists(path),
   );
-  vi.spyOn(TauriFileSystem, 'listDir').mockImplementation(async (path) => {
+  vi.spyOn(TauriFileSystem, 'listProjectDir').mockImplementation(async (root, path) => {
+    assert.equal(root, PROJECT);
     assert.equal(path, JOURNALS);
     return disk.journals;
   });

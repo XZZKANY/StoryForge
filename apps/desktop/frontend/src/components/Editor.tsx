@@ -915,7 +915,11 @@ export function Editor({
         !model.isDisposed() &&
         (model.getVersionId?.() ?? model.getAlternativeVersionId()) === targetVersion &&
         (filePathRef.current !== path || editorRef.current?.getModel() === model);
-      if (!canRetireTarget() || (await TauriFileSystem.pathExists(path)) || !canRetireTarget())
+      if (
+        !canRetireTarget() ||
+        (await TauriFileSystem.projectPathExists(project, path)) ||
+        !canRetireTarget()
+      )
         return;
       const settleActive = owner.current();
       // 页签回调本身也含活动文件闭包，必须使用最新已提交的回调。

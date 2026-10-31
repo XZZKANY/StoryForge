@@ -103,7 +103,7 @@ export async function applyKnowledgePatch(
   };
   return performKnowledgeWriteback(patch, {
     readCurrent: async () => {
-      const exists = await TauriFileSystem.pathExists(patch.file_path);
+      const exists = await TauriFileSystem.projectPathExists(projectRoot, patch.file_path);
       const current = exists
         ? await TauriFileSystem.readProjectFile(projectRoot, patch.file_path)
         : null;

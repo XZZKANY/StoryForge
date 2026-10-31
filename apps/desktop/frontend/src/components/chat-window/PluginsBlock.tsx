@@ -57,7 +57,8 @@ export async function writePluginChoice(
   const key = name.toLowerCase();
   const rest = enabled.filter((item) => item.toLowerCase() !== key);
   const next = !enable ? rest : rest.length < enabled.length ? enabled : [...enabled, name];
-  if (!(await TauriFileSystem.pathExists(dir))) await TauriFileSystem.createDir(projectRoot, dir);
+  if (!(await TauriFileSystem.projectPathExists(projectRoot, dir)))
+    await TauriFileSystem.createDir(projectRoot, dir);
   await TauriFileSystem.writeFile(projectRoot, file, serializePluginsFile(next));
   return next;
 }

@@ -59,7 +59,7 @@ async function undoCanonWrite(
   before: CanonDeclaration,
   written: string,
 ): Promise<void> {
-  const current = (await TauriFileSystem.pathExists(before.path))
+  const current = (await TauriFileSystem.projectPathExists(projectPath, before.path))
     ? await TauriFileSystem.readProjectFile(projectPath, before.path)
     : null;
   if (current !== written) {

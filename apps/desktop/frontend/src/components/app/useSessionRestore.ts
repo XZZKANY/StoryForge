@@ -78,13 +78,15 @@ export function useSessionRestore({
       changePhase('idle');
       void (async () => {
         const [projectCheck, fileChecks] = await Promise.all([
-          TauriFileSystem.pathExists(session.project)
+          TauriFileSystem.projectFolderExists(session.project)
             .then((exists) => ({ exists, failed: false }))
             .catch(() => ({ exists: true, failed: true })),
           Promise.all(
             session.openFiles.map(async (path) => {
               try {
-                return (await TauriFileSystem.pathExists(path)) ? path : null;
+                return (await TauriFileSystem.projectPathExists(session.project, path))
+                  ? path
+                  : null;
               } catch {
                 // 瞬时文件 IO 失败不应吃掉作者的页签与光标。
                 return path;

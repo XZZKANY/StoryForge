@@ -42,7 +42,7 @@ let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
-  vi.spyOn(TauriFileSystem, 'listDir').mockResolvedValue(TREE);
+  vi.spyOn(TauriFileSystem, 'listProjectDir').mockResolvedValue(TREE);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);

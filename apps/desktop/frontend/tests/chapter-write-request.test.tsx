@@ -468,7 +468,7 @@ test.each([
   const setting = 'D:/fixture/设定/核心设定.md';
   const canon = '沈敬川生前是邮局稽核员。林苇与沈家无亲属关系。';
   const list = vi
-    .spyOn(TauriFileSystem, 'listDir')
+    .spyOn(TauriFileSystem, 'listProjectDir')
     .mockResolvedValue([
       { path: setting, name: '核心设定.md', extension: 'md', isDir: false, size: 100, modified: 1 },
     ]);

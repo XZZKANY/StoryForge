@@ -1035,7 +1035,7 @@ export function useSuggestionWriteback({
                   (filePathRef.current !== path || editorRef.current?.getModel() === targetModel);
                 if (
                   !canRetireTarget() ||
-                  (await TauriFileSystem.pathExists(path)) ||
+                  (await TauriFileSystem.projectPathExists(projectRoot, path)) ||
                   !canRetireTarget()
                 ) {
                   emitToast('删除已完成；后续内容或页签状态已变化，已保留当前编辑', {
@@ -1616,6 +1616,7 @@ export function useSuggestionWriteback({
   // 在首个 await 前锁定预览身份；拒绝和保存旁注都不该留下不存在的空文件页签。
   const prepareEmptyTargetRetirement = useCallback(
     (actionToken: symbol, suggestion: AssistantFileSuggestion) => {
+      const project = projectPathRef.current;
       const targetState = modelCacheRef.current.get(suggestion.filePath);
       const targetModel = targetState?.model;
       const version =
@@ -1631,9 +1632,12 @@ export function useSuggestionWriteback({
         targetModel.getVersionId() === version &&
         targetModel.getValue() === '';
       return async () =>
-        unchanged() && !(await TauriFileSystem.pathExists(suggestion.filePath)) && unchanged();
+        project !== null &&
+        unchanged() &&
+        !(await TauriFileSystem.projectPathExists(project, suggestion.filePath)) &&
+        unchanged();
     },
-    [editorRef, isCurrentAction, modelCacheRef],
+    [editorRef, isCurrentAction, modelCacheRef, projectPathRef],
   );
 
   const handleSaveSuggestionNote = useCallback(async () => {

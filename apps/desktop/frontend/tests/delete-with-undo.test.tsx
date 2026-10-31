@@ -16,8 +16,8 @@ import { snapshotBeforeDelete } from '../src/lib/versions';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: vi.fn(async () => false),
-    listDir: vi.fn(async () => []),
+    projectPathExists: vi.fn(async () => false),
+    listProjectDir: vi.fn(async () => []),
     readProjectFile: vi.fn(async () => ''),
     deletePath: vi.fn(async () => undefined),
     createDir: vi.fn(async () => undefined),
@@ -75,7 +75,7 @@ beforeEach(() => {
   order.length = 0;
   vi.clearAllMocks();
   fsMock.readProjectFile.mockImplementation(async () => '# 第006章\n\n他推开门。\n');
-  fsMock.pathExists.mockImplementation(async () => false);
+  fsMock.projectPathExists.mockImplementation(async () => false);
   snapshot.mockImplementation(async (_project, files) => {
     order.push(`snapshot:${files.join(',')}`);
   });
@@ -123,7 +123,7 @@ test('快照留不下就不删，文件原样在', async () => {
 
 test('删文件夹：图片等读不了的如实说找不回；应用数据不另记版本；撤销把目录和文本都建回来', async () => {
   const folder = `${PROJECT}\\.资料`;
-  fsMock.listDir.mockResolvedValueOnce([
+  fsMock.listProjectDir.mockResolvedValueOnce([
     { name: '图', path: `${folder}\\图`, isDir: true },
     { name: '设定.md', path: `${folder}\\设定.md`, isDir: false },
     { name: '封面.jpg', path: `${folder}\\图\\封面.jpg`, isDir: false },
@@ -168,7 +168,7 @@ test('撤销时原路径已经有同名新文件：不覆盖，告诉作者去�
   const harness = mount();
   try {
     await act(async () => harness.actions().onDelete(CHAPTER, false));
-    fsMock.pathExists.mockImplementation(async () => true);
+    fsMock.projectPathExists.mockImplementation(async () => true);
     await act(async () => undoAction().run());
     assert.equal(fsMock.writeFile.mock.calls.length, 0);
     assert.ok(toast.mock.calls.some(([message]) => /没有覆盖/.test(message)));

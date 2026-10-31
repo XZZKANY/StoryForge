@@ -74,8 +74,9 @@ function normalizeFsPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-function listDirCacheKey(path: string, recursive: boolean): string {
-  return `${recursive ? 'recursive' : 'direct'}\u0000${normalizeFsPath(path)}`;
+// 作品根也进键：同一路径换个作品根，宿主的围栏结论可能不同。失效按第二段（路径）匹配。
+function listDirCacheKey(projectRoot: string, path: string, recursive: boolean): string {
+  return `${recursive ? 'recursive' : 'direct'}\u0000${normalizeFsPath(path)}\u0000${normalizeFsPath(projectRoot)}`;
 }
 
 function cloneEntries(entries: FileEntry[]): FileEntry[] {
@@ -256,7 +257,7 @@ export class TauriFileSystem {
       'author-loop',
       `${operationId}.md`,
     ].join(separator);
-    return (await this.pathExists(path))
+    return (await this.projectPathExists(projectRoot, path))
       ? { operationId, content: await this.readProjectFile(projectRoot, path) }
       : null;
   }
@@ -280,8 +281,13 @@ export class TauriFileSystem {
     invalidateListDirCache(projectRoot);
   }
 
-  static async listDir(path: string, recursive = false): Promise<FileEntry[]> {
-    const cacheKey = listDirCacheKey(path, recursive);
+  /** 列作品内的目录（作品根本身也能列）；作品外的路径宿主直接拒绝。 */
+  static async listProjectDir(
+    projectRoot: string,
+    path: string,
+    recursive = false,
+  ): Promise<FileEntry[]> {
+    const cacheKey = listDirCacheKey(projectRoot, path, recursive);
     const cached = listDirCache.get(cacheKey);
     if (cached && Date.now() - cached.createdAt < LIST_DIR_CACHE_TTL_MS) {
       return cloneEntries(cached.entries);
@@ -294,8 +300,8 @@ export class TauriFileSystem {
     const requestVersion = fsCacheVersion;
     const request = (async () => {
       if (mock?.listDir) return await mock.listDir(path, recursive);
-      assertTauriRuntime('TauriFileSystem.listDir');
-      return await invoke<FileEntry[]>('list_dir', { path, recursive });
+      assertTauriRuntime('TauriFileSystem.listProjectDir');
+      return await invoke<FileEntry[]>('list_project_dir', { projectRoot, path, recursive });
     })();
     pendingListDirReads.set(cacheKey, request);
     try {
@@ -355,10 +361,22 @@ export class TauriFileSystem {
     await invoke('reveal_in_file_manager', { projectRoot, path });
   }
 
-  static async pathExists(path: string): Promise<boolean> {
+  /** 作品内的路径在不在；作品外的路径宿主直接报错，不回答在不在。 */
+  static async projectPathExists(projectRoot: string, path: string): Promise<boolean> {
     const mock = mockFs();
     if (mock?.pathExists) return await mock.pathExists(path);
-    assertTauriRuntime('TauriFileSystem.pathExists');
-    return await invoke<boolean>('path_exists', { path });
+    assertTauriRuntime('TauriFileSystem.projectPathExists');
+    return await invoke<boolean>('project_path_exists', { projectRoot, path });
+  }
+
+  /**
+   * 打开作品前核对作品文件夹还在不在（最近作品、恢复上次现场），只回答「是不是一个现存的文件夹」。
+   * 作品里的路径一律用 projectPathExists；允许调它的文件列在 tests/tauri-fs.test.ts。
+   */
+  static async projectFolderExists(path: string): Promise<boolean> {
+    const mock = mockFs();
+    if (mock?.pathExists) return await mock.pathExists(path);
+    assertTauriRuntime('TauriFileSystem.projectFolderExists');
+    return await invoke<boolean>('project_folder_exists', { path });
   }
 }

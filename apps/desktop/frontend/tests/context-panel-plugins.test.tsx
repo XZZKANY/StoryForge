@@ -55,7 +55,7 @@ let toasts: ToastDetail[];
 let enabledOnDisk: string[];
 const onToast = (event: Event) => toasts.push((event as CustomEvent<ToastDetail>).detail);
 const writeFile = vi.spyOn(TauriFileSystem, 'writeFile');
-const pathExists = vi.spyOn(TauriFileSystem, 'pathExists');
+const pathExists = vi.spyOn(TauriFileSystem, 'projectPathExists');
 const createDir = vi.spyOn(TauriFileSystem, 'createDir');
 
 beforeEach(() => {
@@ -128,7 +128,7 @@ test('勾上：读当前文件、追加到末尾写回；目录不在先建 .sto
   await act(async () => box(rows()[1]).click());
   await vi.waitFor(() => expect(writeFile).toHaveBeenCalledTimes(1));
   expect(writeFile).toHaveBeenCalledWith(ROOT, FILE, serializePluginsFile(['甲', '乙']));
-  expect(pathExists).toHaveBeenCalledWith(DIR);
+  expect(pathExists).toHaveBeenCalledWith(ROOT, DIR);
   expect(createDir).toHaveBeenCalledWith(ROOT, DIR);
   await vi.waitFor(() => expect(box(rows()[1]).disabled).toBe(false));
   expect(box(rows()[1]).checked).toBe(true);

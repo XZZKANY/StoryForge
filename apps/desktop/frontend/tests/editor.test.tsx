@@ -242,7 +242,7 @@ test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退�
   assert.ok(unmarkAt < dropAt, '删除链完成前不得先摘页签');
   assert.match(
     restoreBlock,
-    /canRetireTarget\(\)[\s\S]*?TauriFileSystem\.pathExists\(path\)[\s\S]*?canRetireTarget\(\)/,
+    /canRetireTarget\(\)[\s\S]*?TauriFileSystem\.projectPathExists\(project, path\)[\s\S]*?canRetireTarget\(\)/,
     '清理必须先后核对原目标与是否重建',
   );
   assert.doesNotMatch(restoreBlock, /writeFile\([^)]*,\s*['"]{2}/, '不存在态不得写空串');

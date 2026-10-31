@@ -76,7 +76,7 @@ export function ResourceExplorer({
 
     void (async () => {
       try {
-        const entries = await TauriFileSystem.listDir(projectPath, true);
+        const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
         const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
 
         if (!cancelled) {

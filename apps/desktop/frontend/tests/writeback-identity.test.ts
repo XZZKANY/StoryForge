@@ -20,7 +20,7 @@ for (const vector of vectors) {
       { name: vector.relativePath, path: `/book/${vector.relativePath}`, isDir: false },
     ];
     vi.mocked(invoke).mockResolvedValueOnce(entries).mockResolvedValueOnce(vector.identity);
-    await TauriFileSystem.listDir('/book');
+    await TauriFileSystem.listProjectDir('/book', '/book');
     const request = {
       operationKey: vector.operationKey,
       source: vector.source,
@@ -31,9 +31,9 @@ for (const vector of vectors) {
       await TauriFileSystem.describeWritebackOperation('/book', request),
       vector.identity,
     );
-    assert.deepEqual(await TauriFileSystem.listDir('/book'), entries);
+    assert.deepEqual(await TauriFileSystem.listProjectDir('/book', '/book'), entries);
     assert.deepEqual(vi.mocked(invoke).mock.calls, [
-      ['list_dir', { path: '/book', recursive: false }],
+      ['list_project_dir', { projectRoot: '/book', path: '/book', recursive: false }],
       ['describe_writeback_operation', { projectRoot: '/book', request }],
     ]);
     assert.equal(dispatchEvent.mock.calls.length, 0);

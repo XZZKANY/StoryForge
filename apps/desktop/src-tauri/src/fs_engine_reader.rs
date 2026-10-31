@@ -1,4 +1,4 @@
-// Uncached, bounded raw reads for the deterministic engine. UI list_dir keeps
+// Uncached, bounded raw reads for the deterministic engine. UI list_project_dir keeps
 // its own filtering contract; visibility and completeness belong to the kernel.
 use super::ensure_canonical_path_inside_project;
 use base64::Engine;

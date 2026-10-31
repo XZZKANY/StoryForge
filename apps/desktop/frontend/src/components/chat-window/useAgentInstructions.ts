@@ -19,7 +19,7 @@ export async function createAuthorInstructionsFile(projectRoot: string): Promise
   const dir = resolveProjectRelativePath(projectRoot, '.storyforge');
   const file = resolveProjectRelativePath(projectRoot, '.storyforge/agent-instructions.md');
   if (dir === null || file === null) throw new Error('长期规矩的路径不在当前作品里');
-  if (await TauriFileSystem.pathExists(file)) return file;
+  if (await TauriFileSystem.projectPathExists(projectRoot, file)) return file;
   await TauriFileSystem.createDir(projectRoot, dir, true);
   await TauriFileSystem.writeFile(projectRoot, file, AUTHOR_INSTRUCTIONS_TEMPLATE);
   return file;

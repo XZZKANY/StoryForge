@@ -34,8 +34,9 @@ vi.mock('../src/lib/tauri-fs', () => ({
       if (!file) throw new Error(`不存在: ${path}`);
       return file.content;
     },
-    listDir: async (dir: string) => {
+    listProjectDir: async (root: string, dir: string) => {
       const prefix = `${normalize(dir)}/`;
+      if (!prefix.startsWith(`${normalize(root)}/`)) throw new Error(`作品外: ${dir}`);
       const seen = new Map<string, { name: string; path: string; isDir: boolean }>();
       for (const key of disk.keys()) {
         if (!key.startsWith(prefix)) continue;
@@ -47,8 +48,9 @@ vi.mock('../src/lib/tauri-fs', () => ({
       if (!seen.size) throw new Error(`目录不存在: ${dir}`);
       return [...seen.values()];
     },
-    pathExists: async (path: string) => {
+    projectPathExists: async (root: string, path: string) => {
       if (existsThrows) throw new Error('探测失败');
+      if (!`${normalize(path)}/`.startsWith(`${normalize(root)}/`)) throw new Error(`作品外: ${path}`);
       return disk.has(normalize(path));
     },
     deletePath: async (_root: string, path: string) => {
