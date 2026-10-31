@@ -4,7 +4,7 @@ import { agentRunReplay } from './agentRunReplay.test-support';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 照预言机场景的 JSON 形状改
 const { replay } = agentRunReplay(golden);
-const DRIFT = 'Chapter Brief 的来源在确认期间已变化，请重新生成 Brief 后再确认。';
+const DRIFT = '章纲的来源在确认期间已变化，请重新生成章纲后再确认。';
 const DRAFT_TAIL = '请输出该文件的完整初稿正文。';
 
 /** 拿写章 golden 的一个场景，改一改 spec 再回放（不和 golden 比，只看这里关心的行为）。 */

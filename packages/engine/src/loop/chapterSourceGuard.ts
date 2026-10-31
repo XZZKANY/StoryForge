@@ -39,7 +39,7 @@ const FIXED_SOURCES = [
 ];
 const MAX_SOURCE_BYTES = 4_000_000;
 const FACTS_LEDGER = '.storyforge/canon/facts.json';
-const DRIFT = 'Chapter Brief 的来源在确认期间已变化，请重新生成 Brief 后再确认。';
+const DRIFT = '章纲的来源在确认期间已变化，请重新生成章纲后再确认。';
 
 export type GuardDeps = {
   readonly reader: ProjectReader;
@@ -78,9 +78,7 @@ async function sourceSignature(
         if (kind !== 'file') throw new FsToolError('来源不是文件。');
         const read = await reader.readProjectBytes(root, scoped, MAX_SOURCE_BYTES);
         if (read.bytes.length > MAX_SOURCE_BYTES)
-          throw new AgentOrchestrationError(
-            'Chapter Brief 来源超过校验上限，请缩小材料后重新生成。',
-          );
+          throw new AgentOrchestrationError('章纲来源超过校验上限，请缩小材料后重新生成。');
         digest = sha256Hex(read.bytes);
       }
       files.push([normalized, digest]);
@@ -110,7 +108,7 @@ async function sourceSignature(
     if ((await reader.inspectProjectPath(root, FACTS_LEDGER)).targetKind !== 'missing') {
       const read = await reader.readProjectBytes(root, FACTS_LEDGER, MAX_SOURCE_BYTES);
       if (read.exceeded)
-        throw new AgentOrchestrationError('事实台账超过校验上限，请缩小后重新生成 Brief。');
+        throw new AgentOrchestrationError('事实台账超过校验上限，请缩小后重新生成章纲。');
       values.facts = sha256Hex(read.bytes);
     }
     return sha256Hex(dumpJson(values, { ensureAscii: false, sortKeys: true }));
@@ -123,7 +121,7 @@ async function sourceSignature(
       error instanceof RangeError ||
       error instanceof TypeError
     )
-      throw new AgentOrchestrationError('Chapter Brief 来源无法读取或验证，请重新生成。');
+      throw new AgentOrchestrationError('章纲来源无法读取或验证，请重新生成。');
     throw error;
   }
 }
@@ -136,7 +134,7 @@ export async function assertChapterSources(
   guard: unknown,
 ): Promise<void> {
   if (!isObj(guard) || guard.version !== VERSION)
-    throw new AgentOrchestrationError('Chapter Brief 缺少来源版本，请重新生成。');
+    throw new AgentOrchestrationError('章纲缺少来源版本，请重新生成。');
   const paths = guard.paths;
   const expected = guard.sha256;
   if (
@@ -144,7 +142,7 @@ export async function assertChapterSources(
     !paths.every((path) => typeof path === 'string') ||
     typeof expected !== 'string'
   )
-    throw new AgentOrchestrationError('Chapter Brief 来源版本无法验证，请重新生成。');
+    throw new AgentOrchestrationError('章纲来源版本无法验证，请重新生成。');
   const context = guard.context;
   const identity = await identityOf(deps, root, target);
   const oversized =
@@ -195,7 +193,7 @@ export async function captureChapterSources(
       paths.add(normalizeProjectRelativePath(String(item.relative_path || '')));
     } catch (error) {
       if (!(error instanceof FsToolError)) throw error;
-      throw new AgentOrchestrationError('Chapter Brief 的来源路径无法验证，请重新生成。');
+      throw new AgentOrchestrationError('章纲的来源路径无法验证，请重新生成。');
     }
   }
   const identity = await identityOf(deps, root, target);

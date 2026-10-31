@@ -166,6 +166,66 @@ describe('chapter writing no longer waits for the brief to be confirmed', () => 
   });
 });
 
+// 真模型试跑（10-31）：自动写进文件之后对话里仍说「通过 brief 检查……待审阅修订」。
+// 结果说明按要不要作者点分两种说法；写没写进文件引擎不知道，所以不用点的只说按权限直接写进。
+describe('the result line follows whether the author still has to accept the revision', () => {
+  const PLAN = JSON.stringify({
+    version: 1,
+    chapters: [
+      { ordinal: 1, title: '出城' },
+      { ordinal: 2, title: '夜行' },
+      { ordinal: 3, title: '入城', goal: '沈禾带林舟入城' },
+    ],
+    arcs: [],
+  });
+
+  async function written(profile: string, files: Record<string, string> = {}) {
+    const base = (golden.scenarios as Obj[]).find((item) => item.id === 'write-auto-profile')!;
+    const spec = JSON.parse(base.spec_json);
+    spec.message.permission_profile = profile;
+    spec.extra_files = files;
+    const { record, error } = await replay({ ...base, spec_json: JSON.stringify(spec) });
+    if (error) throw error;
+    return record as Obj;
+  }
+
+  it('says the revision goes straight into the file when no click is needed', async () => {
+    const record = await written('auto');
+    expect(record.result.proposed_patch.requires_confirmation).toBe(false);
+    expect(record.result.agent_result.summary).toBe(
+      '章节草稿通过了章纲检查，修订按这部作品的权限直接写进 正文/第003章.md。',
+    );
+  });
+
+  it('asks the author to look at the comparison when a click is needed', async () => {
+    const record = await written('ask');
+    expect(record.result.proposed_patch.requires_confirmation).toBe(true);
+    expect(record.result.agent_result.summary).toBe(
+      '章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。',
+    );
+  });
+
+  it.each([
+    ['auto', '第 3 章的草稿通过了章纲检查，修订按这部作品的权限直接写进 正文/第003章.md。'],
+    [
+      'ask',
+      '第 3 章的草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。',
+    ],
+  ])('names the chapter when the brief carries its number (%s)', async (profile, summary) => {
+    const record = await written(profile, { '.storyforge/serial-plan.json': PLAN });
+    expect(record.result.agent_result.chapter_brief.chapter_ordinal).toBe(3);
+    expect(record.result.agent_result.summary).toBe(summary);
+  });
+
+  it('marks the brief in the session with the word the author sees', async () => {
+    const record = await written('auto');
+    expect((record.messages as Obj[]).map((message) => message.content)).toEqual([
+      '写第三章：沈禾带林舟入城',
+      '章纲已准备：沈禾带林舟入城，夜宿客栈。',
+    ]);
+  });
+});
+
 // 检查协议的整份校验：端到端场景走不到的分支逐条对 Python（重复键、非有限数字、引用定位、预算）。
 describe('chapter check protocol matches Python', () => {
   it('builds the same checker prompt', () => {

@@ -6,7 +6,7 @@ import { agentRunReplay } from './agentRunReplay.test-support';
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 照预言机场景的 JSON 形状改
 const { replay } = agentRunReplay(golden);
 const patchReplay = agentRunReplay(patchGolden).replay;
-const DRIFT = 'Chapter Brief 的来源在确认期间已变化，请重新生成 Brief 后再确认。';
+const DRIFT = '章纲的来源在确认期间已变化，请重新生成章纲后再确认。';
 const HEADING = '[已写事实 · 勿违背]';
 const LEDGER = JSON.stringify({
   version: 1,

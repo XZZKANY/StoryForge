@@ -44486,7 +44486,7 @@
           "sequence": 3,
           "index": 1,
           "step": "chapter.draft",
-          "detail": "按 brief 起草正文。",
+          "detail": "按章纲起草正文。",
           "status": "pending"
         },
         {
@@ -44670,12 +44670,12 @@
           "plan": [
             {
               "step": "chapter.brief",
-              "detail": "已生成 Chapter Brief。",
+              "detail": "已生成章纲。",
               "status": "completed"
             },
             {
               "step": "chapter.draft",
-              "detail": "已按 brief 起草正文。",
+              "detail": "已按章纲起草正文。",
               "status": "completed"
             },
             {
@@ -44690,7 +44690,7 @@
             }
           ],
           "agent_result": {
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "requires_user_confirmation": true,
             "chapter_brief": {
               "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -44848,7 +44848,7 @@
               "mode": "deterministic",
               "status": "completed",
               "assistant_session_id": 1,
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+              "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
               "message_count": 2,
               "tool_count": 3,
               "review_issue_count": 0
@@ -44912,7 +44912,7 @@
                   },
                   {
                     "step": "chapter.draft",
-                    "detail": "按 brief 起草正文。",
+                    "detail": "按章纲起草正文。",
                     "status": "pending"
                   },
                   {
@@ -45424,7 +45424,7 @@
                   "intent": "chapter.write",
                   "message_count": 2,
                   "last_user_message": "写第三章：沈禾带林舟入城",
-                  "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+                  "assistant_summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
                   "tool_count": 3,
                   "review_issue_count": 0,
                   "requires_user_confirmation": true
@@ -45445,7 +45445,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+                "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -45463,7 +45463,7 @@
                 "execution_id": 2,
                 "intent": "chapter.write",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+                "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
                 "requires_user_confirmation": true,
                 "reason": "requires_user_confirmation",
                 "proposed_patch": {
@@ -45903,7 +45903,7 @@
             },
             {
               "step": "chapter.draft",
-              "detail": "按 brief 起草正文。",
+              "detail": "按章纲起草正文。",
               "status": "pending"
             },
             {
@@ -45975,7 +45975,7 @@
               },
               {
                 "step": "chapter.draft",
-                "detail": "按 brief 起草正文。",
+                "detail": "按章纲起草正文。",
                 "status": "pending"
               },
               {
@@ -46487,7 +46487,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+              "assistant_summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -46508,7 +46508,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -46526,7 +46526,7 @@
             "execution_id": 2,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -47214,7 +47214,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "assistant_summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -47242,7 +47242,7 @@
           "id": 2,
           "session_id": 1,
           "role": "assistant",
-          "content": "Chapter Brief 已准备：沈禾带林舟入城。"
+          "content": "章纲已准备：沈禾带林舟入城。"
         }
       ],
       "tool_calls": [
@@ -47633,7 +47633,7 @@
           "sequence": 3,
           "index": 1,
           "step": "chapter.draft",
-          "detail": "按 brief 起草正文。",
+          "detail": "按章纲起草正文。",
           "status": "pending"
         },
         {
@@ -47817,12 +47817,12 @@
           "plan": [
             {
               "step": "chapter.brief",
-              "detail": "已生成 Chapter Brief。",
+              "detail": "已生成章纲。",
               "status": "completed"
             },
             {
               "step": "chapter.draft",
-              "detail": "已按 brief 起草正文。",
+              "detail": "已按章纲起草正文。",
               "status": "completed"
             },
             {
@@ -47837,7 +47837,7 @@
             }
           ],
           "agent_result": {
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "requires_user_confirmation": true,
             "chapter_brief": {
               "brief_id": "chapter-brief-00000000000000000000000000000001",
@@ -47995,7 +47995,7 @@
               "mode": "deterministic",
               "status": "completed",
               "assistant_session_id": 1,
-              "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+              "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
               "message_count": 2,
               "tool_count": 3,
               "review_issue_count": 0
@@ -48059,7 +48059,7 @@
                   },
                   {
                     "step": "chapter.draft",
-                    "detail": "按 brief 起草正文。",
+                    "detail": "按章纲起草正文。",
                     "status": "pending"
                   },
                   {
@@ -48571,7 +48571,7 @@
                   "intent": "chapter.write",
                   "message_count": 2,
                   "last_user_message": "写第三章：沈禾带林舟入城",
-                  "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+                  "assistant_summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
                   "tool_count": 3,
                   "review_issue_count": 0,
                   "requires_user_confirmation": true
@@ -48592,7 +48592,7 @@
                 "mode": "deterministic",
                 "status": "completed",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+                "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
                 "message_count": 2,
                 "tool_count": 3,
                 "review_issue_count": 0
@@ -48610,7 +48610,7 @@
                 "execution_id": 2,
                 "intent": "chapter.write",
                 "assistant_session_id": 1,
-                "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+                "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
                 "requires_user_confirmation": true,
                 "reason": "requires_user_confirmation",
                 "proposed_patch": {
@@ -49050,7 +49050,7 @@
             },
             {
               "step": "chapter.draft",
-              "detail": "按 brief 起草正文。",
+              "detail": "按章纲起草正文。",
               "status": "pending"
             },
             {
@@ -49122,7 +49122,7 @@
               },
               {
                 "step": "chapter.draft",
-                "detail": "按 brief 起草正文。",
+                "detail": "按章纲起草正文。",
                 "status": "pending"
               },
               {
@@ -49634,7 +49634,7 @@
               "intent": "chapter.write",
               "message_count": 2,
               "last_user_message": "写第三章：沈禾带林舟入城",
-              "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+              "assistant_summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
               "tool_count": 3,
               "review_issue_count": 0,
               "requires_user_confirmation": true
@@ -49655,7 +49655,7 @@
             "mode": "deterministic",
             "status": "completed",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "message_count": 2,
             "tool_count": 3,
             "review_issue_count": 0
@@ -49673,7 +49673,7 @@
             "execution_id": 2,
             "intent": "chapter.write",
             "assistant_session_id": 1,
-            "summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "requires_user_confirmation": true,
             "reason": "requires_user_confirmation",
             "proposed_patch": {
@@ -50361,7 +50361,7 @@
             "intent": "chapter.write",
             "message_count": 2,
             "last_user_message": "写第三章：沈禾带林舟入城",
-            "assistant_summary": "章节草稿已通过 brief 检查，生成 正文/第003章.md 的待审阅修订。",
+            "assistant_summary": "章节草稿通过了章纲检查，生成了 正文/第003章.md 的修订，请看过对比再决定是否接受。",
             "tool_count": 3,
             "review_issue_count": 0,
             "requires_user_confirmation": true
@@ -50389,7 +50389,7 @@
           "id": 2,
           "session_id": 1,
           "role": "assistant",
-          "content": "Chapter Brief 已准备：沈禾带林舟入城，夜宿客栈。"
+          "content": "章纲已准备：沈禾带林舟入城，夜宿客栈。"
         }
       ],
       "tool_calls": [
@@ -50780,7 +50780,7 @@
           "sequence": 3,
           "index": 1,
           "step": "chapter.draft",
-          "detail": "按 brief 起草正文。",
+          "detail": "按章纲起草正文。",
           "status": "pending"
         },
         {
@@ -50995,7 +50995,7 @@
                   },
                   {
                     "step": "chapter.draft",
-                    "detail": "按 brief 起草正文。",
+                    "detail": "按章纲起草正文。",
                     "status": "pending"
                   },
                   {
@@ -51426,7 +51426,7 @@
                   },
                   {
                     "step": "chapter.draft",
-                    "detail": "按 brief 起草正文。",
+                    "detail": "按章纲起草正文。",
                     "status": "pending"
                   },
                   {
@@ -51739,7 +51739,7 @@
               "run_id": 1,
               "event_type": "agent_run_failed",
               "actor": "root-agent",
-              "message": "Chapter Brief 已过期，请重新生成后再确认。",
+              "message": "章纲已过期，请重新生成后再确认。",
               "payload": {
                 "session_id": "sess-1",
                 "run_id": "run-1",
@@ -51894,7 +51894,7 @@
                 "event_type": "agent_run_failed",
                 "manual_restart_required": true,
                 "resume_strategy": "manual_restart_required",
-                "message": "Chapter Brief 已过期，请重新生成后再确认。",
+                "message": "章纲已过期，请重新生成后再确认。",
                 "latest_execution_marker": {
                   "event_id": 5,
                   "sequence": 5,
@@ -51963,7 +51963,7 @@
             "type": "error",
             "session_id": "sess-1",
             "run_id": "run-1",
-            "detail": "Chapter Brief 已过期，请重新生成后再确认。"
+            "detail": "章纲已过期，请重新生成后再确认。"
           }
         }
       ],
@@ -52023,7 +52023,7 @@
             },
             {
               "step": "chapter.draft",
-              "detail": "按 brief 起草正文。",
+              "detail": "按章纲起草正文。",
               "status": "pending"
             },
             {
@@ -52095,7 +52095,7 @@
               },
               {
                 "step": "chapter.draft",
-                "detail": "按 brief 起草正文。",
+                "detail": "按章纲起草正文。",
                 "status": "pending"
               },
               {
@@ -52408,7 +52408,7 @@
           "run_id": 1,
           "event_type": "agent_run_failed",
           "actor": "root-agent",
-          "message": "Chapter Brief 已过期，请重新生成后再确认。",
+          "message": "章纲已过期，请重新生成后再确认。",
           "payload": {
             "session_id": "sess-1",
             "run_id": "run-1",
@@ -52760,7 +52760,7 @@
           "id": 2,
           "session_id": 1,
           "role": "assistant",
-          "content": "Chapter Brief 已准备：沈禾带林舟入城。"
+          "content": "章纲已准备：沈禾带林舟入城。"
         }
       ],
       "tool_calls": [
