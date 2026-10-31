@@ -239,6 +239,7 @@ export function useRunAuthorAgent(
             projectPath: project,
             currentFile: contextFile,
             pinnedFiles: [...explicitContextPaths, ...requestedContextPaths],
+            automatic: false,
           }),
           project,
           contextRefs,

@@ -1,0 +1,21 @@
+## 2026-10-31 对话 Agent 发送前不再自动带摘录，只带作者固定 / @ 点名的文件
+
+- 原因：作者看参考上下文那一栏的设计。发送前界面替 AI 挑 8 份、每份 1200 字摘录，长一点的书「超出席位」黄徽标常亮，而且那一栏平时就是靠这个警告才出现；可没带上的文件 AI 用 fs_read / fs_search 随时能读。作者 10-31 拍板「干脆不在发送前自动带摘录，全交给 AI 自己读加上书里的事实」，三处范围按建议：固定 / @ 点名的照带；Ctrl+Shift+K 光标处续写（单次调用，没有读文件工具）照旧自动带；不经对话、直接点按钮的审稿 / 修订少了预选的人物设定参考，接受。
+- 改动：
+  - `lib/project/context-bundle.ts`：`buildContextBundle` / `selectContextBundleFiles` 加 `automatic` 选项（默认 true）；false 时只选作者固定的文件，`overflowCount` / `truncated` 只按固定的算。缓存键带上这一位。
+  - `components/chat-window/useRunAuthorAgent.ts`：对话 Agent 的请求传 `automatic: false`。行间续写 `lib/inline-continue-context.ts` 不传，照旧。
+  - 引擎、契约、golden、面板代码都没改。面板文件 #561 正在大改（搬进 `ContextSummaryPanel.tsx`），为避免冲突本刀不碰；面板改名「固定参考」等它合了再做。
+- 去掉之后 AI 从哪拿资料（核对过代码）：
+  - 对话循环里 fs.read 读到的文件进 `loopReadFacts`，`loop_trusted_context` 的工具（file.review / file.revise / chapter.polish / file.create / prose.continue）组装上下文时作为 `extraContextFiles` 合进去（`packages/engine/src/loop/agentRuntime.ts` 484–529）。golden `p3-patch-tools` 的 `read-then-revise` 场景就是请求不带任何文件、模型先 fs_read 人物卡再 file_revise，修订拿到的上下文里有那份人物卡（`selection_source: loop_fs_read`），这条已有回放覆盖。
+  - 写章（含 /写 批量）自己读上一章全文、立项资料全文（大纲 / 人物 / 设定 / 时间线 / 伏笔，最多 12 份 1.2 万字，`kernel/settingSources.ts`）和已写事实，不靠这 8 份摘录。
+- 验证：
+  - `tests/project-context.test.ts` 新增一条：30 章的书只固定一份时只选这一份，超出 0、不截断，不存在的固定照报未读到。
+  - `tests/chapter-write-request.test.tsx` 原「起草时保留打开的设定」三条改为：打开的设定被固定时照带（不因为是当前文件被丢掉），没固定的大纲不在请求里，且请求用 `automatic: false`。
+  - 定向：`npx vitest run tests/project-context.test.ts tests/chapter-write-request.test.tsx tests/inline-continue-context.test.ts tests/context-bundle-lifecycle.test.ts` 52 passed；改格式后前两个文件 37 passed。
+  - 变异（脚本定点替换、跑测试、按字节无条件还原并断言一致）：去掉 `automatic: false` → chapter-write-request 3 failed；`withAutomatic &&` 换成 `true &&` → project-context 1 failed。两处都已还原。
+  - `pnpm verify` EXIT=0：project-core 48 passed；引擎 111 个文件 14257 passed + 2 skipped；前端 270 个文件 2759 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。
+  - 行尾：四个改动文件原本都是 LF，改后仍 LF；`git diff --numstat` 与 `--ignore-all-space --numstat` 逐文件一致。
+- 未覆盖：
+  - 没跑真模型。每轮少发约 1 万字摘录，但 AI 可能多花几轮去读文件（每轮重发整段上下文），总 token 是增是减不知道；要量得用 `--agent-real`，花作者的钱，等作者点头。
+  - 直接点按钮的审稿（固定管线，没有先读这一步）现在只有书里的事实和知识库条目，审稿技能可能报「没有人物卡」。
+  - 面板观感没改，也没在真机看：固定了文件的作者看到的份数会变小，「超出席位」只在固定超过 8 份时才会出现。
