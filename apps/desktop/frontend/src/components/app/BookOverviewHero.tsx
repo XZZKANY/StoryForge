@@ -141,7 +141,7 @@ export function BookOverviewHero({
               <Button
                 onClick={onRefresh}
                 disabled={profile.refreshing}
-                size="compact"
+                size="xs"
                 className="mt-2"
                 data-testid="book-overview-retry-profile"
               >
@@ -242,7 +242,7 @@ export function BookOverviewHero({
               </Button>
               {onDraftNextChapter ? (
                 <Button
-                  variant="agent"
+                  variant="agent-subtle"
                   size="md"
                   onClick={onDraftNextChapter}
                   leadingIcon={<Sparkles size={15} strokeWidth={1.8} />}

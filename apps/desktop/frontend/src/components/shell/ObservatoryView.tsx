@@ -117,7 +117,7 @@ function DismissButton({ onDismiss }: { onDismiss?: () => void }) {
 function MergeButton({ onMerge, busy }: { onMerge?: () => void; busy: boolean }) {
   if (!onMerge) return null;
   return (
-    <Button onClick={onMerge} disabled={busy} size="mini" data-testid="proposal-merge">
+    <Button onClick={onMerge} disabled={busy} size="compact" data-testid="proposal-merge">
       并入
     </Button>
   );
@@ -258,7 +258,7 @@ function PromiseCard({
           <Button
             onClick={() => onResolve(promise)}
             disabled={busy}
-            size="mini"
+            size="compact"
             title="写进 canon.json：状态改成已回收、记下回收章（先存快照，可撤销）"
             data-testid="promise-resolve"
           >
@@ -553,7 +553,7 @@ function CheckerRow({
         {/* 自动跑的那几个只靠绿点表示：窄侧栏（作者常用 220px）里再挂一个「保存时自动」，名字就只剩一个字。 */}
         {ran ? null : prompt && onAsk ? (
           <Button
-            variant="agent"
+            variant="agent-subtle"
             size="mini"
             title="在对话里请 AI 用这个检查看当前这章（会调用你配置的模型）"
             onClick={() => onAsk(prompt)}

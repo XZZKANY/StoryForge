@@ -2,17 +2,20 @@
 
 - 改动（作者要求「同一件事只留一种做法」）：
   - `components/ui/Button.tsx` 加第三种 `PlainButton`（`ui/index.ts` 导出）：不带任何按钮外观，className 原样接在 `sf-plain-button` 后面；只统一默认 `type="button"`（显式 `type="submit"` 照传）、焦点环、禁用光标；forwardRef，其余 props 全透传。焦点环与 `.sf-button` 同一套——`.sf-button` 自己没写 focus-visible，走的是 `index.css` base 层的全局 `:focus-visible`（2px `--agent` 描边、offset 2px），`PlainButton` 也走它；`.sf-plain-button:disabled` 的光标对齐 `.sf-button:disabled` 的 `not-allowed`。
-  - 给 `Button` 加一个尺寸 `mini`：高 20px、左右 6px、字号 `--text-3xs`（10px）、行高 16px、图标与文字间距 4px。理由：侧栏条目旁的小动作（作废、并入、以本章为准、编辑 / 审阅、复制 / 重新生成…）原来都是 10px 字、约 19–20px 高，最小的 `compact`（24px、12px 字）会把密集列表撑高、字比条目正文还大。换完共 26 处用它（Button 22、IconButton 4）。别的尺寸没加。
+  - 给 `Button` 加一个尺寸 `mini`：高 20px、左右 6px、字号 `--text-3xs`（10px）、行高 16px、图标与文字间距 4px。理由：观测镜条目旁的小动作（作废、不要、保留已记的、以本章为准、让 AI 查…）原来就是 10px 字、19–21px 高，最小的 `compact`（24px）会把密集列表撑高。按「先保高度」复核后共 9 处用它（Button 7、IconButton 2）。
+  - 给 `Button` 加一个变体 `agent-subtle`（追加提交，见文末）：透明底、`--agent` 40% 描边、紫字，悬停 10% 紫底仍是紫字。给原来「紫描边紫字、无底」的 AI 动作用，原来就是紫实底的仍用 `agent`。
   - `src/` 里禁碰文件以外的 147 处手写 `<button` 全部换掉，按目录分提交：
 
     | 目录 | 换掉 | PlainButton | Button | IconButton |
     | --- | --- | --- | --- | --- |
-    | shell/ | 77 | 35 | 29 | 13 |
+    | shell/ | 77 | 37 | 29 | 11 |
     | app/ | 17 | 9 | 7 | 1 |
     | settings/ | 12 | 11 | 0 | 1 |
     | editor/ + components 顶层 | 22 | 13 | 7 | 2 |
     | chat-window/（禁碰之外） | 19 | 16 | 3 | 0 |
-    | 合计 | 147 | 84 | 46 | 17 |
+    | 合计 | 147 | 86 | 46 | 15 |
+
+    （追加提交把速记行的改 / 删两颗从 IconButton 改回 PlainButton，上表已按最终状态。）
 
   - 守护测试并进 `tests/ui-primitives.test.tsx`：`src/` 里 `components/ui/` 以外的 `.tsx` 不许出现 JSX `<button`（正则先用两条样例自检）。豁免清单旁写明「等 #561 合了再收」。
   - 跟着改的测试（都是因为换了写法、断言要么会红要么会空转）：
@@ -24,40 +27,46 @@
   - 禁碰文件一个字节没动：`chat-window/` 的 `WriteBatchPanel.tsx`、`panels.tsx`、`Composer.tsx`、`display-utils.ts`、`ContextPanel.tsx`、`ChatWindowView.tsx`、`write-batch-run.ts`；`ChatSideRail.tsx` / `ContextSummaryPanel.tsx` / `useChatSideRail.ts` / `ComposerDock.tsx` 在 master 上还没有。
   - `components/editor/inline-chat-dom.ts` 在 Monaco 视图区里用 DOM API `createElement('button')` 造按钮，不是 JSX，不在本刀范围，守护只扫 `.tsx` 里的 JSX `<button`。
 
-- 映射口径（原 class → 新写法）：
+- 映射口径（原 class → 新写法；追加提交后的最终版）：
+  - **尺寸先保高度**：原高度 = 显式 `h-*`，没有就按「行高 + 上下内边距 + 边框」算。行高按继承算：祖先有 `text-xs` 的是 16px，有 `leading-relaxed` 的是字号 × 1.625，都没有的是字号 × 1.5（`text-2xs` / `text-3xs` 自己不设行高）。取高度不低于「原高度 − 1px」的最小一档（1px 内算行高取整误差），所以可点区域不会变小。高度和字号冲突时保高度、字号跟着档走。
 
-  | 原来的样子 | 换成 |
+  | 原高度 | 尺寸 | 用在 |
+  | --- | --- | --- |
+  | 19–21px | `mini`（20） | 观测镜：作废、补录确认里的取消、保留已记的、以本章为准、不要、让 AI 查；通知里的动作（20px） |
+  | 22–25px | `compact`（24） | `h-6` 的：拆书「打开 Markdown」「查看 JSON」「放进 写法/」、复制 / 重新生成、作品总览上下文「重试」；10px 字带边框 22px 的：确定补录、补录…、并入、标为已回收；`py-1` 无边框 24px 的：版本「恢复」、分支「恢复到编辑器」、作品库页脚「设置」 |
+  | 26–29px | `xs`（28） | `h-7` 的：知识收件箱七颗（编辑 / 审阅 / 拒绝 / 取消 / 关闭 / 保存修改 / 确认写进文件）、拆书「生成拆书报告」「取消」、面板错误与搜索的「重试」、标题栏两颗、决定里的提交；`py-1` 带边框 26px 的：章节索引「重试」、重新读取大纲 / 资料、版本「对比当前」、分支「从此开分支」「对比父版本」；「← 作品总览」（被页签栏撑到 32px，Button 一样被撑开） |
+  | 32px | `sm` | 编辑器「重试读取」「重新载入界面」 |
+  | 36px | `md` | 继续写第 N 章、AI 起草第 N 章 |
+
+  | 原底色 / 边框 | variant |
   | --- | --- |
-  | `px-1.5 py-0.5 text-3xs`，无边框（约 19px 高） | `Button variant="ghost" size="mini"` |
-  | 同上带 `border border-border` | `Button size="mini"`（secondary） |
-  | `h-6` / `h-7` + `text-3xs`，无边框 / 带边框 / `bg-foreground` / `bg-agent` / 悬停变红 | `mini`，variant 依次 ghost / secondary / primary / agent / danger |
-  | `h-6` 或 `px-2 py-1` + `text-2xs` / `text-xs`，带边框 | `Button size="compact"`（secondary；`bg-accent` 的用 primary） |
-  | `px-2 py-1 text-xs`，无边框 | `Button variant="ghost" size="compact"` |
-  | `h-7` + `text-2xs` / `text-xs`，带边框 / 无边框 | `Button size="xs"`（secondary / ghost） |
-  | `h-8 text-xs` 带边框 | `Button size="sm"`（secondary） |
-  | `h-9 text-sm`，`bg-accent` / 紫描边 | `Button size="md"`，primary / agent |
-  | 纯图标 `h-7 w-7` / `h-6 w-6` / `h-5 w-5` 或无框的 11px 图标 | `IconButton` 的 xs / compact / mini |
+  | 无边框无底 | `ghost` |
+  | 中性边框（含错误框里红描边的「重试」，重试不是危险操作） | `secondary` |
+  | `bg-accent` / `bg-foreground` | `primary` |
+  | 紫实底 `bg-agent` | `agent` |
+  | 紫描边紫字、无底（`border-agent/40 text-agent`） | `agent-subtle` |
+  | 平时灰、悬停变红的「拒绝」 | `danger` |
+
+  - 纯图标 `h-7 w-7` / `h-6 w-6` / `h-5 w-5` → `IconButton` 的 xs / compact / mini（方框尺寸与原来一致）。
 
   - 只留下布局类（`mt-*`、`ml-auto`、`my-1` 等）放进 Button 的 className；外观类（高、内边距、圆角、字号、颜色、hover）全去掉，由共享尺寸与变体出。图标挪到 `leadingIcon` / `trailingIcon`。
-  - IconButton 会把 className 同时给 Tooltip 外壳和按钮本身，所以需要定位或「悬停才显示」的图标钮（速记改 / 删、搜索框清空、作品库移除、模型套「更多操作」）外面包一层 `<span className="… flex">` 管定位与显隐，IconButton 本身不带 className；原来的 `focus-visible:opacity-100` 相应改成外壳上的 `focus-within:opacity-100`。
+  - IconButton 会把 className 同时给 Tooltip 外壳和按钮本身，所以需要定位或「悬停才显示」的图标钮（搜索框清空、作品库移除、模型套「更多操作」）外面包一层 `<span className="… flex">` 管定位与显隐，IconButton 本身不带 className；原来的 `focus-visible:opacity-100` 相应改成外壳上的 `focus-within:opacity-100`。
   - Tooltip 口径：**纯图标钮一律带悬停提示**，光看图标说不清做什么。原来有 `title` 的，title 原文作 Tooltip（与 aria-label 不同就写 `tooltip=`）；原来只有 aria-label 的（模型套「更多操作」）或只有 title 的（编辑器「…」更多，顺带补上了 aria-label）也加上。本刀没有用 `tooltip={false}` 的地方。
-  - PlainButton 用在这些（原 className 原样保留）：列表行 / 卡片 / 树节点 / 折叠行；页签（含页签关闭钮——它的悬停底色专门跟激活页签拉开、脏点叠在上面，是页签的一部分）；菜单项与选项（`role=menuitem/option`，含**菜单里的图标动作**：侧栏作品菜单的「从最近打开移除」、会话菜单的改名 / 移除——Tooltip 自己是一层浮层，焦点落到菜单里的图标钮就会叠到菜单层上，Esc 先关提示、Tab 不再按菜单规则退出，所以菜单内保留原生 title）；单选块 / 分段切换 / 筛选片 / 可切换标签片 / 开关 / 色板；标签片里的移除叉（套 20px 方框会把标签片撑高）；勾选圈（观测「标记已处理」两处、速记勾选）；文字链接；活动栏图标、标题栏窗口控制钮、标题栏命令面板假搜索框；下拉选择器的触发器（作品切换、ComposerMenuSelect——显示当前值 + ▾，是选择控件不是动作按钮）；对话开场的五个建议片（圆角紫描边药丸，见下「故意没统一」）。
+  - PlainButton 用在这些（原 className 原样保留）：列表行 / 卡片 / 树节点 / 折叠行；页签（含页签关闭钮——它的悬停底色专门跟激活页签拉开、脏点叠在上面，是页签的一部分）；菜单项与选项（`role=menuitem/option`，含**菜单里的图标动作**：侧栏作品菜单的「从最近打开移除」、会话菜单的改名 / 移除——Tooltip 自己是一层浮层，焦点落到菜单里的图标钮就会叠到菜单层上，Esc 先关提示、Tab 不再按菜单规则退出，所以菜单内保留原生 title）；速记行的改 / 删（原来是无框 11px 小图标，套 20px 方钮会把速记行撑高，同口径保留原 className、aria-label 与原生 title）；单选块 / 分段切换 / 筛选片 / 可切换标签片 / 开关 / 色板；标签片里的移除叉（套 20px 方框会把标签片撑高）；勾选圈（观测「标记已处理」两处、速记勾选）；文字链接；活动栏图标、标题栏窗口控制钮、标题栏命令面板假搜索框；下拉选择器的触发器（作品切换、ComposerMenuSelect——显示当前值 + ▾，是选择控件不是动作按钮）；对话开场的五个建议片（圆角紫描边药丸，见下「故意没统一」）。
 
-- 观感变化明显的点：
-  - 紫描边变紫实底（共享 Button 没有「紫描边」这一档，按「AI 相关用 agent」换）：作品总览「AI 起草第 N 章」（md，紧挨着 primary「继续写」，两个实底按钮并排）、观测镜检查器「让 AI 查」（mini，未跑的检查器每行一个）。
+- 观感变化明显的点（最终版；第一版里的「紫描边变紫实底」「知识收件箱按钮 28 → 20px」「速记行变高」已在追加提交里修回）：
   - 错误框里的重试由红描边红字变成中性 secondary（重试不是危险操作）：作品总览「章节索引重试」「重新读取大纲」「重新读取资料」。
   - 知识收件箱「拒绝」由平时灰字、悬停才红，变成 danger 常显红描边红字。
-  - 通知里的动作（如「撤销」）由紫色加粗文字变成 secondary 描边按钮（通知动作不都是 AI 的事，紫色只给 AI）。
-  - 知识收件箱 编辑 / 审阅 / 拒绝 / 取消 / 保存修改 / 确认写进文件：高 28px → 20px（字号仍是 10px）。
-  - 速记行的改 / 删：原来是无框 11px 图标，现在是 20px 方钮，速记行最矮从约 15px 变成 20px。
-  - 字号变大：编辑器「重试读取」「重新载入界面」12 → 14px（h-8 对应 sm）；作品总览上下文「重试」、分支图节点三个动作 11 → 12px（对应 compact）。
+  - 通知里的动作（如「撤销」）由紫色加粗文字变成 secondary 描边按钮（通知动作不都是 AI 的事，紫色只给 AI）；按「先保高度」是 20px 的 mini，字号 12 → 10px。
+  - 保高度带来的字号变化：变大的——知识收件箱七颗、拆书三颗、复制 / 重新生成、确定补录 / 补录… / 并入 / 标为已回收 10 → 12px，分支图节点三个动作、作品总览几颗重试 11 → 12px，编辑器「重试读取」「重新载入界面」12 → 14px；变小的——只有通知动作 12 → 10px。
+  - 高度变高 1–4px 的（取不小于原高度的档）：确定补录 / 补录… / 并入 / 标为已回收 22 → 24px，`py-1` 带边框的几颗 26 → 28px。
   - 「继续写第 N 章」「AI 起草第 N 章」去掉了 `font-medium` 和 `interactive-press` 按压回弹（共享 Button 没有这两样）。
   - 标题栏「AI 面板」收起时文字由 foreground 变成 ghost 的 muted；带边框的小按钮都多了 surface 底色；原来 `rounded-sm` 的（观测镜、知识收件箱、通知里的）圆角 4 → 6px。
   - 原来在悬停行上用 `hover:bg-surface` / `hover:bg-background` 拉开层次的图标钮（文件树文件夹行的新建、作品库的移除），换 IconButton 后悬停底色统一成 elevated，在同样是 elevated 的悬停行上看不出底色变化（图标仍会变亮）。
 
 - 故意没统一成 Button / IconButton 的：
   - 对话开场的五个建议片（PartnerOpening）：换 agent 会变成一排紫色实底块，违背「紫色当金子省着用」；它们是一组并排的建议，按「标签片」归 PlainButton。
-  - 页签关闭钮、菜单里的图标动作、标签片里的移除叉、勾选圈：理由见上，都是所属复合控件的一部分。
+  - 页签关闭钮、菜单里的图标动作、速记行的改 / 删、标签片里的移除叉、勾选圈：理由见上，都是所属复合控件的一部分，套共享方框会改尺寸或叠浮层。
   - 活动栏和标题栏窗口控制钮：前者要跟同一列的视图图标同尺寸同圆角，后者是贴边的系统控制钮（关闭悬停红底），共享 IconButton 都给不出。
 
 - 验证：
@@ -77,7 +86,31 @@
 - 豁免（守护测试里的 `BUTTON_EXEMPT`，等 #561 合了再收）：`chat-window/` 的 `panels.tsx`（现有 10 处）、`Composer.tsx`（4）、`ContextPanel.tsx`（3）、`ChatWindowView.tsx`（2）、`WriteBatchPanel.tsx`（0），以及 #561 新加的 `ChatSideRail.tsx`（它的分支上 1 处）、`ContextSummaryPanel.tsx`（3）、`ComposerDock.tsx`（0）——先列上，免得两个 PR 谁先合都把对方的 CI 打红。
 
 - 未覆盖：
-  - 没在真宿主或浏览器里看观感，上面的变化是按 class 与共享尺寸推出来的，不是截图对照；尤其「紫描边 → 紫实底」两处、知识收件箱按钮变矮、速记行变高，需要作者看一眼。
+  - 没在真宿主或浏览器里看观感，上面的变化是按 class 与共享尺寸推出来的（原高度按继承行高手算），不是截图对照；尤其通知动作字号变小、错误框重试变中性，需要作者看一眼。
   - IconButton 的 Tooltip 在两个边角没真机点过：通知里的关闭钮在有模态弹窗时悬停、菜单触发钮（编辑器润色 / 更多、模型套更多操作）在菜单开着时悬停——提示层会叠在最上，Esc 先关提示。
   - 本地未跑三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话），以 CI `Windows Verify` 的 `pnpm verify` 为准。
   - 未跑 Rust 测试与 Tauri 冒烟（本刀不动宿主）。
+
+## 2026-10-31 追加：修三处统一带来的观感回退（同一分支，#566 合之前）
+
+- 改动（协调方审 #566 后要求；上文映射表、目录表、观感清单已同步成最终版）：
+  1. 紫描边被换成紫实底：`Button` 加变体 `agent-subtle`（`ui/Button.tsx` 的 `ButtonVariant` 与 `index.css` 各加一处，写法照现有 `.sf-button[data-variant=...]`：透明底、`border-color: rgb(var(--agent) / 0.4)`、`color: rgb(var(--agent))`，悬停 `background: rgb(var(--agent) / 0.1)` 仍是紫字）。在本 PR 的 diff 里 grep 原来带 `border-agent` / `text-agent` 的按钮，被映射成 `agent` 实底的只有两处，都改用 `agent-subtle`：作品总览「AI 起草第 N 章」、观测镜检查器「让 AI 查」。原来就是紫实底的知识收件箱「确认写进文件」仍是 `agent`；通知动作原来是紫字无底，但当初映射成 secondary 不是 agent，按要求先不动；其余 3 处 `variant="agent"`（ChapterBriefCard、WriteBatchCard、WriteBatchResultCard）是本 PR 之前就有的。
+  2. 尺寸先保高度：规则改成上文「尺寸先保高度」，逐颗复核 46 处 Button（原高度按继承行高手算），改了 23 处：
+     - `mini` → `xs`（原 `h-7`）：知识收件箱 编辑 / 审阅 / 拒绝 / 取消 / 关闭 / 保存修改 / 确认写进文件（7）。
+     - `mini` → `compact`（原 `h-6`）：拆书「打开 Markdown」「查看 JSON」「放进 写法/」、复制、重新生成（5）。
+     - `mini` → `compact`（10px 字带边框，原 22px）：确定补录、补录…、并入、标为已回收（4）。
+     - `compact` → `xs`（`py-1` 带边框，原 26px）：章节索引「重试」、重新读取大纲、重新读取资料、版本「对比当前」、分支「从此开分支」「对比父版本」（6）。
+     - `compact` → `mini`（原 20px：通知容器 `text-xs` 行高 16 + `py-0.5`）：通知动作（1）。这是唯一字号变小的（12 → 10px）。规则写的是「保高度」，所以照做了；要是更想保字号，改回 `compact` 只是一行。
+     - 不用动的另外 23 处：观测镜 作废 / 取消 / 保留已记的 / 以本章为准 / 不要 / 让 AI 查（19–21px，mini）；其余 `h-6`、`h-7`、`h-8`、`h-9` 和 `py-1` 无边框 24px 的本来就按高度对上了。纯图标钮的方框尺寸原来就和 `h-*` / `w-*` 一致，不用改。
+  3. 速记行的改 / 删：从 IconButton（20px 方钮 + 外包 span）改回 PlainButton，原 className（`mt-[2px] … opacity-40 … group-hover:opacity-100`）、`aria-label`、原生 `title` 原样，`data-testid="book-note-edit"` 还在。和菜单里的图标动作同一口径。
+  - `tests/ui-primitives.test.tsx` 加一条：`ButtonVariant` 的 6 个变体、除默认 `sm` 外的 5 个尺寸，在 `index.css` 里都有 `.sf-button[data-…='…'] {` 这条基础规则。
+
+- 验证：
+  - `pnpm lint`：EXIT=0（2 条既有 warning，prettier 通过）。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14252 passed / 2 skipped；`packages/` 相对 master 无改动，golden 零变化。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，270 个文件，2752 passed（多的 1 条是变体 / 尺寸样式那条）。
+  - 变异验证：把 `index.css` 里 `.sf-button[data-variant='agent-subtle'] {` 改名成 `agent-soft` → 新那条红（只剩悬停规则时也拦得住，因为断言带 ` {`）；按字节改回后 11 passed，`git diff` 里 `index.css` 只剩新增的两段规则。
+  - 行尾：`index.css` 仍是纯 CRLF（1275 行），其余改过的文件仍是纯 LF；本记录 LF。
+
+- 未覆盖：同上文——没截图看观感；本地未跑三个浏览器回归，以 CI 为准；未跑 Rust 测试与 Tauri 冒烟。

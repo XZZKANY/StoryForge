@@ -481,7 +481,7 @@ export function BookProfileView({
                 </ul>
                 <div className="mt-2 flex gap-1.5">
                   <Button
-                    size="mini"
+                    size="compact"
                     onClick={() => onOpenBreakdown('markdown')}
                     leadingIcon={<FileText size={11} strokeWidth={1.7} />}
                     data-testid="book-breakdown-open"
@@ -489,7 +489,7 @@ export function BookProfileView({
                     打开 Markdown
                   </Button>
                   <Button
-                    size="mini"
+                    size="compact"
                     onClick={() => onOpenBreakdown('json')}
                     leadingIcon={<BookOpen size={11} strokeWidth={1.7} />}
                     data-testid="book-breakdown-open-json"
@@ -508,7 +508,7 @@ export function BookProfileView({
                           拆出的写法 skill：{(breakdown.writing_skills.names ?? []).join('、')}
                         </div>
                         <Button
-                          size="mini"
+                          size="compact"
                           className="mt-1"
                           onClick={onAdoptBreakdownSkills}
                           data-testid="book-breakdown-adopt-skills"
@@ -669,25 +669,25 @@ export function BookProfileView({
                       </span>
                     </PlainButton>
                   )}
-                  <span className="flex flex-shrink-0 opacity-40 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                    <IconButton
-                      size="mini"
-                      label={`改速记 ${note.text}`}
-                      tooltip="改这条"
-                      icon={<Pencil size={11} strokeWidth={2} />}
-                      onClick={() =>
-                        setEditingNote({ line: note.line, original: note.text, text: note.text })
-                      }
-                      data-testid="book-note-edit"
-                    />
-                    <IconButton
-                      size="mini"
-                      label={`删除速记 ${note.text}`}
-                      tooltip="删除这条"
-                      icon={<X size={11} strokeWidth={2} />}
-                      onClick={() => void handle.removeNote(note)}
-                    />
-                  </span>
+                  <PlainButton
+                    className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                    title="改这条"
+                    aria-label={`改速记 ${note.text}`}
+                    onClick={() =>
+                      setEditingNote({ line: note.line, original: note.text, text: note.text })
+                    }
+                    data-testid="book-note-edit"
+                  >
+                    <Pencil size={11} strokeWidth={2} />
+                  </PlainButton>
+                  <PlainButton
+                    className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                    title="删除这条"
+                    aria-label={`删除速记 ${note.text}`}
+                    onClick={() => void handle.removeNote(note)}
+                  >
+                    <X size={11} strokeWidth={2} />
+                  </PlainButton>
                 </li>
               ))}
             </ul>

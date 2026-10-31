@@ -192,13 +192,13 @@ function BranchNodeRow({
           <Button
             onClick={onBranchFrom}
             disabled={!!node.version.unavailableReason}
-            size="compact"
+            size="xs"
             data-testid="branch-node-fork"
           >
             从此开分支
           </Button>
           {parent && (
-            <Button onClick={compareWithParent} size="compact" data-testid="branch-node-compare">
+            <Button onClick={compareWithParent} size="xs" data-testid="branch-node-compare">
               对比父版本
             </Button>
           )}

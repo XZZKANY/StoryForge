@@ -166,7 +166,7 @@ function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
               取消
             </Button>
             <Button
-              size="mini"
+              size="compact"
               onClick={() => {
                 setConfirming(false);
                 backfill.start();
@@ -184,7 +184,7 @@ function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
             {unrecorded.length > BACKFILL_BATCH ? `一次补 ${BACKFILL_BATCH} 章。` : ''}
           </p>
           <Button
-            size="mini"
+            size="compact"
             onClick={() => setConfirming(true)}
             data-testid="obs-facts-backfill-start"
           >

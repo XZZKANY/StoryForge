@@ -1134,6 +1134,11 @@ button:disabled[aria-busy='true'] {
     background: rgb(var(--agent));
     color: rgb(var(--agent-foreground));
   }
+  /* AI 相关的次要动作：紫描边紫字、无底，免得一排紫色实底块（紫色当金子省着用）。 */
+  .sf-button[data-variant='agent-subtle'] {
+    border-color: rgb(var(--agent) / 0.4);
+    color: rgb(var(--agent));
+  }
   .sf-button[data-variant='secondary'] {
     border-color: rgb(var(--border-strong));
     background: rgb(var(--surface));
@@ -1156,6 +1161,10 @@ button:disabled[aria-busy='true'] {
   .sf-button[data-variant='agent']:not(:disabled):hover {
     background: rgb(var(--agent) / 0.9);
     color: rgb(var(--agent-foreground));
+  }
+  .sf-button[data-variant='agent-subtle']:not(:disabled):hover {
+    background: rgb(var(--agent) / 0.1);
+    color: rgb(var(--agent));
   }
   .sf-button[data-variant='danger']:not(:disabled):hover {
     background: rgb(var(--error) / 0.1);

@@ -336,7 +336,7 @@ export function VersionHistory({
                             disabled={!!v.unavailableReason || previewLoadingPath !== null}
                             onClick={() => void togglePreview(v)}
                             title="与编辑器当前内容对比"
-                            size="compact"
+                            size="xs"
                             data-testid="version-preview-toggle"
                           >
                             {previewLoadingPath === v.path

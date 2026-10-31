@@ -38,7 +38,7 @@ export function MessageActions({
     <div className={`mt-1 flex items-center gap-1 ${className}`} data-testid="message-actions">
       <Button
         variant="ghost"
-        size="mini"
+        size="compact"
         leadingIcon={<Copy size={12} strokeWidth={1.7} />}
         onClick={() =>
           void writeClipboard(content).then(
@@ -56,7 +56,7 @@ export function MessageActions({
       {onRegenerate && (
         <Button
           variant="ghost"
-          size="mini"
+          size="compact"
           leadingIcon={<RefreshCw size={12} strokeWidth={1.7} />}
           onClick={onRegenerate}
           data-testid="message-regenerate"

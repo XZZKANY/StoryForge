@@ -159,7 +159,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                   <div className="mt-2 flex items-center gap-1">
                     <Button
                       variant="ghost"
-                      size="mini"
+                      size="xs"
                       leadingIcon={<Pencil size={11} />}
                       onClick={() =>
                         setEditing({
@@ -176,7 +176,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                     ) : (
                       <Button
                         variant="ghost"
-                        size="mini"
+                        size="xs"
                         leadingIcon={<Eye size={11} />}
                         disabled={handle.busyProposalId === proposal.proposal_id}
                         onClick={() => void handle.materialize(group, proposal)}
@@ -186,7 +186,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
                     )}
                     <Button
                       variant="danger"
-                      size="mini"
+                      size="xs"
                       className="ml-auto"
                       leadingIcon={<X size={11} />}
                       disabled={handle.busyProposalId === proposal.proposal_id}
@@ -336,10 +336,10 @@ function ProposalEditor({
         />
       )}
       <div className="flex justify-end gap-1">
-        <Button variant="ghost" size="mini" onClick={onCancel}>
+        <Button variant="ghost" size="xs" onClick={onCancel}>
           取消
         </Button>
-        <Button variant="primary" size="mini" leadingIcon={<Check size={11} />} onClick={onSave}>
+        <Button variant="primary" size="xs" leadingIcon={<Check size={11} />} onClick={onSave}>
           保存修改
         </Button>
       </div>
@@ -367,12 +367,12 @@ function KnowledgePatchReview({ handle }: { handle: KnowledgeInboxHandle }) {
         </div>
       </div>
       <div className="mt-2 flex justify-end gap-1">
-        <Button variant="ghost" size="mini" onClick={handle.clearReview}>
+        <Button variant="ghost" size="xs" onClick={handle.clearReview}>
           关闭
         </Button>
         <Button
           variant="agent"
-          size="mini"
+          size="xs"
           leadingIcon={<Check size={11} />}
           disabled={handle.busyProposalId === patch.proposal_id}
           onClick={() => void handle.accept()}

@@ -286,7 +286,7 @@ export function BookOverview({
             <span className="min-w-0 flex-1">
               章节索引读取失败：{chapterIndex.error ?? '未知错误'}
             </span>
-            <Button onClick={chapterIndex.refresh} size="compact">
+            <Button onClick={chapterIndex.refresh} size="xs">
               重试
             </Button>
           </div>
@@ -416,7 +416,7 @@ export function BookOverview({
                 <Button
                   onClick={onRefresh}
                   disabled={profile.refreshing}
-                  size="compact"
+                  size="xs"
                   className="mt-3"
                   data-testid="book-overview-retry-outline"
                 >
