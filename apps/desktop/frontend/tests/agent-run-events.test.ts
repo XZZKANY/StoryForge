@@ -3,6 +3,11 @@ import { test } from 'vitest';
 
 import { reconstructAgentResultFromEvents } from '../src/lib/api/agent-run-events';
 import type { AgentErrorMessage, AgentResultMessage } from '../src/lib/api/types';
+import { truncationWarningFromAgentResult } from '../src/components/chat-window/review';
+import {
+  CHAPTER_TRUNCATION_WARNING,
+  chapterWriteRebuildEvents,
+} from './support/chapter-write-rebuild-events';
 
 const CONTEXT = { sessionId: 'session-1', runId: 'run-1' };
 
@@ -124,4 +129,79 @@ test('claim ownership keeps historical chronology while selecting the new termin
     CONTEXT,
   ) as AgentResultMessage;
   assert.equal(diagnostic.agent_result.summary, 'old');
+});
+
+const CHAPTER_PATCH = {
+  id: 'chapter-writing-1',
+  file_path: '正文/第03章.md',
+  before: '',
+  after: ['# 第三章', '', '他推开门，看见'].join('\n'),
+};
+
+test('写章停在半句：重建结果从同一次执行的 chapter_check 产物取回截断警告', () => {
+  const result = reconstructAgentResultFromEvents(
+    chapterWriteRebuildEvents({
+      patch: CHAPTER_PATCH,
+      truncationWarning: CHAPTER_TRUNCATION_WARNING,
+    }),
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal(result.intent, 'chapter.write');
+  assert.deepEqual(result.agent_result.truncation_warning, CHAPTER_TRUNCATION_WARNING);
+  assert.equal(truncationWarningFromAgentResult(result), CHAPTER_TRUNCATION_WARNING.message);
+  assert.equal(result.agent_result.requires_user_confirmation, true);
+});
+
+test('写章收句：重建结果不带截断警告', () => {
+  const result = reconstructAgentResultFromEvents(
+    chapterWriteRebuildEvents({ patch: CHAPTER_PATCH, truncationWarning: null }),
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal('truncation_warning' in result.agent_result, false);
+  assert.equal(truncationWarningFromAgentResult(result), null);
+});
+
+test('截断警告只认紧挨这份写章补丁的检查，别的补丁或上一次执行的检查不算', () => {
+  const events = chapterWriteRebuildEvents({
+    patch: CHAPTER_PATCH,
+    truncationWarning: CHAPTER_TRUNCATION_WARNING,
+  });
+  const terminal = events.at(-1)!;
+  const otherPatch = { ...CHAPTER_PATCH, id: 'chapter-writing-2' };
+  const swapped = reconstructAgentResultFromEvents(
+    [
+      ...events.slice(0, -1),
+      { ...terminal, payload: { ...terminal.payload, proposed_patch: otherPatch } },
+    ],
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal(truncationWarningFromAgentResult(swapped), null);
+
+  const revised = reconstructAgentResultFromEvents(
+    [
+      ...events.slice(0, -1),
+      {
+        ...terminal,
+        payload: {
+          ...terminal.payload,
+          proposed_patch: {
+            ...(terminal.payload!.proposed_patch as object),
+            created_by_tool: 'file.revise',
+          },
+        },
+      },
+    ],
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal(truncationWarningFromAgentResult(revised), null);
+
+  const nextExecution = reconstructAgentResultFromEvents(
+    [
+      ...events.slice(0, -1),
+      { id: 12, event_type: 'agent_execution_started', payload: {} },
+      { ...terminal, payload: { ...terminal.payload, execution_id: 12 } },
+    ],
+    CONTEXT,
+  ) as AgentResultMessage;
+  assert.equal(truncationWarningFromAgentResult(nextExecution), null);
 });

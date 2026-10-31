@@ -50,6 +50,33 @@ function toolTraceFromEvents(events: AgentRunEventRecord[]): AgentToolTrace[] {
   return traces;
 }
 
+function artifactEvent(event: AgentRunEventRecord, kind: string): Record<string, unknown> | null {
+  if (event.event_type !== 'agent_artifact') return null;
+  const payload = asRecord(event.payload);
+  return payload.kind === kind ? asRecord(payload.payload) : null;
+}
+
+/**
+ * 写章的截断警告不进终态事件，只记在同一次执行的 chapter_check 产物里；
+ * 取紧挨着这份补丁产物之前的那份，免得拿到别的稿子的检查。
+ */
+function chapterTruncationWarning(
+  segment: AgentRunEventRecord[],
+  patch: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (patch.created_by_tool !== 'chapter.write' || typeof patch.id !== 'string') return null;
+  const patchIndex = segment.findIndex(
+    (event) => artifactEvent(event, 'proposed_patch')?.id === patch.id,
+  );
+  for (let index = patchIndex - 1; index >= 0; index -= 1) {
+    const check = artifactEvent(segment[index]!, 'chapter_check');
+    if (check === null) continue;
+    const warning = asRecord(check.truncation_warning);
+    return typeof warning.message === 'string' && warning.message.trim() ? warning : null;
+  }
+  return null;
+}
+
 /**
  * 从事件表重建 AgentSocketMessage：前端超时转后台轮询后，用这批持久化事件把丢失的
  * 瞬时 _STREAM_RESULT 还原成完成 / 失败 / 待确认结果（F10）。找不到终态事件返回 null（继续轮询）。
@@ -114,6 +141,12 @@ export function reconstructAgentResultFromEvents(
     payload.proposed_patch && typeof payload.proposed_patch === 'object'
       ? (payload.proposed_patch as AgentProposedPatch)
       : null;
+  const truncationWarning = proposedPatch
+    ? chapterTruncationWarning(
+        events.slice(ownerIndex + 1, events.indexOf(terminal)),
+        asRecord(proposedPatch),
+      )
+    : null;
   const requiresConfirmation =
     terminal.event_type === 'permission_required' || Boolean(payload.requires_user_confirmation);
 
@@ -144,6 +177,7 @@ export function reconstructAgentResultFromEvents(
           }
         : {}),
       ...(requiresConfirmation ? { writeback_blocked_until_user_confirms: true } : {}),
+      ...(truncationWarning !== null ? { truncation_warning: truncationWarning } : {}),
     },
     tool_trace: toolTraceFromEvents(events),
     proposed_patch: proposedPatch,

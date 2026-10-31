@@ -8,6 +8,11 @@ import {
   takePendingFileSuggestion,
 } from '../src/lib/assistant-events';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
+import { reconstructAgentResultFromEvents } from '../src/lib/api/agent-run-events';
+import {
+  CHAPTER_TRUNCATION_WARNING,
+  chapterWriteRebuildEvents,
+} from './support/chapter-write-rebuild-events';
 
 const PROJECT = 'D:\\连载\\雾港回声';
 const FILE = 'D:\\连载\\雾港回声\\大纲\\总纲.md';
@@ -87,4 +92,19 @@ test('引擎给的字数提示随补丁交给编辑器、写进旁注；没有�
   const plain = emitted(response({}));
   assert.equal(plain.lengthHint, undefined);
   assert.ok(!plain.note.includes('字数提示'));
+});
+
+test('断线重建的写章结果：截断警告同样随补丁交给编辑器；收句的不带', () => {
+  const rebuilt = (truncationWarning: Record<string, unknown> | null) =>
+    reconstructAgentResultFromEvents(
+      chapterWriteRebuildEvents({
+        patch: { id: 'chapter-writing-1', file_path: FILE, before: '', after: '他推开门，看见' },
+        truncationWarning,
+      }),
+      { sessionId: 'agent-session', runId: 'run-1' },
+    ) as ChatWindowAgentResult;
+  const warned = emitted(rebuilt(CHAPTER_TRUNCATION_WARNING));
+  assert.equal(warned.truncationWarning, CHAPTER_TRUNCATION_WARNING.message);
+  assert.equal(warned.before, '');
+  assert.equal(emitted(rebuilt(null)).truncationWarning, undefined);
 });
