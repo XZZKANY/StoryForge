@@ -10,6 +10,7 @@ import type {
   ApiWriteBatchPlan,
 } from '../../lib/api/contracts';
 import { planWriteBatch } from '../../lib/api/write-batch';
+import { useAsyncEffect } from '../../lib/async-guards';
 
 /** 只有不写的章挂小标；要写的是默认，不标。 */
 const STATUS_TAG: Partial<Record<ApiWriteBatchChapter['status'], string>> = {
@@ -79,25 +80,24 @@ function useWriteBatchPlan(
       ? `${projectPath}\n${command.from}\n${command.to}\n${permissionProfile}`
       : null;
   const [loaded, setLoaded] = useState<{ key: string; view: PlanView } | null>(null);
-  useEffect(() => {
-    if (command.kind !== 'range' || key === null) return;
-    let cancelled = false;
-    const settle = (view: PlanView) => {
-      if (!cancelled) setLoaded({ key, view });
-    };
-    planWriteBatch({
-      projectRoot: projectPath,
-      from: command.from,
-      to: command.to,
-      permissionProfile,
-    }).then(
-      (plan) => settle({ status: 'ready', plan }),
-      (error: unknown) => settle({ status: 'error', message: errorText(error) }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [command, key, projectPath, permissionProfile]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (command.kind !== 'range' || key === null) return;
+      const settle = (view: PlanView) => {
+        if (isCurrent()) setLoaded({ key, view });
+      };
+      planWriteBatch({
+        projectRoot: projectPath,
+        from: command.from,
+        to: command.to,
+        permissionProfile,
+      }).then(
+        (plan) => settle({ status: 'ready', plan }),
+        (error: unknown) => settle({ status: 'error', message: errorText(error) }),
+      );
+    },
+    [command, key, projectPath, permissionProfile],
+  );
   if (key === null) return null;
   return loaded?.key === key ? loaded.view : { status: 'loading' };
 }

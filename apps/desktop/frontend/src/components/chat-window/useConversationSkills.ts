@@ -5,6 +5,7 @@ import {
   loadConversationSkills,
   type ConversationSkillItem,
 } from '../../lib/api/conversation-skills';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { PLUGINS_CHANGED_EVENT } from '../../lib/plugin-events';
@@ -88,20 +89,19 @@ export function useConversationSkills(projectPath: string | null) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!projectPath) return;
-    let cancelled = false;
-    const settle = (view: ConversationSkillsView) => {
-      if (!cancelled) setLoaded({ projectPath, view });
-    };
-    loadConversationSkills(projectPath).then(
-      (skills) => settle({ status: 'ready', skills }),
-      (error: unknown) => settle({ status: 'error', message: errorText(error) }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, version]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) return;
+      const settle = (view: ConversationSkillsView) => {
+        if (isCurrent()) setLoaded({ projectPath, view });
+      };
+      loadConversationSkills(projectPath).then(
+        (skills) => settle({ status: 'ready', skills }),
+        (error: unknown) => settle({ status: 'error', message: errorText(error) }),
+      );
+    },
+    [projectPath, version],
+  );
 
   const create = useCallback(
     async (skill: SkillTemplate) => {

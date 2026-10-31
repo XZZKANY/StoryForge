@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { useAsyncEffect } from '../../lib/async-guards';
 import { saveActiveEditorForClose } from '../../lib/assistant-events';
 import { useHostCloseGuard } from '../../lib/host-close';
 import { projectBasename } from '../../lib/project-context';
@@ -210,26 +211,25 @@ export function useEditorWorkspaceTabs({
   useLayoutEffect(() => {
     openFileRef.current = (path) => void openFile(path, '查看待确认新稿');
   });
-  useEffect(() => {
-    if (!activeProject || restoringProject) return;
-    let live = true;
-    void listPendingNewFileTargets(activeProject)
-      .then((targets) => {
-        if (!live || targets.length === 0) return;
-        setOpenFiles((current) => targets.reduce(openEditorFile, current));
-        const name = projectBasename(targets[0]);
-        emitToast(
-          targets.length === 1
-            ? `「${name}」还有一份待确认的新稿，已放回页签`
-            : `${targets.length} 个新文件还有待确认的新稿，已放回页签`,
-          { action: { label: '查看', run: () => openFileRef.current(targets[0]) } },
-        );
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [activeProject, restoringProject]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!activeProject || restoringProject) return;
+      void listPendingNewFileTargets(activeProject)
+        .then((targets) => {
+          if (!isCurrent() || targets.length === 0) return;
+          setOpenFiles((current) => targets.reduce(openEditorFile, current));
+          const name = projectBasename(targets[0]);
+          emitToast(
+            targets.length === 1
+              ? `「${name}」还有一份待确认的新稿，已放回页签`
+              : `${targets.length} 个新文件还有待确认的新稿，已放回页签`,
+            { action: { label: '查看', run: () => openFileRef.current(targets[0]) } },
+          );
+        })
+        .catch(() => undefined);
+    },
+    [activeProject, restoringProject],
+  );
 
   const resetEditorFiles = useCallback(() => {
     setOpenFiles([]);

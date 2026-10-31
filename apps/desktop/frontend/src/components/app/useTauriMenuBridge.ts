@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { isTauriRuntime, loadHostEventListen, type HostEventListen } from '../../lib/tauri-env';
 
 /**
@@ -23,10 +24,9 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     callbacksRef.current = { onRestoreFullLayout };
   });
 
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     if (!isTauriRuntime()) return;
 
-    let isCancelled = false;
     const unlistenFns: Array<() => void> = [];
 
     const registerMenuListeners = async () => {
@@ -39,7 +39,7 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
         );
         return;
       }
-      if (isCancelled) return;
+      if (!isCurrent()) return;
 
       setIsDesktopRuntime(true);
 
@@ -60,7 +60,6 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     void registerMenuListeners();
 
     return () => {
-      isCancelled = true;
       setIsDesktopRuntime(false);
       setTauriMenuReady(false);
       setTauriMenuError('');

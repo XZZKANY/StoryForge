@@ -1,5 +1,5 @@
 /** 设置「关于」分组：版本、检查更新与更新说明。 */
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useState } from 'react';
 
 import {
   checkAppUpdate,
@@ -8,6 +8,7 @@ import {
   useAppUpdate,
   type AppUpdateState,
 } from '../../lib/app-update';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { currentAppVersion } from '../../lib/update-check';
 import { Button } from '../ui';
 import { SettingsSearchContext } from './search-context';
@@ -64,14 +65,10 @@ export function AboutRows() {
   const [version, setVersion] = useState<string | null>(null);
   const update = useAppUpdate();
 
-  useEffect(() => {
-    let cancelled = false;
+  useAsyncEffect((isCurrent) => {
     void currentAppVersion().then((value) => {
-      if (!cancelled) setVersion(value);
+      if (isCurrent()) setVersion(value);
     });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const runCheck = async () => {

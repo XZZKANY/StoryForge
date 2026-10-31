@@ -7,6 +7,7 @@ import {
   type PatchRejection,
 } from '../../lib/assistant-events';
 import { requestCrossChapterConsistency } from '../../lib/api-client';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
   formatCrossChapterFindings,
@@ -313,48 +314,47 @@ export function useChatSubmission(
 
   // Keep the pending instruction visible through a patch/brief decision. Cancellation or
   // navigation before this microtask claims it wins; a new run never clears a newer draft.
-  useEffect(() => {
-    if (
-      agentBusy ||
-      deliveryUnknown ||
-      submitting ||
-      awaitingDecision ||
-      writeBatchOpen ||
-      batchOccupied ||
-      !queuedMessage ||
-      queuedMessage.scope !== scope
-    )
-      return;
-    let cancelled = false;
-    queueMicrotask(() => {
+  useAsyncEffect(
+    (isCurrent) => {
       if (
-        cancelled ||
-        deliveryUnknownRef.current ||
-        batchOccupiedRef.current ||
-        !isCurrentScope() ||
-        queuedRef.current !== queuedMessage ||
-        sendingRef.current
+        agentBusy ||
+        deliveryUnknown ||
+        submitting ||
+        awaitingDecision ||
+        writeBatchOpen ||
+        batchOccupied ||
+        !queuedMessage ||
+        queuedMessage.scope !== scope
       )
         return;
-      queuedRef.current = null;
-      setQueuedMessage(null);
-      void handleComposerSubmit(queuedMessage.content);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    agentBusy,
-    deliveryUnknown,
-    submitting,
-    awaitingDecision,
-    writeBatchOpen,
-    batchOccupied,
-    handleComposerSubmit,
-    isCurrentScope,
-    queuedMessage,
-    scope,
-  ]);
+      queueMicrotask(() => {
+        if (
+          !isCurrent() ||
+          deliveryUnknownRef.current ||
+          batchOccupiedRef.current ||
+          !isCurrentScope() ||
+          queuedRef.current !== queuedMessage ||
+          sendingRef.current
+        )
+          return;
+        queuedRef.current = null;
+        setQueuedMessage(null);
+        void handleComposerSubmit(queuedMessage.content);
+      });
+    },
+    [
+      agentBusy,
+      deliveryUnknown,
+      submitting,
+      awaitingDecision,
+      writeBatchOpen,
+      batchOccupied,
+      handleComposerSubmit,
+      isCurrentScope,
+      queuedMessage,
+      scope,
+    ],
+  );
 
   /**
    * 作者否掉一版并说了「该怎么改」时，把这句话当成一次真实的作者发言发出去。

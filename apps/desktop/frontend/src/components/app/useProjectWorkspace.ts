@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   loadProjectAssistantSessions,
   RECENT_PROJECTS_KEY,
   saveProjectAssistantSessions,
 } from './helpers';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { bindReasoningEffortProject } from '../../lib/reasoning-effort';
 import { isTauriRuntime } from '../../lib/tauri-env';
 import { TauriFileSystem } from '../../lib/tauri-fs';
@@ -58,15 +59,14 @@ export function useProjectWorkspace({
     () => loadProjectAssistantSessions(),
   );
 
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     // 最近列表先由同一 owner 展示；异步校验只能删除仍属于启动基线的失效路径。
     if (!isTauriRuntime()) return;
     const projectList = initialProjectsRef.current;
     const baseline = new Set(projectList);
-    let cancelled = false;
     void (async () => {
       const existing = new Set(await filterExistingPaths(projectList));
-      if (cancelled) return;
+      if (!isCurrent()) return;
       setProjects((current) => {
         const next = current.filter(
           (path) =>
@@ -77,9 +77,6 @@ export function useProjectWorkspace({
         return next;
       });
     })();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const selectProject = useCallback(

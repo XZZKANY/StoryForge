@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type * as monaco from 'monaco-editor';
 
+import { useMountedRef } from '../../lib/async-guards';
 import type { AuthorLoopResult } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import type { RevisionLoopRecord, RevisionLoopResult } from '../../lib/author-loop';
@@ -88,17 +89,11 @@ export function useSuggestionState({
     suggestion: AssistantFileSuggestion;
     message: string;
   } | null>(null);
-  const mountedRef = useRef(false);
   const dropOpenFilePathRef = useRef(dropOpenFilePath);
   useLayoutEffect(() => {
     dropOpenFilePathRef.current = dropOpenFilePath;
   }, [dropOpenFilePath]);
-  useLayoutEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const mountedRef = useMountedRef();
 
   // 引擎标了「新稿可能没写完」的补丁：整份接受第一次只武装、不写，同一份补丁武装着再来一次才写；
   // 超时、失焦、换补丁、点了别的操作都撤销武装。
@@ -110,7 +105,7 @@ export function useSuggestionState({
     truncationTimerRef.current = null;
     truncationArmedIdRef.current = null;
     if (mountedRef.current) setTruncationArmedId(null);
-  }, []);
+  }, [mountedRef]);
   const armTruncatedAccept = useCallback(
     (suggestionId: string) => {
       if (truncationTimerRef.current) clearTimeout(truncationTimerRef.current);
@@ -188,7 +183,7 @@ export function useSuggestionState({
       pendingSuggestionRef.current = next;
       setPendingSuggestion(next);
     },
-    [enqueueWriteback, projectPathRef, setSuggestionStatus],
+    [enqueueWriteback, mountedRef, projectPathRef, setSuggestionStatus],
   );
 
   const beginAction = useCallback(
@@ -206,7 +201,7 @@ export function useSuggestionState({
       setActionState({ kind, suggestionId: suggestion.id });
       return token;
     },
-    [filePathRef, projectPathRef],
+    [filePathRef, mountedRef, projectPathRef],
   );
 
   const isCurrentAction = useCallback(
@@ -220,7 +215,7 @@ export function useSuggestionState({
         action.filePath === filePathRef.current
       );
     },
-    [filePathRef, projectPathRef],
+    [filePathRef, mountedRef, projectPathRef],
   );
 
   const failAction = useCallback(
@@ -238,11 +233,14 @@ export function useSuggestionState({
     [isCurrentAction, setSuggestionStatus],
   );
 
-  const finishAction = useCallback((token: symbol) => {
-    if (actionInFlightRef.current?.token !== token) return;
-    actionInFlightRef.current = null;
-    if (mountedRef.current) setActionState(null);
-  }, []);
+  const finishAction = useCallback(
+    (token: symbol) => {
+      if (actionInFlightRef.current?.token !== token) return;
+      actionInFlightRef.current = null;
+      if (mountedRef.current) setActionState(null);
+    },
+    [mountedRef],
+  );
 
   return {
     pendingSuggestion,
