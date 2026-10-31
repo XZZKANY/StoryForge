@@ -293,13 +293,14 @@ export {
   suggestedActionsForReview,
 } from './kernel/reviewSkills';
 export type { ReviewIssue } from './kernel/reviewSkills';
+export type { LlmPort } from './kernel/llmPort';
 export {
   heuristicReviewReasoner,
   llmReviewReasoner,
   MAX_REVIEW_PROMPT_CHARS,
   REVIEW_AGENT_KEYS,
 } from './kernel/reviewReasoning';
-export type { ReviewLlmPort, ReviewReasoner, ReviewSubagentResult } from './kernel/reviewReasoning';
+export type { ReviewReasoner, ReviewSubagentResult } from './kernel/reviewReasoning';
 export {
   buildMultiAgentReviewReport,
   continuitySubagentHandler,
@@ -331,7 +332,6 @@ export {
   MIN_CHAPTERS,
   PER_CHAPTER_CHAR_BUDGET,
 } from './kernel/crossChapter';
-export type { CrossChapterLlmPort } from './kernel/crossChapter';
 export {
   ANALYSIS_KEYS,
   ANALYSIS_SCHEMA_VERSION,
@@ -348,7 +348,7 @@ export {
   selectRepresentativeChapters,
   SELECTION_STRATEGY_VERSION,
 } from './kernel/bookBreakdown';
-export type { BreakdownLlmPort, BreakdownModel } from './kernel/bookBreakdown';
+export type { BreakdownModel } from './kernel/bookBreakdown';
 export { DocxReadError, readDocxText } from './kernel/docx';
 export { executeIdeCommand, IDE_COMMANDS } from './kernel/ideCommands';
 export { recordBookBreakdownRun } from './loop/bookBreakdownRun';
