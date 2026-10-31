@@ -30,11 +30,6 @@ function rosterSpanLabel(entry: RosterEntry): string {
     : `第 ${entry.firstChapter}–${entry.lastChapter} 章在场`;
 }
 
-/** 手稿视图的分区一律 `manuscript-` 前缀，testid 与抽出公共组件前保持一致。 */
-function Section(props: Omit<Parameters<typeof PanelSection>[0], 'prefix'>) {
-  return <PanelSection {...props} prefix="manuscript" />;
-}
-
 /** 被截断时把丢掉的条数说清楚；没截断就不占版面。 */
 function DroppedNote({ total, shown, unit }: { total: number; shown: number; unit: string }) {
   const dropped = droppedCount(total, shown);
@@ -193,7 +188,8 @@ export function ManuscriptView({
               </PlainButton>
             ) : null}
 
-            <Section
+            <PanelSection
+              prefix="manuscript"
               title="骨架索引"
               meta={`${snapshot.skeleton.length}/${snapshot.skeletonTotal}`}
               testid="skeleton"
@@ -224,9 +220,10 @@ export function ManuscriptView({
                 shown={snapshot.skeleton.length}
                 unit="份"
               />
-            </Section>
+            </PanelSection>
 
-            <Section
+            <PanelSection
+              prefix="manuscript"
               title="模型拿到的实体名单"
               meta={`${snapshot.roster.length}/${snapshot.rosterDeclaredTotal}`}
               testid="roster"
@@ -260,9 +257,10 @@ export function ManuscriptView({
                 shown={snapshot.roster.length}
                 unit="位"
               />
-            </Section>
+            </PanelSection>
 
-            <Section
+            <PanelSection
+              prefix="manuscript"
               title="模型这轮收到的原文"
               meta={snapshot.promptBlock ? `${snapshot.promptBlock.length} 字` : '空'}
               testid="prompt"
@@ -289,7 +287,7 @@ export function ManuscriptView({
                   已指向事实卡 · {snapshot.dossierRelativePath}
                 </p>
               )}
-            </Section>
+            </PanelSection>
           </>
         )}
       </div>

@@ -49,3 +49,22 @@
 - 「登记意图之后」才撞上的漂移（预检与改名之间被改；以及因此落成 `not_written` 回执后作者再点接受）在前端只剩回执 `detail` 里的文字，`requireApplied` 抛的是普通 `Error`，补丁面板会提示「可重试」（以前靠文字命中不提示）。要按类型认得把 kind 写进回执，牵涉落盘回执兼容，归第 3 条那一刀。
 - 前端其余几处自己写的「内容已变化」拒写（撤销新建、版本恢复、Ctrl+K 行间修订的整文件漂移闸）不经补丁面板，没改成 `DiskDriftError`。
 - 本机没有建 symlink 的权限，Rust 里既有的 symlink 用例建链失败即提前返回，在本机是空过（经 symlink 越出作品报 `outside-project` 那两条因此只在有权限的机器上真跑）。
+
+## 2026-10-31 合并 origin/master（解 #572 拆分补丁面板后的冲突）
+
+- 起因：#578 与 master 冲突，GitHub 没跑 CI。#572 把 `PatchReviewPanel.tsx` 拆了：失败提示的纯函数 `actionFailureText` 挪到 `components/editor/patch-review-text.ts`，面板的本地报错状态与 `runAction` 挪到 `components/editor/usePatchReviewActions.ts`。#575 已合并，#577 只给 `lib/tauri-fs.ts` 末尾加了 `pickDirectory` / `pickFile`（自动合并，与本刀改的三个命令不相干）。
+- 做法：`git fetch origin && git merge origin/master`（没有 rebase、没有 force push）。只有 `PatchReviewPanel.tsx` 冲突，两段冲突都取 master 的新结构，再把本刀的改动落到新位置：
+  - `patch-review-text.ts`：`actionFailureText(error, cause)` 删掉 `includes('内容已变化')`，改看 `cause instanceof DiskDriftError`。
+  - `usePatchReviewActions.ts`：多收 `errorCause`；本地报错记下原错误（`cause`）；合出 `actionFailure`（外面传进来的报错 + `errorCause`，或面板自己接住的失败）一并返回，`actionError` 仍是字符串。
+  - `PatchReviewPanel.tsx`：把 `errorCause` 交给 `usePatchReviewActions`，状态条用 `actionFailure` 出字。
+  - `failAction` / `actionErrorCause`（`useSuggestionState.ts`、`useSuggestionWriteback.ts`、`Editor.tsx` 及 5 处调用）master 没动，自动合并，原样保留。
+- Rust：master 自 `d7e54da9` 起没有改 `apps/desktop/src-tauri`，合并后 Rust 与合并前提交 `2ccdbe84` 逐字节一致，没有重跑 cargo（上面 218 passed / 1 ignored 仍有效）。
+- 重跑本地门禁：
+  - `pnpm lint`：EXIT=0（0 error；2 条 warning 仍是没动的 `independent-claim-history.test.ts`；prettier 全部通过）。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：第一次与 lint 同时跑，`tests/focus-styles.test.ts` 一条超时（5000ms，它要编译整份样式表，与本刀无关）；单跑该文件 5 passed；不并发重跑全套：**271 个文件、2779 passed，EXIT=0**。
+  - `pnpm --filter @storyforge/engine test`（含 golden）：111 个文件、14267 passed / 2 skipped，EXIT=0；golden 零变化。
+- 合并后在新位置补做变异（打入、定点改回，sha256 与改前一致）：
+  1. `patch-review-text.ts` 加回 `|| error.includes('内容已变化')` → 守护「前端不靠宿主报错的文字做判断」红，报 `components/editor/patch-review-text.ts:24`。
+  2. `usePatchReviewActions.ts` 不再把 `errorCause` 带进 `actionFailure` → 2 条红：`patch-review-panel` 的「漂移拒写按错误类型认」与 `behavior/auto-writeback` 的「宿主漂移拒写一路带着类型到补丁面板」。守护与集成测试在新结构下仍然覆盖这条链路。
+- 未覆盖：同上一节；本地仍没跑三个浏览器回归，以 CI 为准。

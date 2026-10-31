@@ -23,13 +23,21 @@ const HARD_LINE_LIMITS: Record<string, number> = {
   'src/components/chat-window/useChatWindowState.ts': 500,
   'src/components/chat-window/useRunAuthorAgent.ts': 500,
 };
+// components 下每个子目录都列在这里（下面有测试钉住），加上 components 顶层的文件，
+// 就是 components 下的全部文件。
+const COMPONENTS_ROOT = 'src/components';
 const LIVE_MODULE_ROOTS = [
   'src/components/app',
   'src/components/chat-window',
+  'src/components/command-palette',
   'src/components/editor',
+  'src/components/icons',
+  'src/components/settings',
+  'src/components/shell',
+  'src/components/ui',
 ];
 const LIVE_MODULE_LINE_LIMIT = 500;
-// 拆分前就有的叶子视图，是冻结的旧账，不作为新模块的先例。
+// 拆分前就有的叶子视图，是冻结的旧账，不作为新模块的先例；另一会话 #561 正在改它，等那边合了再拆。
 const LIVE_MODULE_EXCEPTIONS = new Set(['src/components/chat-window/panels.tsx']);
 const ENGINE_GATEWAYS = ['src/lib/api/', 'src/lib/engine/'];
 
@@ -48,6 +56,12 @@ function sourceFiles(root: string): string[] {
   });
 }
 
+function topLevelSourceFiles(root: string): string[] {
+  return readdirSync(root)
+    .map((name) => join(root, name))
+    .filter((path) => statSync(path).isFile() && /\.tsx?$/.test(path));
+}
+
 const relativePath = (path: string) => relative('.', path).replace(/\\/g, '/');
 
 it('拆过的大文件不超过各自的硬上限', () => {
@@ -59,8 +73,8 @@ it('拆过的大文件不超过各自的硬上限', () => {
   expect(over).toEqual([]);
 });
 
-it('活跃模块目录下的文件不超过 500 行', () => {
-  const over = LIVE_MODULE_ROOTS.flatMap(sourceFiles)
+it('components 下的文件不超过 500 行', () => {
+  const over = [...topLevelSourceFiles(COMPONENTS_ROOT), ...LIVE_MODULE_ROOTS.flatMap(sourceFiles)]
     .map(relativePath)
     .filter((path) => !LIVE_MODULE_EXCEPTIONS.has(path))
     .flatMap((path) => {
@@ -68,6 +82,13 @@ it('活跃模块目录下的文件不超过 500 行', () => {
       return lines > LIVE_MODULE_LINE_LIMIT ? [`${path}: ${lines}`] : [];
     });
   expect(over).toEqual([]);
+});
+
+it('components 下每个子目录都列进了行数门禁', () => {
+  const unlisted = readdirSync(COMPONENTS_ROOT)
+    .map((name) => `${COMPONENTS_ROOT}/${name}`)
+    .filter((path) => statSync(path).isDirectory() && !LIVE_MODULE_ROOTS.includes(path));
+  expect(unlisted).toEqual([]);
 });
 
 it('界面只经 lib/api 进引擎，不直接引引擎包或 lib/engine', () => {
@@ -80,6 +101,86 @@ it('界面只经 lib/api 进引擎，不直接引引擎包或 lib/engine', () =>
       ),
     );
   expect(offenders).toEqual([]);
+});
+
+// 宿主访问只经这些封装；挪进 lib/host/ 待 #561 合后做。
+const HOST_ACCESS_MODULES = [
+  // lib/engine：给引擎装配原生读写口与应用版本
+  'src/lib/engine/agent.ts',
+  'src/lib/engine/assistant.ts',
+  'src/lib/engine/crossChapter.ts',
+  'src/lib/engine/db.ts',
+  'src/lib/engine/facts.ts',
+  'src/lib/engine/ideCommands.ts',
+  'src/lib/engine/llm.ts',
+  'src/lib/engine/reader.ts',
+  'src/lib/engine/writer.ts',
+  // lib 顶层的宿主封装
+  'src/lib/app-update.ts',
+  'src/lib/book-cover.ts',
+  'src/lib/desktop-llm-config.ts',
+  'src/lib/host-close.ts',
+  'src/lib/host-window.ts',
+  'src/lib/native-delivery.ts',
+  'src/lib/plugin-library.ts',
+  'src/lib/shadow-git.ts',
+  'src/lib/tauri-env.ts',
+  'src/lib/tauri-fs.ts',
+  'src/lib/update-check.ts',
+];
+
+it('只有白名单里的封装模块引 @tauri-apps，组件经它们调宿主', () => {
+  const importing = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => /['"]@tauri-apps\//.test(readFileSync(path, 'utf8')));
+  expect(importing.filter((path) => !HOST_ACCESS_MODULES.includes(path))).toEqual([]);
+  expect(
+    HOST_ACCESS_MODULES.filter((path) => !importing.includes(path)),
+    '不再调宿主了：从白名单去掉',
+  ).toEqual([]);
+});
+
+// 跨组件的窗口事件：名字跟着各自的领域模块以 export const XXX_EVENT 定义一次，派发与监听只引常量。
+// localStorage 键也以 storyforge: 开头，所以只认 *_EVENT 常量和事件调用的参数。
+const EVENT_CONSTANT = /^(.*?)\b(\w+_EVENT)\s*=\s*['"`](storyforge:[^'"`]*)['"`]/gm;
+const EVENT_NAME_LITERAL_IN_CALL =
+  /(?:dispatchEvent|addEventListener|removeEventListener|new\s+CustomEvent\s*(?:<[^(]*?>)?)\s*\(\s*['"`]storyforge:/;
+
+it('窗口事件名各在一处定义成 export const XXX_EVENT，别处只用常量', () => {
+  const texts = new Map(
+    sourceFiles('src').map((path) => [relativePath(path), readFileSync(path, 'utf8')] as const),
+  );
+  const definitions = [...texts].flatMap(([path, text]) =>
+    [...text.matchAll(EVENT_CONSTANT)].map(([, prefix, name, value]) => ({
+      path,
+      exported: prefix.trim() === 'export const',
+      name,
+      value,
+    })),
+  );
+  expect(definitions.length).toBeGreaterThan(20);
+  expect(definitions.filter((item) => !item.exported).map((item) => item.path)).toEqual([]);
+  const repeated = (values: string[]) =>
+    values.filter((value, index) => values.indexOf(value) !== index);
+  expect(repeated(definitions.map((item) => item.name))).toEqual([]);
+  expect(repeated(definitions.map((item) => item.value))).toEqual([]);
+
+  const quotedUses = (text: string, value: string) =>
+    ['"', "'", '`'].reduce(
+      (count, quote) => count + text.split(`${quote}${value}${quote}`).length - 1,
+      0,
+    );
+  const strayLiterals = definitions.flatMap(({ path: home, value }) =>
+    [...texts]
+      .filter(([path, text]) => quotedUses(text, value) > (path === home ? 1 : 0))
+      .map(([path]) => `${path}: ${value}`),
+  );
+  expect(strayLiterals).toEqual([]);
+
+  const literalCalls = [...texts]
+    .filter(([, text]) => EVENT_NAME_LITERAL_IN_CALL.test(text))
+    .map(([path]) => path);
+  expect(literalCalls).toEqual([]);
 });
 
 const ENGINE_SRC = '../../../packages/engine/src';

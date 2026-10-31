@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { FloatingSurface, PlainButton } from '../ui';
+import { FloatingSurface, MenuItem } from '../ui';
 export type ContextMenuItem =
   | { type: 'separator' }
   | { type?: 'item'; label: string; onSelect: () => void; danger?: boolean; disabled?: boolean };
@@ -37,11 +37,10 @@ export function ContextMenu({
         item.type === 'separator' ? (
           <div key={`sep-${index}`} role="separator" className="my-1 mx-1.5 h-px bg-border" />
         ) : (
-          <PlainButton
+          <MenuItem
             key={item.label}
-            role="menuitem"
             disabled={item.disabled}
-            className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-40 ${item.danger ? 'text-error hover:bg-error/10 focus:bg-error/10' : 'text-muted hover:bg-elevated hover:text-foreground focus:bg-elevated focus:text-foreground'}`}
+            danger={item.danger}
             onClick={() => {
               if (item.disabled) return;
               onClose();
@@ -49,7 +48,7 @@ export function ContextMenu({
             }}
           >
             {item.label}
-          </PlainButton>
+          </MenuItem>
         ),
       )}
     </FloatingSurface>

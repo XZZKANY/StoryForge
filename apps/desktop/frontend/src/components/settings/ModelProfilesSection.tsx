@@ -1,5 +1,5 @@
 import { useContext, useRef, useState } from 'react';
-import { Button, Field, FloatingSurface, IconButton, PlainButton, Select } from '../ui';
+import { Button, Field, FloatingSurface, IconButton, MenuItem, PlainButton, Select } from '../ui';
 import { Check, MoreHorizontal, Plus } from '../icons/shell-icons';
 import {
   describeProviderHealth,
@@ -262,37 +262,14 @@ function ProfileCard({
           className="w-48 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
           data-testid="model-profile-menu-list"
         >
-          <MenuRow label="编辑" onClick={run(onEdit)} />
-          {profile.hasApiKey && <MenuRow label="移除 Key" onClick={run(onClearKey)} />}
-          <MenuRow
-            label={active ? '删除（正在用，先切到别的）' : onlyOne ? '删除（至少留一套）' : '删除'}
-            disabled={active || onlyOne}
-            onClick={run(onDelete)}
-          />
+          <MenuItem onClick={run(onEdit)}>编辑</MenuItem>
+          {profile.hasApiKey && <MenuItem onClick={run(onClearKey)}>移除 Key</MenuItem>}
+          <MenuItem disabled={active || onlyOne} onClick={run(onDelete)}>
+            {active ? '删除（正在用，先切到别的）' : onlyOne ? '删除（至少留一套）' : '删除'}
+          </MenuItem>
         </FloatingSurface>
       )}
     </div>
-  );
-}
-
-function MenuRow({
-  label,
-  disabled = false,
-  onClick,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <PlainButton
-      role="menuitem"
-      disabled={disabled}
-      className="flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
-      onClick={onClick}
-    >
-      {label}
-    </PlainButton>
   );
 }
 

@@ -5,8 +5,8 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
-import { RefreshCw } from '../src/components/icons/shell-icons';
-import { ModalDialog, Spinner } from '../src/components/ui';
+import { RefreshCw, X } from '../src/components/icons/shell-icons';
+import { MenuItem, MenuItemAction, ModalDialog, Spinner } from '../src/components/ui';
 
 // 加载圈只留 components/ui/Spinner 一种做法：要转圈就用 <Spinner />，刷新图标转圈用它的 icon 属性；
 // 按钮自己的加载态由 Button 内部管。别处手写 animate-spin 或借用按钮的类，就又各写各的了。
@@ -175,4 +175,88 @@ it('Button 的每个变体与尺寸在 index.css 里都有样式（sm 是默认�
     expect(css, variant).toContain(`.sf-button[data-variant='${variant}'] {`);
   for (const size of ['mini', 'compact', 'xs', 'md', 'lg'])
     expect(css, size).toContain(`.sf-button[data-size='${size}'] {`);
+});
+
+// 菜单项只留 components/ui/Menu 一种做法（MenuItem，行尾图标小操作用 MenuItemAction）：别处再手写
+// role="menuitem"，行高、悬停与键盘焦点底色、危险 / 禁用态就又各定各的。菜单容器仍是 FloatingSurface。
+const MENUITEM_EXEMPT = new Set([
+  // 等 #561 合了再收：这个文件另一会话正在改，本刀没动。
+  'src/components/chat-window/ContextPanel.tsx',
+]);
+
+it('role="menuitem" 只在 components/ui 里声明（#561 在改的文件暂时豁免；选择器里查不算）', () => {
+  const declaresMenuItem = /(?<!\[)\brole=\{?\s*['"]menuitem/;
+  expect(declaresMenuItem.test('<PlainButton role="menuitem">')).toBe(true);
+  expect(declaresMenuItem.test("<button role={'menuitemradio'}>")).toBe(true);
+  expect(declaresMenuItem.test(`querySelectorAll('[role="menuitem"]')`)).toBe(false);
+  const files = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => declaresMenuItem.test(readFileSync(path, 'utf8')));
+  expect(files).toContain('src/components/ui/Menu.tsx');
+  expect(
+    files.filter((path) => !path.startsWith('src/components/ui/') && !MENUITEM_EXEMPT.has(path)),
+  ).toEqual([]);
+});
+
+it('MenuItem：当前项打 ✓，快捷键与次要信息靠右；危险、禁用照样是 menuitem；给了 actions 就和小操作排成一行', () => {
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(
+    <>
+      <MenuItem current hint="10:30">
+        第五章
+      </MenuItem>
+      <MenuItem shortcut="Ctrl S">保存</MenuItem>
+      <MenuItem danger disabled>
+        删除
+      </MenuItem>
+      <MenuItem actions={<MenuItemAction label="移除 雾港" title="移除" icon={<X size={12} />} />}>
+        雾港
+      </MenuItem>
+    </>,
+  );
+  const items = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+  expect(items.map((item) => item.textContent)).toEqual([
+    '✓ 第五章10:30',
+    '保存Ctrl S',
+    '删除',
+    '雾港',
+    '',
+  ]);
+  expect(items[0].className).toContain('text-foreground');
+  expect(items[1].querySelector('.font-mono')?.textContent).toBe('Ctrl S');
+  expect(items[2].disabled).toBe(true);
+  expect(items[2].className).toContain('text-error');
+  const row = items[3].parentElement!;
+  expect(row.className).toContain('group');
+  expect(row.lastElementChild).toBe(items[4]);
+  expect(items[4].getAttribute('aria-label')).toBe('移除 雾港');
+  expect(items[4].getAttribute('title')).toBe('移除');
+});
+
+// 同一个组件名只在一处定义：MenuRow（页签菜单、模型卡片各一份）、Section（手稿 / 作品 / 观测镜各包一层
+// PanelSection）都曾各写一份。要复用就从定义它的文件导出，别在新文件里再写一个同名的。
+it('大写开头的函数（组件）不在多个文件里各自定义，MenuItem 只在 ui/Menu.tsx', () => {
+  const declared = /^(?:export )?function ([A-Z]\w*)/gm;
+  const sample = ['function MenuRow() {}', 'export function Section() {}', '  function Inner() {}'];
+  expect([...sample.join('\n').matchAll(declared)].map((match) => match[1])).toEqual([
+    'MenuRow',
+    'Section',
+  ]);
+  const owners = new Map<string, Set<string>>();
+  for (const path of sourceFiles('src').map(relativePath)) {
+    if (path.endsWith('.css')) continue;
+    for (const [, name] of readFileSync(path, 'utf8').matchAll(declared))
+      owners.set(name, (owners.get(name) ?? new Set()).add(path));
+  }
+  expect(
+    [...owners].filter(([, paths]) => paths.size > 1).map(([name, paths]) => [name, [...paths]]),
+  ).toEqual([]);
+  expect([...(owners.get('MenuItem') ?? [])]).toEqual(['src/components/ui/Menu.tsx']);
+  expect(owners.has('MenuRow')).toBe(false);
+});
+
+// 设置行（标题 + 说明在左、控件在右）只有 settings/SettingRows 的 RowShell 一个外壳：行高、内边距、
+// 字号与搜索过滤都在那里定。外观分区曾另写过 ChoiceRow / SelectFieldRow / ColorRow 三个外壳。
+it('设置行的行高只写在 SettingRows 里', () => {
+  expect(filesContaining('min-h-[76px]')).toEqual(['src/components/settings/SettingRows.tsx']);
 });
