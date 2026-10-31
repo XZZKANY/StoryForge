@@ -524,7 +524,7 @@ test('接受的重入闸必须在第一个 await 之前合上', () => {
   // 落位动效把 teardown 推到 await 之后，zone 还挂着、sessionRef 还在，
   // 接受键与 Alt+Enter 在那 170ms 里都还能再次触发。闸若晚于任一 await 才合上，
   // 两次点击就会各写一次盘。（改前 teardown 同步先跑，第二次触发天然被挡住。）
-  const hookPath = '../src/components/editor/useInlineChat.ts';
+  const hookPath = '../src/components/editor/useInlineDiff.ts';
   const source = readFileSync(fileURLToPath(new URL(hookPath, import.meta.url)), 'utf8');
   const body = source.match(
     /const applyAccepted = useCallback\(async \(\) => \{[\s\S]*?\n {2}\}, \[/,
