@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 
 import { listLlmProfiles } from '../../lib/desktop-llm-config';
 import { MoreHorizontal, Sparkles } from '../icons/shell-icons';
-import { FloatingSurface, IconButton, MenuItem } from '../ui';
+import { FloatingSurface, IconButton, MenuItem, MenuSeparator } from '../ui';
 
 export function PolishActionsMenu({
   onPolishActive,
@@ -121,9 +121,9 @@ export function EditorActionsMenu({
             <MenuItem shortcut="Ctrl Shift H" onClick={run(onToggleHistory)}>
               版本历史
             </MenuItem>
-            <div className="mx-1.5 my-1 h-px bg-border" />
+            <MenuSeparator />
             <MenuItem onClick={run(onExportActive)}>导出当前稿</MenuItem>
-            <div className="mx-1.5 my-1 h-px bg-border" />
+            <MenuSeparator />
             <MenuItem shortcut="Ctrl W" onClick={run(onCloseActive)}>
               关闭当前页签
             </MenuItem>

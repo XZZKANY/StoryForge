@@ -8,7 +8,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 
-import { TauriFileSystem } from './tauri-fs';
+import { pickFile, TauriFileSystem } from './tauri-fs';
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -66,14 +66,8 @@ export async function importCoverImage(
   projectPath: string,
   previousFileName: string | null,
 ): Promise<string | null> {
-  const { open } = await import('@tauri-apps/plugin-dialog');
-  const selected = await open({
-    multiple: false,
-    directory: false,
-    title: '选择封面图片',
-    filters: [{ name: '图片', extensions: COVER_EXTENSIONS }],
-  });
-  if (typeof selected !== 'string' || !selected) return null;
+  const selected = await pickFile('选择封面图片', [{ name: '图片', extensions: COVER_EXTENSIONS }]);
+  if (!selected) return null;
 
   const fileName = coverFileNameFor(selected);
   if (!fileName) throw new Error('只支持 JPG / PNG / WebP / GIF 图片');

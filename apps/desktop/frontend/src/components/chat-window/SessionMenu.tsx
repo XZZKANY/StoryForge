@@ -7,7 +7,7 @@ import { useState, type RefObject } from 'react';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
 import { Pencil, Plus, Search, X } from '../icons/shell-icons';
-import { FloatingSurface, MenuItem, MenuItemAction } from '../ui';
+import { FloatingSurface, MenuItem, MenuItemAction, MenuSeparator } from '../ui';
 import { sessionDisplayTitle } from './useSessionManagement';
 
 export function SessionMenu({
@@ -140,7 +140,7 @@ export function SessionMenu({
       )}
       {onNewSession && (
         <>
-          <div className="mx-1.5 my-1 h-px bg-border" />
+          <MenuSeparator />
           <MenuItem
             icon={<Plus size={13} strokeWidth={1.7} />}
             onClick={() => {

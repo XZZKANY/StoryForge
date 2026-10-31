@@ -1,5 +1,5 @@
 /** 设置「关于」分组：版本、检查更新与更新说明。 */
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 
 import {
   checkAppUpdate,
@@ -11,7 +11,7 @@ import {
 import { useAsyncEffect } from '../../lib/async-guards';
 import { currentAppVersion } from '../../lib/update-check';
 import { Button } from '../ui';
-import { SettingsSearchContext } from './search-context';
+import { useSettingsRowVisible } from './search-context';
 import { RowShell } from './SettingRows';
 
 function updateStatus(update: AppUpdateState): { label: string; tone: string } | null {
@@ -48,8 +48,8 @@ function updateStatus(update: AppUpdateState): { label: string; tone: string } |
 const quietly = (task: () => Promise<void>) => () => void task().catch(() => {});
 
 function UpdateNotes({ latest, notes }: { latest: string; notes: string }) {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
-  if (query && !`更新说明 ${notes}`.toLowerCase().includes(query)) return null;
+  const visible = useSettingsRowVisible('更新说明', notes);
+  if (!visible) return null;
   return (
     <div className="px-4 pb-3" data-testid="about-update-notes">
       <div className="text-xs font-medium text-foreground">{latest} 更新说明</div>

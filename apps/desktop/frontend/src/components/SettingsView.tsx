@@ -1,7 +1,7 @@
 import { ModalDialog, Button, Input } from './ui';
 import { AppDialogHost, useAppDialog } from './app/AppDialog';
 
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   DEFAULT_APP_SETTINGS,
   sanitizeAppSettings,
@@ -13,7 +13,11 @@ import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './
 import { useModelProfiles } from './settings/useModelProfiles';
 import { ModelProfilesSection } from './settings/ModelProfilesSection';
 import { AppearanceSection } from './settings/AppearanceSection';
-import { SettingsSearchContext } from './settings/search-context';
+import {
+  SettingsSearchContext,
+  settingsTextMatches,
+  useSettingsQuery,
+} from './settings/search-context';
 import { usePlugins } from './settings/usePlugins';
 import { PluginsSection } from './settings/PluginsSection';
 import { takeRequestedSettingsSection } from '../lib/settings-section';
@@ -348,10 +352,10 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
 }
 
 function ProviderRuntimeEnvNotice() {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
+  const query = useSettingsQuery();
   const description =
     '配置保存在本机 llm-provider.json，API Key 加密存放，保存后界面不再读回明文。模型请求由桌面应用直接发到你填的服务地址；密钥不写进浏览器存储，也不进日志。';
-  if (query && !`连接与存储详情 ${description}`.toLowerCase().includes(query)) return null;
+  if (!settingsTextMatches(query, `连接与存储详情 ${description}`)) return null;
   return (
     <details
       className="px-4 py-3 text-xs text-muted"

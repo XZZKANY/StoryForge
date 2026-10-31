@@ -140,6 +140,14 @@ it('只有白名单里的封装模块引 @tauri-apps，组件经它们调宿主'
   ).toEqual([]);
 });
 
+// 系统选文件 / 文件夹对话框只经 tauri-fs 的 pickFile / pickDirectory：选封面图片曾在 book-cover 里自己再调一遍。
+it('@tauri-apps/plugin-dialog 只在 tauri-fs 里引', () => {
+  const importing = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => readFileSync(path, 'utf8').includes('@tauri-apps/plugin-dialog'));
+  expect(importing).toEqual(['src/lib/tauri-fs.ts']);
+});
+
 // 跨组件的窗口事件：名字跟着各自的领域模块以 export const XXX_EVENT 定义一次，派发与监听只引常量。
 // localStorage 键也以 storyforge: 开头，所以只认 *_EVENT 常量和事件调用的参数。
 const EVENT_CONSTANT = /^(.*?)\b(\w+_EVENT)\s*=\s*['"`](storyforge:[^'"`]*)['"`]/gm;
