@@ -10,11 +10,8 @@ import {
   runStatusText,
 } from '../src/components/chat-window/display-utils';
 import { formatElapsed } from '../src/components/chat-window/RunElapsed';
-import {
-  ContextSummaryPanel,
-  MessageItem,
-  RunActionBar,
-} from '../src/components/chat-window/panels';
+import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
+import { MessageItem, RunActionBar } from '../src/components/chat-window/panels';
 import type { AgentRun } from '../src/components/chat-window/types';
 
 test('assistant message renders markdown structure, not raw markers', () => {
