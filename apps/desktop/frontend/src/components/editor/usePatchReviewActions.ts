@@ -8,11 +8,13 @@ export function usePatchReviewActions({
   suggestion,
   actionKind,
   error,
+  errorCause,
   onCancelTruncatedAccept,
 }: {
   suggestion: AssistantFileSuggestion;
   actionKind: PatchAction | null;
   error: string | null;
+  errorCause?: unknown;
   onCancelTruncatedAccept?: () => void;
 }) {
   // 补丁一来审阅就占满编辑区、停在第一处改动（作者 10-16：此前默认在正文下方劈出一块、从第 1 行
@@ -43,10 +45,17 @@ export function usePatchReviewActions({
   const [localError, setLocalError] = useState<{
     suggestion: AssistantFileSuggestion;
     message: string;
+    cause: unknown;
   } | null>(null);
   const actionState =
     actionKind ?? (localAction?.suggestion === suggestion ? localAction.kind : null);
-  const actionError = error ?? (localError?.suggestion === suggestion ? localError.message : null);
+  const actionFailure =
+    error !== null
+      ? { message: error, cause: errorCause }
+      : localError?.suggestion === suggestion
+        ? localError
+        : null;
+  const actionError = actionFailure?.message ?? null;
   const actionInFlightRef = useRef<{ kind: PatchAction; token: symbol } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const actionBusy = actionState !== null;
@@ -78,6 +87,7 @@ export function usePatchReviewActions({
         setLocalError({
           suggestion,
           message: error instanceof Error ? error.message : String(error),
+          cause: error,
         });
       };
       try {
@@ -104,6 +114,7 @@ export function usePatchReviewActions({
     setRejectDraft,
     actionState,
     actionError,
+    actionFailure,
     actionInFlightRef,
     panelRef,
     actionBusy,

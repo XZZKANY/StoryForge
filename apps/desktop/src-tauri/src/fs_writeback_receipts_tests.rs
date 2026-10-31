@@ -74,6 +74,7 @@ fn same_identity_different_payload_is_rejected_before_mutation() {
     assert!(
         write_file_with_receipt(root, request.clone(), baseline(), None)
             .unwrap_err()
+            .message
             .contains("身份冲突")
     );
     assert_eq!(fs::read_to_string(request.path).unwrap(), "after\n");
@@ -82,11 +83,10 @@ fn same_identity_different_payload_is_rejected_before_mutation() {
 fn pre_dispatch_drift_is_definitely_not_written_and_has_no_claim() {
     let (_temp, root, request) = fixture();
     fs::write(&request.path, "external").unwrap();
-    assert!(
-        write_file_with_receipt(root.clone(), request.clone(), baseline(), Some(7))
-            .unwrap_err()
-            .contains("磁盘内容已变化")
-    );
+    let error =
+        write_file_with_receipt(root.clone(), request.clone(), baseline(), Some(7)).unwrap_err();
+    assert_eq!(error.kind, "drift", "{error:?}");
+    assert!(error.message.starts_with("磁盘内容已变化"), "{error:?}");
     assert!(inspect_writeback_receipt(root, request.clone())
         .unwrap()
         .is_none());
@@ -163,6 +163,7 @@ fn malformed_or_unwritable_intent_never_dispatches() {
     assert!(
         write_file_with_receipt(root, request.clone(), baseline(), Some(7))
             .unwrap_err()
+            .message
             .contains("结果未知")
     );
     assert_eq!(fs::read_to_string(request.path).unwrap(), "before\r\n");

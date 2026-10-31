@@ -2,6 +2,7 @@
 // Intent and outcome are separate immutable, synced files. A surviving intent without
 // outcome is UNKNOWN, including when target bytes equal before/after: never replay it.
 use crate::fs::{self as project_fs, DiskBaseline};
+use crate::host_error::HostError;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -286,19 +287,21 @@ pub fn write_file_with_receipt(
     request: WritebackRequest,
     expected: DiskBaseline,
     checkpoint_timestamp: Option<u64>,
-) -> Result<WritebackReceipt, String> {
+) -> Result<WritebackReceipt, HostError> {
     apply_with(
         &project_root,
         &request,
         expected,
         checkpoint_timestamp,
         |expected| {
+            // 落进回执的 detail 只记原文，回执格式不变。
             project_fs::write_file_if_unchanged(
                 project_root.clone(),
                 request.path.clone(),
                 request.content.clone(),
                 expected,
             )
+            .map_err(|error| error.message)
         },
     )
 }
@@ -390,7 +393,7 @@ fn apply_with(
     expected: DiskBaseline,
     checkpoint_timestamp: Option<u64>,
     write: impl FnOnce(DiskBaseline) -> Result<(), String>,
-) -> Result<WritebackReceipt, String> {
+) -> Result<WritebackReceipt, HostError> {
     let location = resolve(project_root, request)?;
     if let Some(receipt) = inspect(&location)? {
         return Ok(repair_canon_invalidation(&location, receipt));
@@ -413,7 +416,7 @@ fn apply_with(
     };
     if let Err(error) = append_once(&intent_path, &intent) {
         // Another process may own this identity. No contender gets to dispatch.
-        return inspect(&location)?.ok_or(error);
+        return inspect(&location)?.ok_or_else(|| error.into());
     }
     let (state, mut detail) = match write(expected) {
         Ok(()) => ("applied", None),

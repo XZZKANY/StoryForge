@@ -5,6 +5,12 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useBookProfile } from '../src/components/app/useBookProfile';
 import { BookOverview } from '../src/components/app/BookOverview';
+import {
+  DiskDriftError,
+  HostFileError,
+  ProjectFileMissingError,
+  ProjectPathOutsideError,
+} from '../src/lib/host-file-errors';
 import { buildProjectIndex } from '../src/lib/project-context';
 import { TauriFileSystem } from '../src/lib/tauri-fs';
 import { scanManuscriptTotals } from '../src/lib/manuscript-stats';
@@ -214,9 +220,9 @@ test('book.json 不是有效的 JSON：如实报出，保存也不写盘', async
   assert.equal(mockedCondWrite.mock.calls.length, 0);
 });
 
-test('宿主报「作品文件不存在」：当作档案还没建，保存以「不存在」为基线新建', async () => {
+test('宿主报文件还没有（missing）：当作档案还没建，保存以「不存在」为基线新建', async () => {
   mockedRead.mockImplementation(async (_root, path) => {
-    if (path.endsWith('book.json')) throw new Error(`作品文件不存在: ${path}`);
+    if (path.endsWith('book.json')) throw new ProjectFileMissingError(`作品文件不存在: ${path}`);
     return '';
   });
   await render();
@@ -230,9 +236,10 @@ test('宿主报「作品文件不存在」：当作档案还没建，保存以�
   assert.ok(mockedRead.mock.calls.every(([projectRoot]) => projectRoot === 'D:/book'));
 });
 
-test('宿主报「路径不在当前作品内」：不当成还没建，如实报出且不写盘', async () => {
+test('宿主报越出作品（outside-project）：不当成还没建，如实报出且不写盘', async () => {
   mockedRead.mockImplementation(async (_root, path) => {
-    if (path.endsWith('book.json')) throw new Error(`路径不在当前作品内: ${path}`);
+    if (path.endsWith('book.json'))
+      throw new ProjectPathOutsideError(`路径不在当前作品内: ${path}`);
     return '';
   });
   await render();
@@ -242,6 +249,22 @@ test('宿主报「路径不在当前作品内」：不当成还没建，如实�
   );
   await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
   assert.equal(mockedCondWrite.mock.calls.length, 0);
+});
+
+test('作品目录本身读不了（io，中文 Windows 系统原话带「找不到」）：不当成档案还没建，如实报出且不写盘', async () => {
+  const detail = '无法解析作品目录 D:/book: 系统找不到指定的路径。 (os error 3)';
+  mockedRead.mockImplementation(async (_root, path) => {
+    if (path.endsWith('book.json')) throw new HostFileError(detail);
+    return '';
+  });
+  await render();
+  assert.equal(
+    container!.querySelector('[data-profile-error]')?.getAttribute('data-profile-error'),
+    detail,
+  );
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.equal(mockedCondWrite.mock.calls.length, 0);
+  assert.equal(mockedWrite.mock.calls.length, 0);
 });
 
 test('没改动的保存不写盘', async () => {
@@ -260,7 +283,7 @@ test('连着两次保存排队写：第二次以第一次写下的内容为基�
   mockedCondWrite.mockImplementation(async (_root, _path, content, expected) => {
     await Promise.resolve();
     if (expected.kind !== 'content' || expected.content !== disk)
-      throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+      throw new DiskDriftError('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
     disk = content;
   });
   function TwoSaves() {
