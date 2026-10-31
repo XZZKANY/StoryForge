@@ -2,7 +2,7 @@
  * AI 回复下面的小操作（作者 10-17 巡检：单条消息上什么都做不了）：复制这条回复；
  * 最后一条回复还能「重新生成」——把它前面作者那句话再发一次。
  */
-import { Copy, RefreshCw } from 'lucide-react';
+import { Copy, RefreshCw } from '../icons/shell-icons';
 
 import { emitToast } from '../../lib/toast';
 

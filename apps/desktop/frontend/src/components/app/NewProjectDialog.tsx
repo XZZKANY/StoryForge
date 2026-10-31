@@ -1,7 +1,7 @@
 import { Field, Input, ModalDialog, Button } from '../ui';
 
 import { useEffect, useRef, type RefObject } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen } from '../icons/shell-icons';
 import type { NewProjectController } from './useNewProject';
 
 type NewProjectDialogProps = {

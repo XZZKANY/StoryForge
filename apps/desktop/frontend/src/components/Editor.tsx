@@ -51,6 +51,7 @@ import {
 import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
 import type { FileCursor } from '../lib/workspace-session';
 import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
+import { Folder } from './icons/shell-icons';
 import { Spinner } from './ui';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
@@ -993,14 +994,7 @@ export function Editor({
             emptyState
           ) : (
             <div className="text-center">
-              <svg
-                className="w-10 h-10 mx-auto mb-3 text-muted/60"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M2 2h7l2 2h3v10H2V2zm1 1v10h10V5h-3l-2-2H3z" />
-              </svg>
+              <Folder size={40} strokeWidth={1.4} className="mx-auto mb-3 text-muted/60" />
               <p className="text-base mb-1 text-foreground">未选择文件</p>
               <p className="text-sm">{emptyStateHint}</p>
             </div>

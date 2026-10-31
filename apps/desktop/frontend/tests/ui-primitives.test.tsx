@@ -1,11 +1,11 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { RefreshCw } from 'lucide-react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
+import { RefreshCw } from '../src/components/icons/shell-icons';
 import { ModalDialog, Spinner } from '../src/components/ui';
 
 // 加载圈只留 components/ui/Spinner 一种做法：要转圈就用 <Spinner />，刷新图标转圈用它的 icon 属性；
@@ -121,4 +121,22 @@ it('Spinner 转图标时只在 spinning 为真时转', () => {
   expect(idle).toContain('stroke-width="1.6"');
   expect(idle).toContain('aria-hidden="true"');
   expect(renderToStaticMarkup(<Spinner icon={RefreshCw} />)).toContain('animate-spin');
+});
+
+// 图标只从 components/icons/shell-icons 一处来：别处直接引 lucide-react（类型也经它再导出）、
+// 另画一套 svg 图标或手写 <svg>，尺寸与描边就又各定各的。
+it('lucide-react 只在 shell-icons 里引入，类型也不例外', () => {
+  const importsLucide = /['"]lucide-react(?:\/[^'"]*)?['"]/;
+  expect(importsLucide.test("import type { LucideIcon } from 'lucide-react';")).toBe(true);
+  expect(importsLucide.test("import { X } from './icons/shell-icons';")).toBe(false);
+  const files = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => importsLucide.test(readFileSync(path, 'utf8')));
+  expect(files).toEqual(['src/components/icons/shell-icons.tsx']);
+});
+
+it('手画的 StoryIcons 已删，界面里也不再手写 <svg>', () => {
+  expect(existsSync('src/components/StoryIcons.tsx')).toBe(false);
+  expect(filesContaining('StoryIcons')).toEqual([]);
+  expect(filesContaining('<svg')).toEqual([]);
 });

@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from '../icons/shell-icons';
 
 export type SpinnerProps = {
   /** 边长（px）。 */
