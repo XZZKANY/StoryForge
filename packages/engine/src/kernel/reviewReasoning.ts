@@ -8,6 +8,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from './json';
+import type { LlmPort } from './llmPort';
 import { compactText, pythonSplitlines, pythonStrip } from './pythonText';
 import {
   characterAgentIssues,
@@ -34,12 +35,6 @@ export type ReviewSubagentResult = {
   degraded_reason: string | null;
   coverage: { [key: string]: unknown } | null;
 };
-
-/** 模型调用端口（P2 的 LLM 通道实现）：失败一律抛错，由审稿方降级为启发式。 */
-export type ReviewLlmPort = (request: {
-  systemPrompt: string;
-  userPrompt: string;
-}) => Promise<{ content: unknown; latency_ms?: unknown }>;
 
 const length = (text: string) => Array.from(text).length;
 
@@ -201,7 +196,7 @@ export const heuristicReviewReasoner: ReviewReasoner = {
 
 /** 三视角逐个调用模型；任一视角失败只降级该视角为启发式，并写明原因。 */
 export function llmReviewReasoner(options: {
-  callLlm: ReviewLlmPort;
+  callLlm: LlmPort;
   model: string | null;
   checkInterruption?: () => void;
 }): ReviewReasoner {

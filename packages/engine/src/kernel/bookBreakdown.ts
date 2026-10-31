@@ -14,6 +14,7 @@ import {
   pythonTruthy,
   type JsonValue,
 } from './json';
+import type { LlmPort } from './llmPort';
 import { PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
 import { sha256Hex } from './sha256';
 import {
@@ -89,11 +90,6 @@ export class BreakdownCancellations {
     this.tokens.delete(analysisId);
   }
 }
-
-export type BreakdownLlmPort = (request: {
-  systemPrompt: string;
-  userPrompt: string;
-}) => Promise<{ content: unknown }>;
 
 export type Chapter = {
   chapter_id: string;
@@ -573,7 +569,7 @@ export async function selectedContext(
 export type BreakdownModel = {
   provider: string | null;
   model: string | null;
-  callLlm: BreakdownLlmPort;
+  callLlm: LlmPort;
 };
 
 async function modelAnalysis(

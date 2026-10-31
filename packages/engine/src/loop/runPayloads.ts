@@ -1,5 +1,6 @@
 import { cloneJson, type JsonValue } from '../kernel/json';
 import { pythonStrip } from '../kernel/pythonText';
+import { AgentOrchestrationError } from '../kernel/reviseDelivery';
 import {
   getAgentRole,
   normalizeAgentRoleInputs,
@@ -15,12 +16,8 @@ const cpLen = (text: string) => Array.from(text).length;
 const isPyInt = (value: unknown): value is number | boolean =>
   typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
 
-export class AgentOrchestrationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AgentOrchestrationError';
-  }
-}
+// 内核（reviseScope / reviseDelivery）与 loop 抛的必须是同一个类，agentRuntime 的 instanceof 才认得两边。
+export { AgentOrchestrationError };
 
 export const SUPPORTED_INTENTS = new Set([
   'chat.explain',
