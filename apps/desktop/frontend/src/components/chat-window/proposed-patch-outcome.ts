@@ -19,6 +19,7 @@ import type { AgentRunStatus, ChatWindowAgentResult } from './types';
  * 把 Agent 返回的 proposed patch 投成编辑器建议事件。
  * 目标不在当前项目内即阻断写回并报错；成功则发 ready 建议并停在 waiting，
  * 两种情况都由调用方结束本轮（原实现两分支都以 return 收尾）。
+ * 返回交给编辑器的目标文件；被拦下（不在作品里）为 null。
  */
 export function emitProposedPatchOutcome(params: {
   response: ChatWindowAgentResult;
@@ -30,7 +31,7 @@ export function emitProposedPatchOutcome(params: {
   settleDiagnostic: (detail: string) => void;
   settleText: (content: string, append?: boolean) => void;
   updateAgentStatus: (status: AgentRunStatus) => void;
-}): void {
+}): string | null {
   const { response, proposed } = params;
   const writingContext = writingContextFromAgentResult(response, params.contextRelativePaths);
   const filePath = resolveProposedPatchFilePath(params.projectPath, proposed.file_path);
@@ -44,7 +45,7 @@ export function emitProposedPatchOutcome(params: {
       assistantSessionId: response.assistant_session_id,
     });
     params.updateAgentStatus('failed');
-    return;
+    return null;
   }
   params.settleText(response.agent_result.summary ?? '已生成待确认修订。', false);
   emitFileSuggestion(
@@ -75,4 +76,5 @@ export function emitProposedPatchOutcome(params: {
     assistantSessionId: response.assistant_session_id,
   });
   params.updateAgentStatus('waiting');
+  return filePath;
 }

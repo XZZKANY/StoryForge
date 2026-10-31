@@ -1,0 +1,89 @@
+## 2026-10-30 `/写` 批量写章 E 刀：界面调度器
+
+- 背景：方案见 `docs/internal/write-batch-plan-2026-10.md`（作者 10-30 已审 10 问；第 1 问选 B 一次性授权、第 5 问选 A 没审完不能开新批）。本分支从 C 刀 `origin/feat/write-batch-record`（PR #547）切出，合并 D 刀 `origin/feat/write-batch-command`（无冲突）。只动界面；引擎判定一行没改（`git diff --stat ab7a8e64 HEAD -- packages/engine` 为空），帧契约、写章固定流程、golden 都没动（`git status --short packages/engine/golden` 为空）。不调模型。
+- 调度循环的状态机（`useWriteBatchScheduler` 的 phase，按作品记）：
+  - `idle` →（D 卡「开始写」→ `startWriteBatch`；`started:false` 时把引擎重出的计划交回卡片显示新拦法，仍是 idle）→ `running`。
+  - `running`：`write-batch-loop.ts` 一圈 = 问 `nextWriteBatchStep`（每次读作者此刻存的档位与当前模型标识）→ `write` 时发起这一章（`runAuthorAgent(…, 'agent', 'chapter.write', [], { targetFilePath, writeBatchGrant })`，话是「写第 k 章（批量第 i / n 章）」+ 有要求时换行接「作者要求：…」）→ 交回修订且不需要作者点时等写进文件与事实记账落定（最多 180 秒，超时当没写进去）→ `recordWriteBatchChapter` → 回到问下一步。`stop` / `finished` 结束；作者按停止、没能开跑（`not_dispatched`）、拿不到结果（`unsettled`）、正文写进去但事实没记上、任何一步抛错 → 调 `stopWriteBatch` 结束（后三种用界面能送的 `run_not_started`，说明写原因）。
+  - 结束后读一遍 `readWriteBatch` → `result`（停下 / 写完的卡）。卡上「这批审完了」→ `markWriteBatchReviewed`；「从第 {resume_from} 章接着写」（只看引擎的 `can_resume`）→ `resumeWriteBatch` → `confirming`。
+  - `confirming`：引擎续写时已开好一段（记录是 running），用同一张确认卡给出重新估的计划与「从第 k 章接着写」标题。点开始 → `running`（不再调 start）；取消 → `stopWriteBatch(author_stopped, '续写没有开始：你在确认卡上点了取消。')` → 回 `result`。续写开不了（有新拦法）→ 卡上只有原因与「关闭」→ 回到原来的卡；这一批的章都有正文了 → 引擎记成写完，回 `result` 并显示引擎给的说明。
+  - `/写`（不带范围）：先 `readWriteBatch`，能续（或停下却续不了，交给引擎记成写完）走续写；没有批量 / 写完了 / 还在写，在卡上说明原因。
+  - 打开作品：`recoverInterruptedWriteBatch` → `readWriteBatch`，最近一批停下或写完、没审完 → 出 `result` 卡，不自动续；读不出就提示（不吞）。
+  - 换作品 / 卸载：归属失效，授权撤销，进行中的这一轮经 `sendAgentControlMessage(stop_run)` 停掉，`stopWriteBatch(author_stopped, '换了作品或关掉了对话，这一批停下了。')`；循环里晚到的结果一律不记、不出卡。
+- 怎么等到写进文件与记账落定：
+  - `lib/write-batch-writeback.ts`：按运行 id 的交接口。编辑器 `handleAcceptSuggestion` 在 `finally` 里交结果：写进去了就交 `writtenChapter(...)`（等事实记账的 Promise 落定后给出写进的路径、写前快照的版本记录、记账前给台账拍的版本记录、对不上的条数、记账出错的原因）；被拦下交原因；截断警告只武装时也交「要你看过再接受」。没人等也会交，只留最近 16 条。
+  - `writeAcceptedSuggestion` 记下写前快照的版本记录路径（`snapshotPath`），`recordAcceptedChapterFacts` 改为交回 `{ snapshotPath, disputes, error }`（原来是 `void`，编辑器那头照旧不等它）。存进批量记录的两个版本都转成作品内相对路径（`/` 分隔），F 刀撤销时用。
+  - 调度器只在「交回了修订、而且不用作者点」时等；要作者点、没交出修订、运行失败都不等，直接记，交给引擎判（`needs_confirmation` / `no_revision` / `run_failed` …）。
+- 升档入口怎么钉死：`lib/write-batch-grant.ts`。授权对象只能由 `issueWriteBatchGrant` 发（存在模块内 WeakMap，照形状拼的对象不认），`permissionForRun` 只在「作者存的是询问 + 授权有效 + 意图是写章 + 目标在这一段计划里 + 作品对得上」时返回 `auto`；批量结束 / 换作品即撤销。`useRunAuthorAgent` 只这一处换档，重试请求清掉授权。测试 `write-batch-grant.test.tsx` 扫源码钉住：发授权的只有 `write-batch-run.ts`，把授权放进运行选项的只有它，问 `permissionForRun` 的只有 `useRunAuthorAgent.ts`。作者存的档位不改、不写本机存储（浏览器回归核了输入框底部仍显示「询问」）。
+- 进行中的样子：输入框上方一条（运行状态条同一位置与样式）「批量写章 · 第 k 章（i / n）· 已用 X 万 / 上限 Y 万」+「停止」（试写段没上限就不显示上限；token 经 `lib/api` 的 `formatWriteBatchTokens` 用引擎 `formatTokenCount`）。批量中：输入框发话被拦（提示，草稿留着），待发队列不往外发；会话不能切换、新建，当前会话不能移除；润色与「移除知识后重试」也拦；「AI 起草下一章」等快捷入口藏起；任何「停止」都停这一批（先走现有的停止本轮）。确认卡收起。
+- 页签：每章开写前发 `before`（壳层 `useWriteBatchTabs` 记下目标页签此刻开没开着）；下一章真要开写时发 `close`，只关当时没开着、现在没有未保存修改的那个；最后一章留着。
+- 改动文件：
+  - 新：`src/lib/write-batch-grant.ts`、`src/lib/write-batch-writeback.ts`、`src/lib/write-batch-tabs.ts`、`src/components/app/useWriteBatchTabs.ts`、`src/components/chat-window/{write-batch-loop,write-batch-run,write-batch-view}.ts`、`useWriteBatchScheduler.ts`、`WriteBatchPanel.tsx`、`WriteBatchResultCard.tsx`。
+  - 改：`useRunAuthorAgent.ts`（交回 `RunAuthorAgentOutcome`、按授权换档、重试清授权）、`types.ts`、`proposed-patch-outcome.ts`（交回目标文件）、`useSuggestionWriteback.ts`（交结果、记写前快照路径）、`fact-write.ts`（交回记账结果）、`ChatWindow.tsx` / `ChatWindowView.tsx`（接调度器、拦会话与发话）、`useChatSubmission.ts`（占着时不发、`/写` 续写交调度器）、`WriteBatchCard.tsx`（接收已出好的计划与标题、开不了时显示引擎重出的计划或出错原因）、`lib/api/write-batch.ts`（`currentWriteBatchModelKey`：启用配置 id + 模型名；`formatWriteBatchTokens`）、`lib/engine/writeBatch.ts`（导出格式化）、`App.tsx`（+2 行，388/400）。
+- 验证（没跑整套 `pnpm verify` 与前端全量：作者正在用这台机器）：
+  - `npm --prefix apps/desktop/frontend run typecheck` EXIT=0；改动文件 eslint、prettier 通过。
+  - 新测试：`write-batch-grant.test.tsx` 9 条（`permissionForRun` 各种不升；源码扫描钉唯一入口；真 `useRunAuthorAgent` 发送边界上 auto / ask / read，失败时交 settled、重试不带授权）、`write-batch-loop.test.ts` 12 条（时序：等写进文件与记账落定才记、记完才问下一步、下一章开写前才关上一章页签；引擎停、作者停两处、运行失败、要作者点、被拦下、没开跑 / 结果未知、事实没记上、出错、换作品）、`write-batch-writeback.test.tsx` 4 条（交接口先交后等 / 先等后交 / 超时 / 中止；真编辑器自动接受后，记账落定前等不到，落定后交出快照与台账版本、对不上条数；快照失败交原因不记账）、`write-batch-scheduler.test.tsx` 13 条（真 ChatWindow + 假引擎：开跑逐章、档位 auto、进度条、写完的卡与审完；开不了显示新拦法；引擎停的卡与续写重新确认；续写取消；作者停止；运行失败 / 要作者点 / 写进文件被拦三种；出错停下；批量中不能发话 / 新建 / 切会话；换作品就地停、晚到不记、授权失效；`/写` 续写与没有批量；重开作品出卡）、`write-batch-tabs.test.tsx` 3 条。
+  - 相关旧测试两批一起跑：21 个文件 192 passed（含 D 刀三份、`source-standards`、`ui-terminology`、`fact-write`、`editor-accept-fact-record`、`chapter-write-request` 等）；38 个文件 595 passed（ChatWindow / App / 编辑器写进文件 / 运行控制相关）。
+  - 改了期望的旧测试：`fact-write.test.ts` 一条（`recordAcceptedChapterFacts` 现在交回结果，不再是 undefined）；`chapter-write-request.test.tsx` 与 `write-batch-card.test.tsx` 的 `lib/api/write-batch` 替身补 `recoverInterruptedWriteBatch` / `readWriteBatch`（打开作品时调度器会查一次上一批）。
+  - 浏览器回归 `node scripts/verify-agent-conversation.mjs`（apps/desktop/frontend 下，单跑）：第一次冷启动 Vite `page.goto` 30 秒超时（同 D 刀记录），第二次红在替身引擎的「从第几章续」口径（替身自己的错，已改成与真引擎同口径），第三次 EXIT=0。新段落：打 `/写 1-3` 出卡（D 刀原有断言保留）→「开始写」可点 → 点了以后第 2 章（第 1 章已有正文跳过）按自动档发起（`permission_profile: auto`、`file_path: 正文/第002章.md`、话是「写第 2 章（批量第 1 / 2 章）」）→ 替身调用顺序 start → next → record → next，开跑带作者存的「询问」与模型标识 → 替身模型不交修订、替身引擎停在第 2 章 → 停下的卡「这一批停下了：写了 0 章，用了 6 万」、原因原文、「从第 2 章接着写」→ 输入框底部仍是「询问」→「这批审完了」→ 已标审完 → 关闭。
+  - **与任务书的差距**：浏览器回归没能「假模型连写 3 章走完一批」。浏览器里没有宿主，写进文件第一步的整本书影子快照（`createShadowSnapshot`）必然失败、按 F27 拦下写回，所以真编辑器在浏览器里写不进任何一章；替身模型也就不交修订，只走到第一章发起和停下的卡。「连写多章、等写进文件与记账、关页签、写完的卡」由 vitest 里的真 ChatWindow + 假引擎（`write-batch-scheduler.test.tsx`）和真编辑器自动接受（`write-batch-writeback.test.tsx`）覆盖。
+- 变异（`output/write-batch-scheduler/mutate.py`：每处断言目标串恰好 1 次后替换，跑对应测试，无条件按原字节还原并核对 sha256；跑完 `git status` 干净）12 处全红：
+  - M1 编辑器那头不等事实记账就交结果 → `write-batch-writeback` 1 条红。
+  - M2 调度那头不等写进文件就记、就问下一步 → loop + scheduler 5 条红。
+  - M3 升档不看意图（非写章也升）→ grant 2 条红。M4 升档不看目标在不在计划里 → grant 2 条红。
+  - M5 作者停止后还接着问下一步、开下一章 → loop + scheduler 2 条红。
+  - M6 写完的卡没有「这批审完了」→ scheduler 1 条红。
+  - M7 页签全关（作者原本开着的也关）→ tabs 1 条红。M8 最后一章的页签也关 → loop + scheduler 4 条红。
+  - M9 批量中会话切换不拦 → scheduler 1 条红。M10 批量中输入框照样发话 → scheduler 2 条红。
+  - M11 换作品不停这一批 → scheduler 1 条红。M12 作者点的重试也带着这一批的授权 → grant 1 条红。
+- 行尾：`ChatWindowView.tsx`、`useSuggestionWriteback.ts` 原为 CRLF，改后仍全 CRLF（Python 按字节改）；其余改动与新建文件全 LF、无 BOM、无 CRCRLF。`--numstat` 与 `--ignore-all-space --numstat` 只在 `verify-agent-conversation.mjs`（回包包进三元多缩进一层）、`ChatWindowView.tsx`（章纲同位的批量写章段落换成 `WriteBatchPanel`）、`useSuggestionWriteback.ts`（记账那几行改成 `const facts = …` 多缩进一层）上不同，没有行尾翻转。
+- 没做 / 没验：
+  - 没在真宿主上跑（不编 Rust、不跑 Tauri 冒烟与真宿主探针，D 盘紧），没跑真模型。真引擎下「写章运行交出修订以后状态不是 running、记一笔能过」只由 C 刀的真引擎前端测试与本刀的假引擎覆盖，真宿主上没点穿；「自动写进文件 → 撤销 → 重启」也仍未点穿（CLAUDE.md §8）。
+  - 整套前端单测、`pnpm verify` 靠 CI。
+  - F 刀的完整清单与「撤销第 k 章及之后」没做；逐章的撤销提示照旧弹（批量 10 章会冒约 20 条）。
+  - 作者附在 `/写` 后面的要求与章名只记在内存里：同一次打开里续写会带上，重开应用后续写的话里没有「作者要求」，停下的卡上也没有章名（记录里没存）。
+- 要作者 / 编排者定的：
+  - 出错停下用的是界面能送的 `run_not_started`（引擎只收 `author_stopped` / `app_closed` / `run_not_started`），原因写在说明里；引擎要不要加一个「界面出错」的停下原因，另定。
+  - 续写是「`resumeWriteBatch` 先开好一段再给作者确认」（照任务书）：作者在确认卡上取消时调度器再把它停回去，记录里会多一段空的。若要「确认前不动记录」，引擎得给一个只出计划的续写接口。
+  - 几处没在任务书里写死、我按现有样式取的：停止按钮一次点击生效（次要样式，不像运行条那样要点两次）；停下的卡上「从第 k 章接着写」用 AI 紫、写完的卡上「这批审完了」用强调色主按钮、停下的卡上它是次要按钮；卡片标题「这一批写完了 / 停下了：写了 N 章，用了 X 万」；`/写` 续写不了时的三句说明；批量中被拦时的两句提示。
+
+## 2026-10-30 E 刀审后追加：出错原因码、续写确认前不动记录、作者要求与章名进记录
+
+- 背景：编排者审过 E 刀，接受授权、等写进文件与记账的做法和状态机；上一节「要定的」三件定了，都在引擎里补（判定只为这三件改），同一分支追加提交、不 push。先合了 `origin/master`（已含 C 刀 #547、D 刀 #550、B 刀 #546），无冲突；C 刀的批量文件与 master 上的一致（`git diff e6cdcacd origin/master -- packages/engine/src/loop/writeBatch*.ts …` 为空）。
+- 引擎（`packages/engine/src/loop/`）：
+  - 出错原因码：`writeBatchRecord.ts` 的停下原因加 `scheduler_error`，并列入界面能送的 `INTERFACE_STOP_CODES`；`stopWriteBatch` 原样存说明。
+  - 续写预览：`writeBatchSteps.ts` 把续写的「读最近一批、必须停下、`planBatch(…, 'resume')`、章都有正文时换成 `batch_all_written`」抽成 `resumePlan`，新加只读的 `previewWriteBatchResume(deps, root, { permission_profile, model_key })` 只返回计划、不写文件、不改记录；`resumeWriteBatch` 行为不变（全写完时仍记成写完）。包入口导出。
+  - 作者要求与章名：记录版本升到 2，顶层加 `note`（`startWriteBatch` 收可选 `note`，去首尾空白，空的记 null，不是字符串报错）；版本 1 的记录照读（`note` 读成 null），读进来即当前版本形状，写回按版本 2 写；版本 3 及以上不认、版本 2 缺 `note` 不认。`nextWriteBatchStep` 的 `write` 带回 `note`（记录里的）与 `title`（连载计划里的，读不到 null）；`readWriteBatch` 每章带 `title`（读时取，记录文件里不存，测试核了文件里没有 title）。
+- 界面：
+  - `contracts.ts`：停下原因加 `scheduler_error`；`ApiWriteBatch` 加 `note`；`write` 步加 `note`、`title`；新 `ApiWriteBatchViewRecord`（每章多 `title`），`ApiWriteBatchView.batch` 用它。`lib/api/write-batch.ts` 解码跟上（`write` 步缺 note / title、读记录的章缺 title 都报 `WriteBatchShapeError`），加 `previewWriteBatchResume`，`startWriteBatch` 送 `note`；`lib/engine/writeBatch.ts` 接上。
+  - 调度器：出错（循环里抛错、拿不到这一轮结果、正文写进去但事实没记上、循环外的错）一律 `scheduler_error`，说明原样带错误；只有「这一章没能开跑」仍是 `run_not_started`。「从第 k 章接着写」与 `/写` 续写改成 预览 → 确认卡 → 点开始才 `resumeWriteBatch`；取消什么都不调，回到原来那张卡。去掉了上一版「取消后再停回去」与续写开好一段时的占用；续写确认卡开着时照 `/写` 确认卡的规矩（别的话先不发、起草快捷入口收起），会话照常能切。每章的话里的「作者要求」改用引擎 `write` 步带回的 `note`，停下 / 写完的卡上章名用读记录带回的 `title`；内存里记要求与章名的那张表删了。
+  - http 替身与浏览器回归跟上：替身加 `previewWriteBatchResume`、开跑带 `note`；回归里打 `/写 1-3 节奏快一点`，核开跑带 `note`、第 2 章的话带「作者要求：节奏快一点」、停下的卡上「第 2 章《第2章标题》 · 没写进文件」，再点「从第 2 章接着写」出续写确认卡（标题与「要求：节奏快一点」），取消回到停下的卡，核只调了只读预览、没调续写。
+- 验证（没跑整套 `pnpm verify`：作者在用机器，CI 跑全套）：
+  - 引擎：`npx tsc --noEmit -p tsconfig.json` EXIT=0；全量 `npx vitest run --maxWorkers=3`：111 个文件 14227 passed + 2 skipped（含 golden），EXIT=0。之后只给 `writeBatchSteps.test.ts` 的预览测试换了带计数的写口（见变异 E2），单跑 70 passed。
+  - 引擎新测试（`writeBatchSteps.test.ts` 新增 9 条、改 3 条期望）：要求存进记录并随每章下一步带回、空要求记 null 与非字符串报错、读记录带章名且文件里不存、版本 1 读成 note=null 并写回版本 2、版本 2 缺 note 报错、`scheduler_error` 原样存并在下一步原样回报、预览与续写同一份计划且不写不改、全写完时预览给 `batch_all_written` 不记成写完、没批量或还在写时预览报错。
+  - 前端 `npm run typecheck` EXIT=0；改动文件 eslint、prettier 通过。
+  - 前端相关测试两批：22 个文件 200 passed（批量相关全部、`source-standards`、`ui-terminology`、`fact-write`、`chapter-write-request`、`starter-plugin-new-project` 等）；38 个文件 595 passed（ChatWindow / App / 编辑器写进文件 / 运行控制）。改了期望：`write-batch-loop.test.ts`（出错与拿不到结果改 `scheduler_error`）、`write-batch-scheduler.test.tsx`（假引擎带 note / title / 预览；续写先预览、点开始才续、取消不调任何停；重开应用后卡上有章名、续写的话带记录里的要求）、`write-batch-record-api.test.ts`（真引擎：要求与章名、`scheduler_error`、预览前后记录一字不变；解码：版本 2、note、缺 title / note 报错）。
+  - 浏览器回归 `node scripts/verify-agent-conversation.mjs` 单跑 EXIT=0（这次冷启动没超时）。
+- 变异（`output/write-batch-scheduler/mutate2.py`，同样逐处断言恰好 1 次、无条件按原字节还原并核 sha256，跑完 `git status` 与跑前一致）9 处全红：
+  - E1 引擎不收 `scheduler_error` → 1 条红。
+  - E2 续写预览写了文件 → 2 条红。第一次跑时这一处没红：内存作品只记内容有变化的写，预览按原样重写一遍看不出来；把预览测试的写口换成记下每一次写（连内容不变的重写也算）后再跑，红了。
+  - E3 开跑不存作者要求 → 1 条红。E4 下一步不带章名 → 2 条红。E5 读记录不带章名 → 1 条红。E6 版本 1 的记录读不了 → 1 条红。
+  - U1 界面出错又借 `run_not_started` → loop + scheduler 2 条红。U2 确认前就真续写 → scheduler 3 条红。U3 每章的话不带引擎记下的要求 → scheduler 3 条红。
+- golden 零改动（`git status --short packages/engine/golden` 为空）；改动文件全 LF、无 BOM。`--numstat` 与 `--ignore-all-space --numstat` 只在 `useWriteBatchScheduler.ts`、`write-batch-run.ts`、`write-batch-scheduler.test.tsx` 上不同（`leaveWriteBatch` 等少一层嵌套后的缩进），没有行尾翻转。
+- 仍没做 / 没验：真宿主、真模型都没跑；`docs/internal/write-batch-plan-2026-10.md` §8 里 C 刀接口那段没跟着改（多了预览、note / title、`scheduler_error`、记录版本 2），留给编排者决定要不要同步。
+
+## 2026-10-31 CI 红在浏览器冒烟：打开作品时的批量写章查询没有替身
+
+- 现象：#552 的 CI（Windows / `pnpm verify`）两次都红在浏览器冒烟回归（`verify:smoke`）：`Unexpected fixture requests: Unexpected browser smoke request: /api/write-batch/recover`（出现两次：开发档 StrictMode 把打开作品的 effect 跑了两遍）。
+- 原因：E 刀让调度器在打开作品时调 `recoverInterruptedWriteBatch` 和 `readWriteBatch`。为了 Agent 对话那道回归，我给 `tests/support/http-write-batch-double.ts` 加了这两个接口的 fetch 替身；浏览器冒烟经 `scripts/http-doubles-plugin.mjs` 用的是同一份替身，于是打开作品就会发 `/api/write-batch/recover`，而冒烟脚本的 fetch 编排不认这个路径，按「意外请求即失败」报错。之前我只单跑了 Agent 对话那一道回归，pre-push 也不跑浏览器回归，所以没在本地拦下。
+- 修法：只改 `scripts/verify-smoke.mjs` 的 fetch 编排，「意外请求即失败」的规则没放宽。
+  - 新认两条：`/api/write-batch/recover` 回 `{ recovered: false, batch: null }`，`/api/write-batch/read` 回「没有批量」（`batch: null`、没有对不上的章、不能续写）。两条都只认 POST、只认这部作品的 `project_root`，回包照样走产品的解码器；别的 `/api/write-batch/*` 仍算意外。
+  - 查过其余入口：打开作品和对话初始化只会打这两条；排计划、开跑、续写等只在作者打 `/写` 或点卡片按钮后才发，冒烟不走。行间续写回归用的是单独的入口页（`scripts/fixtures/inline-continuation.jsx`），不挂对话窗口，不发这些请求。`verify-sidebar-scroll.mjs` 不经替身插件、也不在根门禁里，没动。
+  - 冒烟末尾加了一条可证伪的核对：打开作品后先恢复、再读（`recover` 在前、`read` 有），而且不出停下或写完的卡。这条放在「意外请求」「控制台报错」两条核对之后，所以接口没被认时，先报出来的就是和 CI 一样的那句。
+- 先合了 `origin/master`（#551 插件 zip 导入界面），无冲突。
+- 验证（三道浏览器回归各单跑一遍，按 `scripts/verify-local.mjs` 里的命令；都没遇到冷启动超时）：
+  - `npm --prefix apps/desktop/frontend run verify:smoke`：EXIT=0（改完先跑一次，挪核对位置后又跑一次，两次都过）。
+  - 复现：脚本把「恢复」那一条的条件改成 `if (false)` 再跑冒烟，EXIT=1，报错正是 `Unexpected fixture requests: Unexpected browser smoke request: /api/write-batch/recover, Unexpected browser smoke request: /api/write-batch/recover`，和 CI 一致；跑完按原字节还原，核对过 sha256。
+  - `npm --prefix apps/desktop/frontend run verify:inline-continuation`：EXIT=0（`status: passed`）。
+  - `npm --prefix apps/desktop/frontend run verify:agent-conversation`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。相关前端测试（批量写章 10 份、`source-standards`、`ui-terminology`、`chapter-write-request`、`settings-plugins`）14 个文件 136 passed。
+  - 仍没跑整套 `pnpm verify`，靠 CI。

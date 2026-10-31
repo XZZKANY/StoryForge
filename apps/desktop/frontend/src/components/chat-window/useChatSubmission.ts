@@ -43,6 +43,13 @@ export function useChatSubmission(
     ChatWindowProps,
     'projectPath' | 'assistantSessionId' | 'pendingInitialPrompt' | 'onPendingInitialPromptConsumed'
   >,
+  /**
+   * 批量写章调度器：在写时什么都不发；续写确认卡开着时和 `/写` 确认卡一样只认新的 `/写`；
+   * 不带范围的 `/写` 交给它续写。
+   */
+  writeBatchScheduler: { occupied: boolean; cardOpen?: boolean; onResume?: () => void } = {
+    occupied: false,
+  },
 ) {
   const {
     agentBusy,
@@ -69,6 +76,12 @@ export function useChatSubmission(
     // Shared by direct/queued/shortcut callbacks, including closures captured before disconnect.
     deliveryUnknownRef.current = deliveryUnknown;
   }, [deliveryUnknown]);
+  const batchOccupied = writeBatchScheduler.occupied;
+  const batchOccupiedRef = useRef(batchOccupied);
+  const onWriteBatchResume = writeBatchScheduler.onResume;
+  useLayoutEffect(() => {
+    batchOccupiedRef.current = batchOccupied;
+  }, [batchOccupied]);
   // Deliberately one pending instruction, not an automatic multi-run FIFO.
   const queuedRef = useRef<QueuedChatMessageEntry | null>(null);
   const nextQueueIdRef = useRef(0);
@@ -78,7 +91,8 @@ export function useChatSubmission(
   const [writeBatch, setWriteBatch] = useState<(WriteBatchRequest & { scope: number }) | null>(
     null,
   );
-  const writeBatchOpen = writeBatch?.scope === scope;
+  const ownCardOpen = writeBatch?.scope === scope;
+  const writeBatchOpen = ownCardOpen || Boolean(writeBatchScheduler.cardOpen);
   const closeWriteBatch = useCallback(() => setWriteBatch(null), []);
   const clearQueuedMessages = useCallback(() => {
     queuedRef.current = null;
@@ -195,6 +209,12 @@ export function useChatSubmission(
         });
         return;
       }
+      // 批量写章在一章接一章地发起：别的话（含新的 `/写`）插进去会顶掉下一章，等停下或写完再发。
+      if (batchOccupiedRef.current) {
+        preserveInstruction();
+        emitToast('批量写章进行中：先停止这一批，再发下一条；草稿已保留。', { tone: 'info' });
+        return;
+      }
       if (awaitingDecision) {
         preserveInstruction();
         emitToast('先处理当前待确认内容，再发下一条；待发消息和草稿已保留。', { tone: 'info' });
@@ -225,6 +245,13 @@ export function useChatSubmission(
       // Claim synchronously; React's busy state alone does not guard same-frame submits.
       if (sendingRef.current) {
         preserveInstruction();
+        return;
+      }
+      if (batch?.kind === 'resume' && onWriteBatchResume) {
+        // 不带范围的 `/写`：读上一批，能续就重新估、出确认卡，不能续在卡上说明原因（调度器来做）。
+        setWriteBatch(null);
+        clearSubmittedDraft();
+        onWriteBatchResume();
         return;
       }
       if (batch) {
@@ -271,6 +298,7 @@ export function useChatSubmission(
       setConversationTitle,
       setInput,
       setMessages,
+      onWriteBatchResume,
       writeBatchOpen,
     ],
   );
@@ -292,6 +320,7 @@ export function useChatSubmission(
       submitting ||
       awaitingDecision ||
       writeBatchOpen ||
+      batchOccupied ||
       !queuedMessage ||
       queuedMessage.scope !== scope
     )
@@ -301,6 +330,7 @@ export function useChatSubmission(
       if (
         cancelled ||
         deliveryUnknownRef.current ||
+        batchOccupiedRef.current ||
         !isCurrentScope() ||
         queuedRef.current !== queuedMessage ||
         sendingRef.current
@@ -319,6 +349,7 @@ export function useChatSubmission(
     submitting,
     awaitingDecision,
     writeBatchOpen,
+    batchOccupied,
     handleComposerSubmit,
     isCurrentScope,
     queuedMessage,
@@ -412,7 +443,7 @@ export function useChatSubmission(
     removeQueuedMessage,
     clearQueuedMessages,
     writeBatch:
-      writeBatch !== null && writeBatchOpen
+      writeBatch !== null && ownCardOpen
         ? { id: writeBatch.id, command: writeBatch.command }
         : null,
     closeWriteBatch,

@@ -18,7 +18,9 @@ import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage, WriteBatchRequest } from './useChatSubmission';
-import { WriteBatchCard } from './WriteBatchCard';
+import { WriteBatchPanel, WriteBatchProgressBar } from './WriteBatchPanel';
+import type { WriteBatchStartFeedback } from './WriteBatchCard';
+import type { WriteBatchScheduler } from './useWriteBatchScheduler';
 import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
 import { ChapterCheckHistoryToggle } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
@@ -65,7 +67,9 @@ type Props = {
   writeBatch?: WriteBatchRequest | null;
   onCloseWriteBatch?: () => void;
   /** 卡上「开始写」交给它；没接时按钮禁用。 */
-  onStartWriteBatch?: (plan: ApiWriteBatchPlan) => void;
+  onStartWriteBatch?: (plan: ApiWriteBatchPlan) => Promise<WriteBatchStartFeedback>;
+  /** 批量写章调度器：进行中的进度条、续写确认卡、停下或写完的卡。 */
+  writeBatchScheduler?: WriteBatchScheduler;
 };
 
 export function ChatWindowView({
@@ -103,6 +107,7 @@ export function ChatWindowView({
   writeBatch = null,
   onCloseWriteBatch,
   onStartWriteBatch,
+  writeBatchScheduler,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
@@ -228,7 +233,7 @@ export function ChatWindowView({
               handoff={opening}
               onDraft={onOpeningDraft}
               onAsk={(prompt) => void handleComposerSubmit(prompt)}
-              actionsHidden={writeBatch !== null}
+              actionsHidden={writeBatch !== null || Boolean(writeBatchScheduler?.occupied)}
             />
           ) : null
         }
@@ -254,26 +259,14 @@ export function ChatWindowView({
         </section>
       )}
 
-      {writeBatch && projectPath && (
-        // 卡片自己管滚动：章列表在卡内滚，底部按钮始终露着，这一层不再整体滚。
-        // 比章纲卡多给一成高度：1400×759 下底部说明占去不少，六成只露得出三章。
-        <section
-          className="flex max-h-[70%] min-h-0 flex-shrink-0 flex-col px-5 py-3"
-          aria-label="批量写章"
-          data-testid="write-batch-decision"
-        >
-          <div className={`${CHAT_COLUMN} flex min-h-0 flex-col`}>
-            <WriteBatchCard
-              key={writeBatch.id}
-              command={writeBatch.command}
-              projectPath={projectPath}
-              permissionProfile={agentPermissionProfile}
-              onStart={onStartWriteBatch}
-              onClose={onCloseWriteBatch ?? (() => undefined)}
-            />
-          </div>
-        </section>
-      )}
+      <WriteBatchPanel
+        projectPath={projectPath}
+        permissionProfile={agentPermissionProfile}
+        request={writeBatch}
+        scheduler={writeBatchScheduler}
+        onStart={onStartWriteBatch}
+        onClose={onCloseWriteBatch ?? (() => undefined)}
+      />
 
       {showLightweightStatus && statusText && (
         <LightweightStatus
@@ -297,6 +290,13 @@ export function ChatWindowView({
           recovery={state.agentRunRecovery}
           resumePending={state.agentBusy}
           onTypeAhead={() => inputRef.current?.focus()}
+        />
+      )}
+
+      {writeBatchScheduler?.phase.kind === 'running' && (
+        <WriteBatchProgressBar
+          progress={writeBatchScheduler.phase.progress}
+          onStop={writeBatchScheduler.stop}
         />
       )}
 

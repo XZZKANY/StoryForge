@@ -24,7 +24,13 @@ type Planned = Exclude<ChapterFactRecordPlan, { status: 'skipped' }>;
 export type FactRecordOutcome =
   | { status: 'skipped' }
   | { status: 'unchanged'; plan: Planned }
-  | { status: 'written'; plan: Planned; undo: () => Promise<void> };
+  | {
+      status: 'written';
+      plan: Planned;
+      undo: () => Promise<void>;
+      /** 记账前给台账拍的那条版本记录（绝对路径）；宿主没记成为 null。 */
+      snapshotPath: string | null;
+    };
 
 const FACTS_RELATIVE = ['.storyforge', 'canon', 'facts.json'];
 
@@ -79,7 +85,7 @@ export async function recordChapterFacts({
   if ((await readLedger(path)) !== before) {
     throw new Error('facts.json 在记账期间被改过了，这次没有写入。');
   }
-  await snapshotBeforeWrite(projectPath, path, before ?? '', {
+  const snapshot = await snapshotBeforeWrite(projectPath, path, before ?? '', {
     source: 'Editor',
     summary: `事实台账记下${chapterLabel(plan)}的 ${plan.added} 条事实`,
     checkpoint: true,
@@ -89,6 +95,7 @@ export async function recordChapterFacts({
     status: 'written',
     plan,
     undo: () => undoFactsWrite(projectPath, path, before, plan.after),
+    snapshotPath: snapshot?.path ?? null,
   };
 }
 
@@ -230,22 +237,36 @@ export function factRecordMessage(plan: Planned): string | null {
   return parts.join('；') + '。';
 }
 
+/** 这一章记账落定后的样子：批量写章要把它存进批量记录，对不上的事实要停下。 */
+export type AcceptedChapterFacts = {
+  /** 记账前给台账拍的那条版本记录（绝对路径）；这次没写台账为 null。 */
+  snapshotPath: string | null;
+  /** 和已记事实对不上、存成待定的条数。 */
+  disputes: number;
+  /** 没记上（出错）时的原因；正文不受影响。 */
+  error: string | null;
+};
+
 /**
  * 接受补丁之后调用：失败只提示，不影响已经落盘的正文。
  * `canNotify` 在出通知前才问：发起的页面已卸载或换了项目，就照样记账、不再出通知（含「撤销记账」）。
+ * 平时没人等它；批量写章的调度器要等它落定再开下一章，所以把结果交回去。
  */
 export async function recordAcceptedChapterFacts(
   projectPath: string | null,
   filePath: string,
   runId: string | undefined,
   canNotify: () => boolean = () => true,
-): Promise<void> {
-  if (!projectPath || !runId) return;
+): Promise<AcceptedChapterFacts> {
+  const settled: AcceptedChapterFacts = { snapshotPath: null, disputes: 0, error: null };
+  if (!projectPath || !runId) return settled;
   try {
     const outcome = await recordChapterFacts({ projectPath, filePath, runId });
-    if (outcome.status === 'skipped') return;
+    if (outcome.status === 'skipped') return settled;
+    settled.disputes = outcome.plan.conflicts.length;
+    if (outcome.status === 'written') settled.snapshotPath = outcome.snapshotPath;
     const message = factRecordMessage(outcome.plan);
-    if (!message || !canNotify()) return;
+    if (!message || !canNotify()) return settled;
     emitToast(message, {
       tone: 'info',
       action:
@@ -265,10 +286,10 @@ export async function recordAcceptedChapterFacts(
             }
           : undefined,
     });
+    return settled;
   } catch (error) {
-    if (!canNotify()) return;
-    emitToast(`这章的事实没记上：${error instanceof Error ? error.message : String(error)}`, {
-      tone: 'error',
-    });
+    const message = error instanceof Error ? error.message : String(error);
+    if (canNotify()) emitToast(`这章的事实没记上：${message}`, { tone: 'error' });
+    return { snapshotPath: null, disputes: 0, error: message };
   }
 }

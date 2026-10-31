@@ -3,6 +3,7 @@
  * 回包按契约逐字段解码（只留契约里的字段），形状不对就报错，不拿空值冒充「没有要写的章」「没有批量」。
  */
 import type { AgentPermissionProfile } from '../agent-permission';
+import { listLlmProfiles } from '../desktop-llm-config';
 import type {
   ApiRunUsage,
   ApiWriteBatch,
@@ -20,6 +21,7 @@ import type {
   ApiWriteBatchStop,
   ApiWriteBatchStopCode,
   ApiWriteBatchView,
+  ApiWriteBatchViewChapter,
 } from './contracts';
 
 const engine = () => import('../engine/writeBatch');
@@ -181,10 +183,17 @@ const STOP_CODES = [
   'author_stopped',
   'app_closed',
   'run_not_started',
+  'scheduler_error',
 ] as const satisfies readonly ApiWriteBatchStopCode[];
 
-/** 界面能送给 stopWriteBatch 的停下原因；其余都由引擎判定。 */
-export type WriteBatchInterfaceStopCode = 'author_stopped' | 'app_closed' | 'run_not_started';
+/**
+ * 界面能送给 stopWriteBatch 的停下原因；其余都由引擎判定。scheduler_error：界面这边出错，说明里原样带着错误。
+ */
+export type WriteBatchInterfaceStopCode =
+  | 'author_stopped'
+  | 'app_closed'
+  | 'run_not_started'
+  | 'scheduler_error';
 
 const isText = orNull(isString);
 const isCountOrNull = orNull(isCount);
@@ -276,6 +285,7 @@ export function decodeWriteBatch(value: unknown): ApiWriteBatch {
     id: field(raw, 'id', isString, at),
     legs: list(raw, 'legs', at, decodeLeg),
     model_key: field(raw, 'model_key', isString, at),
+    note: field(raw, 'note', isText, at),
     reviewed: field(raw, 'reviewed', (item) => typeof item === 'boolean', at),
     status,
     stop,
@@ -309,8 +319,10 @@ export function decodeWriteBatchStep(value: unknown): ApiWriteBatchStep {
   return {
     action,
     goal: field(raw, 'goal', isText, at),
+    note: field(raw, 'note', isText, at),
     ordinal: field(raw, 'ordinal', isOrdinal, at),
     target_path: field(raw, 'target_path', isString, at),
+    title: field(raw, 'title', isText, at),
   };
 }
 
@@ -324,10 +336,22 @@ function decodeMismatch(value: unknown): ApiWriteBatchMismatch {
   };
 }
 
+/** 读记录时的那份：每章多带一个读时取的标题。 */
+function decodeViewBatch(value: unknown): ApiWriteBatchView['batch'] {
+  if (value === null) return null;
+  const batch = decodeWriteBatch(value);
+  const raws = object(value, '批量记录').chapters as unknown[];
+  const chapters: ApiWriteBatchViewChapter[] = batch.chapters.map((chapter, index) => ({
+    ...chapter,
+    title: field(object(raws[index], '批量记录的章'), 'title', isText, '批量记录的章'),
+  }));
+  return { ...batch, chapters };
+}
+
 export function decodeWriteBatchView(value: unknown): ApiWriteBatchView {
   const at = '批量记录';
   const raw = object(value, at);
-  const batch = decodeBatchOrNull(raw.batch);
+  const batch = decodeViewBatch(raw.batch);
   const canResume = field<boolean>(raw, 'can_resume', (item) => typeof item === 'boolean', at);
   const resumeFrom = field<number | null>(raw, 'resume_from', isOrdinalOrNull, at);
   if (canResume && (batch?.status !== 'stopped' || resumeFrom === null))
@@ -356,6 +380,8 @@ export async function startWriteBatch(input: {
   permissionProfile: AgentPermissionProfile;
   /** 当前模型配置的标识：中途换了模型，引擎据此停下重估。 */
   modelKey: string;
+  /** 作者在 `/写` 范围后附的要求，存进记录，每章发起时带上。 */
+  note?: string | null;
 }): Promise<ApiWriteBatchStartResult> {
   const raw = await (
     await engine()
@@ -365,8 +391,27 @@ export async function startWriteBatch(input: {
     to: input.to,
     permission_profile: input.permissionProfile,
     model_key: input.modelKey,
+    note: input.note ?? null,
   });
   return decodeWriteBatchStart(raw);
+}
+
+/**
+ * 续写前给作者看的计划：和续写同一份计划与拦法，但只读、不改记录（作者点了开始才 resumeWriteBatch）。
+ * 这一批的章都已经有正文时，plan 里是 batch_all_written 的说明。
+ */
+export async function previewWriteBatchResume(input: {
+  projectRoot: string;
+  permissionProfile: AgentPermissionProfile;
+  modelKey: string;
+}): Promise<ApiWriteBatchPlan> {
+  const raw = await (
+    await engine()
+  ).previewEngineWriteBatchResume(input.projectRoot, {
+    permission_profile: input.permissionProfile,
+    model_key: input.modelKey,
+  });
+  return decodeWriteBatchPlan(raw);
 }
 
 /**
@@ -470,4 +515,21 @@ export async function markWriteBatchReviewed(
  */
 export async function readWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return decodeWriteBatchView(await (await engine()).readEngineWriteBatch(projectRoot));
+}
+
+/** 给作者看的 token 数按「万」说，与引擎停下说明里同一种说法。 */
+export async function formatWriteBatchTokens(tokens: number): Promise<string> {
+  return (await engine()).formatEngineTokenCount(tokens);
+}
+
+/**
+ * 开跑、续写、问下一步要带的模型标识：当前启用的那套配置的 id 加上它正在用的模型名，
+ * 换配置或换模型都会变（引擎据此停下重估）。读不到配置就明确报错，不拿空串冒充。
+ */
+export async function currentWriteBatchModelKey(): Promise<string> {
+  const list = await listLlmProfiles();
+  if (!list) throw new Error('读不到本机的模型配置：批量写章只能在桌面应用里用。');
+  const active = list.profiles.find((profile) => profile.id === list.activeProfileId);
+  if (!active) throw new Error('还没有启用的模型配置：先在设置里选一套模型，再批量写章。');
+  return JSON.stringify([active.id, active.model]);
 }

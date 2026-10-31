@@ -6,6 +6,7 @@ import type { ContextBundle } from '../../lib/project-context';
 import type { LayoutMode } from '../shell/useShellState';
 import type { HandoffChapter } from '../../lib/chapter-handoff';
 import type { ObservatoryPromises } from '../../lib/observations';
+import type { WriteBatchGrant } from '../../lib/write-batch-grant';
 
 export type ChatWindowProps = {
   projectPath: string | null;
@@ -143,7 +144,23 @@ export type RunAuthorAgentOptions = {
   planFallback?: boolean;
   /** 引用章等显式上下文：并入 context bundle 的 pinnedFiles，不改写作者原话。 */
   explicitContextPaths?: string[];
+  /** 批量写章的一次性授权：只有调度器会带，只对这一批计划里的写章生效（`lib/write-batch-grant.ts`）。 */
+  writeBatchGrant?: WriteBatchGrant;
 };
+
+/**
+ * 发起的这一轮最后怎样了，给要接着往下走的调用方（批量写章调度器）用；平时的调用方不看。
+ * not_dispatched：没发出去（没打开作品、AI 正忙、结果未知等）；unsettled：发出去了但这里拿不到结果
+ * （中途切了会话或作品、结果未知）；settled：拿到了终态，proposal 是交给编辑器的那份修订。
+ */
+export type RunAuthorAgentOutcome =
+  | { kind: 'not_dispatched' }
+  | { kind: 'unsettled'; runId: string }
+  | {
+      kind: 'settled';
+      runId: string;
+      proposal: { patchId: string; filePath: string; requiresConfirmation: boolean } | null;
+    };
 
 export type RunAuthorAgent = (
   goal: string,
@@ -151,7 +168,7 @@ export type RunAuthorAgent = (
   intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
   excludedKnowledgeIds?: string[],
   options?: RunAuthorAgentOptions,
-) => Promise<void>;
+) => Promise<RunAuthorAgentOutcome>;
 
 export type PendingRepairCommand = {
   command_id: string;

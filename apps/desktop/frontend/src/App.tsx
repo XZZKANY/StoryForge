@@ -20,6 +20,7 @@ import { useProjectSearch } from './components/app/useProjectSearch';
 import { useProjectWorkspace } from './components/app/useProjectWorkspace';
 import { useSessionRestore } from './components/app/useSessionRestore';
 import { useTauriMenuBridge } from './components/app/useTauriMenuBridge';
+import { useWriteBatchTabs } from './components/app/useWriteBatchTabs';
 import { useShellState, type SidePanelView } from './components/shell/useShellState';
 import {
   emitChapterWriteRequest,
@@ -66,6 +67,7 @@ export function App() {
     pendingRestore: session.pendingRestore,
     onRestoreApplied: session.handleRestoreApplied,
   });
+  useWriteBatchTabs(tabs);
   const { cancelPendingNavigation } = session;
   const openLibrary = useCallback(() => {
     cancelPendingNavigation();

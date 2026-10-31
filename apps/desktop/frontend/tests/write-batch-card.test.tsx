@@ -7,7 +7,17 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { WriteBatchCommand } from '@storyforge/project-core';
 
-vi.mock('../src/lib/api/write-batch', () => ({ planWriteBatch: vi.fn() }));
+vi.mock('../src/lib/api/write-batch', () => ({
+  planWriteBatch: vi.fn(),
+  // 打开作品时调度器查一次上一批：这里没有批量记录。
+  recoverInterruptedWriteBatch: async () => ({ recovered: false, batch: null }),
+  readWriteBatch: async () => ({
+    batch: null,
+    mismatches: [],
+    can_resume: false,
+    resume_from: null,
+  }),
+}));
 vi.mock('../src/lib/api/chapter-checks', () => ({
   queryChapterCheckHistory: vi.fn().mockResolvedValue({ entries: [], truncated: false }),
 }));

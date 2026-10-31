@@ -1,7 +1,9 @@
 import {
+  formatTokenCount,
   markWriteBatchReviewed,
   nextWriteBatchStep,
   planWriteBatch,
+  previewWriteBatchResume,
   readWriteBatch,
   recordWriteBatchChapter,
   recoverInterruptedWriteBatch,
@@ -70,8 +72,17 @@ export async function startEngineWriteBatch(input: {
   to: number;
   permission_profile: string;
   model_key: string;
+  note: string | null;
 }): Promise<ApiWriteBatchStartResult> {
   return await startWriteBatch(await runDeps(), input);
+}
+
+/** 续写前给作者看的计划：只读，不写记录。 */
+export async function previewEngineWriteBatchResume(
+  projectRoot: string,
+  input: { permission_profile: string; model_key: string },
+): Promise<ApiWriteBatchPlan> {
+  return await previewWriteBatchResume(await storeDeps(), projectRoot, input);
 }
 
 export async function resumeEngineWriteBatch(input: {
@@ -126,4 +137,9 @@ export async function markEngineWriteBatchReviewed(
 
 export async function readEngineWriteBatch(projectRoot: string): Promise<ApiWriteBatchView> {
   return await readWriteBatch(fileDeps(), projectRoot);
+}
+
+/** 给作者看的 token 数按「万」说（与引擎停下说明里同一种说法）。 */
+export function formatEngineTokenCount(tokens: number): string {
+  return formatTokenCount(tokens);
 }
