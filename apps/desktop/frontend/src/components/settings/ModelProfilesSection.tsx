@@ -1,4 +1,4 @@
-import { useContext, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Field, FloatingSurface, IconButton, MenuItem, PlainButton, Select } from '../ui';
 import { Check, MoreHorizontal, Plus } from '../icons/shell-icons';
 import {
@@ -8,7 +8,7 @@ import {
   providerKindOr,
 } from '../../lib/provider-config';
 import type { LlmProfile } from '../../lib/desktop-llm-config';
-import { SettingsSearchContext } from './search-context';
+import { settingsTextMatches, useSettingsQuery } from './search-context';
 import { ModelProfileEditor } from './ModelProfileEditor';
 import type { ModelProfilesState, ProfileHealth } from './useModelProfiles';
 
@@ -40,8 +40,8 @@ export function ModelProfilesSection({
   model: ModelProfilesState;
   confirm: Confirm;
 }) {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
-  if (query && !SEARCH_TEXT.toLowerCase().includes(query)) return null;
+  const query = useSettingsQuery();
+  if (!settingsTextMatches(query, SEARCH_TEXT)) return null;
   const profiles = model.list?.profiles ?? [];
   const activeId = model.list?.activeProfileId ?? null;
   // 草稿改了一半又去点别的卡片 / 新建：先确认再丢。
@@ -263,8 +263,12 @@ function ProfileCard({
           data-testid="model-profile-menu-list"
         >
           <MenuItem onClick={run(onEdit)}>编辑</MenuItem>
-          {profile.hasApiKey && <MenuItem onClick={run(onClearKey)}>移除 Key</MenuItem>}
-          <MenuItem disabled={active || onlyOne} onClick={run(onDelete)}>
+          {profile.hasApiKey && (
+            <MenuItem danger onClick={run(onClearKey)}>
+              移除 Key
+            </MenuItem>
+          )}
+          <MenuItem danger disabled={active || onlyOne} onClick={run(onDelete)}>
             {active ? '删除（正在用，先切到别的）' : onlyOne ? '删除（至少留一套）' : '删除'}
           </MenuItem>
         </FloatingSurface>

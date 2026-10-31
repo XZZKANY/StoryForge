@@ -6,7 +6,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
 import { RefreshCw, X } from '../src/components/icons/shell-icons';
-import { MenuItem, MenuItemAction, ModalDialog, Spinner } from '../src/components/ui';
+import {
+  MenuItem,
+  MenuItemAction,
+  MenuSeparator,
+  ModalDialog,
+  Spinner,
+} from '../src/components/ui';
 
 // 加载圈只留 components/ui/Spinner 一种做法：要转圈就用 <Spinner />，刷新图标转圈用它的 icon 属性；
 // 按钮自己的加载态由 Button 内部管。别处手写 animate-spin 或借用按钮的类，就又各写各的了。
@@ -233,6 +239,21 @@ it('MenuItem：当前项打 ✓，快捷键与次要信息靠右；危险、禁�
   expect(items[4].getAttribute('title')).toBe('移除');
 });
 
+// 菜单分隔线只留 MenuSeparator：页签菜单、作品切换、会话菜单、右键菜单曾各写一份，只有右键菜单带 separator 语义。
+it('菜单分隔线（h-px 配 bg-border）只写在 components/ui 里，MenuSeparator 是读屏可读的分隔线', () => {
+  const divider = /\bh-px\b[^'"`\n]*\bbg-border\b|\bbg-border\b[^'"`\n]*\bh-px\b/;
+  expect(divider.test('<div className="my-1 mx-1.5 h-px bg-border" />')).toBe(true);
+  expect(divider.test("className='bg-border w-full h-px'")).toBe(true);
+  expect(divider.test('<div className="h-px bg-accent" /><p className="bg-border" />')).toBe(false);
+  const files = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => divider.test(readFileSync(path, 'utf8')));
+  expect(files).toEqual(['src/components/ui/Menu.tsx']);
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(<MenuSeparator />);
+  expect(host.firstElementChild?.getAttribute('role')).toBe('separator');
+});
+
 // 同一个组件名只在一处定义：MenuRow（页签菜单、模型卡片各一份）、Section（手稿 / 作品 / 观测镜各包一层
 // PanelSection）都曾各写一份。要复用就从定义它的文件导出，别在新文件里再写一个同名的。
 it('大写开头的函数（组件）不在多个文件里各自定义，MenuItem 只在 ui/Menu.tsx', () => {
@@ -259,4 +280,12 @@ it('大写开头的函数（组件）不在多个文件里各自定义，MenuIte
 // 字号与搜索过滤都在那里定。外观分区曾另写过 ChoiceRow / SelectFieldRow / ColorRow 三个外壳。
 it('设置行的行高只写在 SettingRows 里', () => {
   expect(filesContaining('min-h-[76px]')).toEqual(['src/components/settings/SettingRows.tsx']);
+});
+
+// 设置搜索词只在 settings/search-context 里读和比：「关于」的更新说明、连接与存储详情、模型服务、插件曾各自
+// trim().toLowerCase() 再 includes 一遍。
+it('设置搜索词只在 search-context 里读', () => {
+  expect(filesContaining('useContext(SettingsSearchContext)')).toEqual([
+    'src/components/settings/search-context.ts',
+  ]);
 });

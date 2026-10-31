@@ -18,7 +18,7 @@ export { DialogSurface, ModalDialog } from './Dialog';
 export type { DialogSurfaceProps, ModalDialogProps } from './Dialog';
 export { FloatingSurface } from './FloatingSurface';
 export type { FloatingSurfaceProps } from './FloatingSurface';
-export { MenuItem, MenuItemAction } from './Menu';
+export { MenuItem, MenuItemAction, MenuSeparator } from './Menu';
 export type { MenuItemProps, MenuItemActionProps } from './Menu';
 export { Tooltip } from './Tooltip';
 export { Spinner } from './Spinner';

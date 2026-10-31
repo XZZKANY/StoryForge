@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { FloatingSurface, MenuItem } from '../ui';
+import { FloatingSurface, MenuItem, MenuSeparator } from '../ui';
 export type ContextMenuItem =
   | { type: 'separator' }
   | { type?: 'item'; label: string; onSelect: () => void; danger?: boolean; disabled?: boolean };
@@ -35,7 +35,7 @@ export function ContextMenu({
     >
       {items.map((item, index) =>
         item.type === 'separator' ? (
-          <div key={`sep-${index}`} role="separator" className="my-1 mx-1.5 h-px bg-border" />
+          <MenuSeparator key={`sep-${index}`} />
         ) : (
           <MenuItem
             key={item.label}

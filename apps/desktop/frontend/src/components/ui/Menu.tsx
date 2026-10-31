@@ -86,3 +86,8 @@ export function MenuItemAction({ label, icon, title, ...props }: MenuItemActionP
     </PlainButton>
   );
 }
+
+/** 菜单里两组之间的分隔线。 */
+export function MenuSeparator() {
+  return <div role="separator" className="mx-1.5 my-1 h-px bg-border" />;
+}

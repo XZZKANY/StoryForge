@@ -461,6 +461,24 @@ test('移除 Key 走确认，只清这一套', async () => {
   assert.doesNotMatch(status(view.container, 'p1'), /还没存 Key/);
 });
 
+test('卡片菜单：删除与移除 Key 撤销不了，标危险色；编辑不标', async () => {
+  const view = await mount();
+  await click(required(card(view.container, 'p2'), '[data-testid="model-profile-menu"]'));
+  const items = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="model-profile-menu-list"] [role="menuitem"]',
+    ),
+  );
+  assert.deepEqual(
+    items.map((item) => [item.textContent, item.className.includes('text-error')]),
+    [
+      ['编辑', false],
+      ['移除 Key', true],
+      ['删除', true],
+    ],
+  );
+});
+
 test('整章润色默认跟随当前模型，可指定某一套再改回跟随', async () => {
   const view = await mount();
   const polish = byTestId<HTMLSelectElement>(view.container, 'model-polish-profile');

@@ -1,4 +1,11 @@
-import { FloatingSurface, IconButton, MenuItem, MenuItemAction, PlainButton } from '../ui';
+import {
+  FloatingSurface,
+  IconButton,
+  MenuItem,
+  MenuItemAction,
+  MenuSeparator,
+  PlainButton,
+} from '../ui';
 /**
  * 侧面板：宽度可拖（右缘把手，双击复位），全左栏共享一份，存成占窗口宽的比例
  * （换算见 lib/workspace-layout.ts；旧像素 / 按视图设置加载时迁移）。
@@ -236,7 +243,7 @@ function ExplorerView({
                   {titleOf(project)}
                 </MenuItem>
               ))}
-              <div className="my-1 mx-1.5 h-px bg-border" />
+              <MenuSeparator />
               <MenuItem
                 icon={<FolderOpen size={14} strokeWidth={1.6} />}
                 onClick={() => {
