@@ -1,7 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 
-import { Button, DialogSurface } from '../ui';
+import { Button, ModalDialog } from '../ui';
 import { ChevronDown, ChevronRight } from '../icons/shell-icons';
 import type { PluginDescription, PluginEntry, PluginManifest } from '../../lib/api/plugins';
 import type { SkippedPluginFile } from '../../lib/plugin-library';
@@ -194,84 +193,75 @@ export function PluginImportDialog({
     if (!installing) onCancel();
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 animate-fade-in"
-      role="presentation"
-      data-modal-backdrop=""
+  return (
+    <ModalDialog
+      onClose={close}
+      initialFocusRef={blocker ? cancelRef : installRef}
+      aria-labelledby={headingId}
+      aria-busy={installing}
+      data-testid="plugin-import-dialog"
+      className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[480px] flex-col overflow-hidden bg-panel p-6"
     >
-      <DialogSurface
-        onClose={close}
-        initialFocusRef={blocker ? cancelRef : installRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={headingId}
-        aria-busy={installing}
-        data-testid="plugin-import-dialog"
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[480px] flex-col overflow-hidden rounded-xl border border-border bg-panel p-6 shadow-dialog animate-slide-up-fade"
-      >
-        <h2 id={headingId} className="text-lg font-semibold text-foreground">
-          导入插件
-        </h2>
-        <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
-          <header className="space-y-1" data-testid="plugin-import-head">
-            <p className="break-words text-sm">
-              <span className="font-medium text-foreground">{title}</span>
-              {meta && <span className="text-xs text-muted"> · {meta}</span>}
-            </p>
-            {manifest?.description && (
-              <p className="break-words text-xs leading-5 text-muted">{manifest.description}</p>
-            )}
-            {manifest?.format === 'codex' && (
-              <p className="text-2xs text-subtle" data-testid="plugin-import-codex">
-                Codex 插件：只用其中的技能
-              </p>
-            )}
-          </header>
-          <PluginContents description={description} />
-          <SkippedFiles skipped={staged.skipped} />
-          <PluginProblems problems={description.problems} />
-          {replaced && (
-            <p
-              className="rounded-md bg-background px-3 py-2 text-xs leading-5 text-muted"
-              data-testid="plugin-import-replace"
-            >
-              {replacementSummary(replaced, description)}
+      <h2 id={headingId} className="text-lg font-semibold text-foreground">
+        导入插件
+      </h2>
+      <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <header className="space-y-1" data-testid="plugin-import-head">
+          <p className="break-words text-sm">
+            <span className="font-medium text-foreground">{title}</span>
+            {meta && <span className="text-xs text-muted"> · {meta}</span>}
+          </p>
+          {manifest?.description && (
+            <p className="break-words text-xs leading-5 text-muted">{manifest.description}</p>
+          )}
+          {manifest?.format === 'codex' && (
+            <p className="text-2xs text-subtle" data-testid="plugin-import-codex">
+              Codex 插件：只用其中的技能
             </p>
           )}
-        </div>
-        {blocker && (
-          <p className="mt-4 text-xs text-warning" data-testid="plugin-import-blocker">
-            {blocker}
+        </header>
+        <PluginContents description={description} />
+        <SkippedFiles skipped={staged.skipped} />
+        <PluginProblems problems={description.problems} />
+        {replaced && (
+          <p
+            className="rounded-md bg-background px-3 py-2 text-xs leading-5 text-muted"
+            data-testid="plugin-import-replace"
+          >
+            {replacementSummary(replaced, description)}
           </p>
         )}
-        <div className="mt-4 flex justify-end gap-2 border-t border-border pt-4">
-          <Button
-            ref={cancelRef}
-            size="md"
-            variant="secondary"
-            className="text-sm"
-            disabled={installing}
-            onClick={close}
-            data-testid="plugin-import-cancel"
-          >
-            取消
-          </Button>
-          <Button
-            ref={installRef}
-            size="md"
-            variant="primary"
-            className="text-sm font-medium"
-            disabled={blocker !== null}
-            loading={installing}
-            onClick={onInstall}
-            data-testid="plugin-import-install"
-          >
-            {installing ? '安装中…' : '安装'}
-          </Button>
-        </div>
-      </DialogSurface>
-    </div>,
-    document.body,
+      </div>
+      {blocker && (
+        <p className="mt-4 text-xs text-warning" data-testid="plugin-import-blocker">
+          {blocker}
+        </p>
+      )}
+      <div className="mt-4 flex justify-end gap-2 border-t border-border pt-4">
+        <Button
+          ref={cancelRef}
+          size="md"
+          variant="secondary"
+          className="text-sm"
+          disabled={installing}
+          onClick={close}
+          data-testid="plugin-import-cancel"
+        >
+          取消
+        </Button>
+        <Button
+          ref={installRef}
+          size="md"
+          variant="primary"
+          className="text-sm font-medium"
+          disabled={blocker !== null}
+          loading={installing}
+          onClick={onInstall}
+          data-testid="plugin-import-install"
+        >
+          {installing ? '安装中…' : '安装'}
+        </Button>
+      </div>
+    </ModalDialog>
   );
 }

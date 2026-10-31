@@ -8,8 +8,8 @@ export type {
 } from './FormControls';
 export { Button, IconButton } from './Button';
 export type { ButtonProps, IconButtonProps, ButtonSize, ButtonVariant } from './Button';
-export { DialogSurface } from './Dialog';
-export type { DialogSurfaceProps } from './Dialog';
+export { DialogSurface, ModalDialog } from './Dialog';
+export type { DialogSurfaceProps, ModalDialogProps } from './Dialog';
 export { FloatingSurface } from './FloatingSurface';
 export type { FloatingSurfaceProps } from './FloatingSurface';
 export { Tooltip } from './Tooltip';

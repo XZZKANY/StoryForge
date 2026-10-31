@@ -1,4 +1,4 @@
-import { DialogSurface, Input, Button } from '../ui';
+import { ModalDialog, Input, Button } from '../ui';
 
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
@@ -204,105 +204,96 @@ export function AppDialogHost({
   const choiceWithoutDefault = dialog.kind === 'choice' && dialog.noDefault === true;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-4 animate-fade-in"
-      role="presentation"
-      data-testid="app-dialog-backdrop"
-      data-modal-backdrop=""
+    <ModalDialog
+      onClose={() =>
+        onClose(dialog.kind === 'alert' ? undefined : dialog.kind === 'confirm' ? false : null)
+      }
+      initialFocusRef={isPrompt ? inputRef : primaryRef}
+      aria-labelledby="app-dialog-title"
+      className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden bg-panel p-4"
+      data-testid="app-dialog"
+      data-dialog-kind={dialog.kind}
     >
-      <DialogSurface
-        onClose={() =>
-          onClose(dialog.kind === 'alert' ? undefined : dialog.kind === 'confirm' ? false : null)
-        }
-        initialFocusRef={isPrompt ? inputRef : primaryRef}
-        aria-modal="true"
-        role="dialog"
-        aria-labelledby="app-dialog-title"
-        className="flex max-h-[calc(100vh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-xl border border-border bg-panel p-4 shadow-dialog animate-slide-up-fade"
-        data-testid="app-dialog"
-        data-dialog-kind={dialog.kind}
+      <h2 id="app-dialog-title" className="text-sm font-semibold text-foreground">
+        {dialog.title}
+      </h2>
+      <p
+        className={`mt-2 min-h-0 overflow-y-auto break-words whitespace-pre-wrap text-sm leading-6 text-muted ${
+          dialog.mono ? 'font-mono' : ''
+        }`}
+        data-testid="app-dialog-message"
       >
-        <h2 id="app-dialog-title" className="text-sm font-semibold text-foreground">
-          {dialog.title}
-        </h2>
-        <p
-          className={`mt-2 min-h-0 overflow-y-auto break-words whitespace-pre-wrap text-sm leading-6 text-muted ${
-            dialog.mono ? 'font-mono' : ''
-          }`}
-          data-testid="app-dialog-message"
-        >
-          {dialog.message}
-        </p>
-        {isPrompt && (
-          <Input
-            ref={inputRef}
-            aria-label={dialog.title}
-            className="mt-4 border-border-strong"
-            data-testid="app-dialog-input"
-            value={dialog.value}
-            onChange={(event) => onPromptValueChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-              if (event.key !== 'Enter') return;
-              // 吞掉这次按键：框关掉后焦点回到唤起它的按钮，同一次回车的 keypress 会再「点」一下，框又弹出来。
-              event.preventDefault();
-              onClose(dialog.value);
-            }}
-          />
+        {dialog.message}
+      </p>
+      {isPrompt && (
+        <Input
+          ref={inputRef}
+          aria-label={dialog.title}
+          className="mt-4 border-border-strong"
+          data-testid="app-dialog-input"
+          value={dialog.value}
+          onChange={(event) => onPromptValueChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+            if (event.key !== 'Enter') return;
+            // 吞掉这次按键：框关掉后焦点回到唤起它的按钮，同一次回车的 keypress 会再「点」一下，框又弹出来。
+            event.preventDefault();
+            onClose(dialog.value);
+          }}
+        />
+      )}
+      <div
+        className="mt-5 flex shrink-0 flex-wrap justify-end gap-2"
+        data-testid="app-dialog-actions"
+      >
+        {(isConfirm || isPrompt || isChoice) && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => onClose(isConfirm ? false : null)}
+            data-testid="app-dialog-cancel"
+          >
+            {dialog.cancelLabel}
+          </Button>
         )}
-        <div
-          className="mt-5 flex shrink-0 flex-wrap justify-end gap-2"
-          data-testid="app-dialog-actions"
-        >
-          {(isConfirm || isPrompt || isChoice) && (
+        {isChoice ? (
+          dialog.choices.map((choice, index) => (
             <Button
+              // 首个选项是主动作：拿 primaryRef 才能继承既有的「打开即聚焦 → Enter 确认」。
+              ref={index === 0 && !choiceWithoutDefault ? primaryRef : undefined}
+              key={choice.id}
               type="button"
               size="sm"
-              variant="secondary"
-              onClick={() => onClose(isConfirm ? false : null)}
-              data-testid="app-dialog-cancel"
+              variant={
+                choice.tone === 'danger'
+                  ? 'danger'
+                  : index === 0 && !choiceWithoutDefault
+                    ? 'primary'
+                    : 'secondary'
+              }
+              onClick={() => onClose(choice.id)}
+              data-testid={
+                index === 0 && !choiceWithoutDefault
+                  ? 'app-dialog-primary'
+                  : `app-dialog-choice-${choice.id}`
+              }
             >
-              {dialog.cancelLabel}
+              {choice.label}
             </Button>
-          )}
-          {isChoice ? (
-            dialog.choices.map((choice, index) => (
-              <Button
-                // 首个选项是主动作：拿 primaryRef 才能继承既有的「打开即聚焦 → Enter 确认」。
-                ref={index === 0 && !choiceWithoutDefault ? primaryRef : undefined}
-                key={choice.id}
-                type="button"
-                size="sm"
-                variant={
-                  choice.tone === 'danger'
-                    ? 'danger'
-                    : index === 0 && !choiceWithoutDefault
-                      ? 'primary'
-                      : 'secondary'
-                }
-                onClick={() => onClose(choice.id)}
-                data-testid={
-                  index === 0 && !choiceWithoutDefault
-                    ? 'app-dialog-primary'
-                    : `app-dialog-choice-${choice.id}`
-                }
-              >
-                {choice.label}
-              </Button>
-            ))
-          ) : (
-            <Button
-              ref={primaryRef}
-              type="button"
-              variant={isConfirm && dialog.tone === 'danger' ? 'danger' : 'primary'}
-              onClick={() => onClose(isPrompt ? dialog.value : true)}
-              data-testid="app-dialog-primary"
-            >
-              {dialog.confirmLabel}
-            </Button>
-          )}
-        </div>
-      </DialogSurface>
-    </div>
+          ))
+        ) : (
+          <Button
+            ref={primaryRef}
+            type="button"
+            variant={isConfirm && dialog.tone === 'danger' ? 'danger' : 'primary'}
+            onClick={() => onClose(isPrompt ? dialog.value : true)}
+            data-testid="app-dialog-primary"
+          >
+            {dialog.confirmLabel}
+          </Button>
+        )}
+      </div>
+    </ModalDialog>
   );
 }

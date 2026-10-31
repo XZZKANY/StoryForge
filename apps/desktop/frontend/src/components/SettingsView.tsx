@@ -1,4 +1,4 @@
-import { Field, type FieldControlProps, DialogSurface, Button, Input, Select } from './ui';
+import { Field, type FieldControlProps, ModalDialog, Button, Input, Select } from './ui';
 import { AppDialogHost, useAppDialog } from './app/AppDialog';
 
 import {
@@ -137,19 +137,14 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
-      data-modal-backdrop=""
-    >
-      <DialogSurface
+    <>
+      <ModalDialog
         dismissOutside
         onClose={requestClose}
         initialFocusRef={searchRef}
         fallbackFocusRef={fallbackFocusRef}
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="settings-title"
-        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-dialog animate-slide-up-fade"
+        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden bg-background text-foreground"
         data-testid="settings-view"
       >
         <aside className="flex w-48 flex-shrink-0 flex-col bg-panel px-3 py-3">
@@ -349,13 +344,13 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
             </div>
           </SettingsSearchContext.Provider>
         </main>
-      </DialogSurface>
+      </ModalDialog>
       <AppDialogHost
         dialog={confirmDialog.dialog}
         onClose={confirmDialog.closeDialog}
         onPromptValueChange={confirmDialog.updatePromptValue}
       />
-    </div>
+    </>
   );
 }
 

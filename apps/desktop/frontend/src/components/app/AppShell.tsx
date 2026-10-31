@@ -455,6 +455,7 @@ export function AppShell({
           projectPath={activeProject}
           currentFile={currentFile}
           onClose={() => setPalette(null)}
+          onModeChange={setPalette}
           onOpenFile={tabs.openFile}
           onOpenProject={commands.handleOpenProject}
           onInitializeProject={commands.handleInitializeStoryProject}
