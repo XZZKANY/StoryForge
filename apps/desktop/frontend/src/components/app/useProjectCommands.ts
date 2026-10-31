@@ -15,7 +15,7 @@ import {
   relativePathInsideProject,
 } from '../../lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from '../../lib/smoke';
-import { FS_MUTATION_EVENT, invalidateFileSystemCache } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT, invalidateFileSystemCache, pickDirectory } from '../../lib/tauri-fs';
 import { emitToast } from '../../lib/toast';
 import type { AppDialogApi } from './AppDialog';
 import { useBookBreakdown } from './useBookBreakdown';
@@ -96,9 +96,8 @@ export function useProjectCommands({
   const handleOpenProject = useCallback(async () => {
     cancelPendingNavigation?.();
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({ directory: true, multiple: false, title: '选择作品文件夹' });
-      if (!selected || typeof selected !== 'string') return;
+      const selected = await pickDirectory('选择作品文件夹');
+      if (!selected) return;
       if (
         activeProject &&
         normalizePathForMatch(normalizeRoot(selected)) ===
@@ -157,13 +156,8 @@ export function useProjectCommands({
 
   const handleCreateSampleProject = useCallback(async () => {
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: '选择示例作品保存位置',
-      });
-      if (!selected || typeof selected !== 'string') return;
+      const selected = await pickDirectory('选择示例作品保存位置');
+      if (!selected) return;
       if (!(await confirmDiscardFiles(openFiles, '创建示例作品'))) return;
       const projectPath = await createSampleStoryProject(selected);
       resetEditorFiles();

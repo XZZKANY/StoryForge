@@ -15,6 +15,7 @@ import {
   stagePluginImport,
   type StagedPluginImport,
 } from '../../lib/plugin-library';
+import { pickDirectory, pickFile } from '../../lib/tauri-fs';
 import { emitToast } from '../../lib/toast';
 
 export type PluginImportPreview = {
@@ -24,17 +25,10 @@ export type PluginImportPreview = {
 
 export type PluginImportSource = 'folder' | 'zip';
 
-const pickImportSource = async (source: PluginImportSource) => {
-  const { open } = await import('@tauri-apps/plugin-dialog');
-  return source === 'zip'
-    ? await open({
-        multiple: false,
-        directory: false,
-        filters: [{ name: '插件压缩包', extensions: ['zip'] }],
-        title: '选择插件压缩包（.zip）',
-      })
-    : await open({ directory: true, multiple: false, title: '选择插件文件夹' });
-};
+const pickImportSource = (source: PluginImportSource) =>
+  source === 'zip'
+    ? pickFile('选择插件压缩包（.zip）', [{ name: '插件压缩包', extensions: ['zip'] }])
+    : pickDirectory('选择插件文件夹');
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -101,7 +95,7 @@ export function usePlugins() {
     let staged: StagedPluginImport | null = null;
     try {
       const selected = await pickImportSource(source);
-      if (!selected || typeof selected !== 'string') return;
+      if (!selected) return;
       staged = await stagePluginImport(selected);
       const description = await describeStagedPlugin(staged.stageRoot);
       if (!aliveRef.current) {

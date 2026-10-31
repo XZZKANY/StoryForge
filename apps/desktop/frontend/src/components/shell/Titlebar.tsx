@@ -4,27 +4,9 @@
  * 避免顶栏出现 `D:\test` 这类裸路径。窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽。
  */
 import type { Ref } from 'react';
-import { isTauriRuntime } from '../../lib/tauri-env';
+import { runWindowAction } from '../../lib/host-window';
 import { Library, Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
 import { Button, PlainButton } from '../ui';
-
-async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close') {
-  if (!isTauriRuntime()) return;
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    const appWindow = getCurrentWindow();
-    if (action === 'drag') {
-      // Windows 不允许拖动最大化窗口（startDragging 静默无效）：先还原再拖，对齐原生手感。
-      if (await appWindow.isMaximized()) await appWindow.unmaximize();
-      await appWindow.startDragging();
-    }
-    if (action === 'minimize') await appWindow.minimize();
-    if (action === 'maximize') await appWindow.toggleMaximize();
-    if (action === 'close') await appWindow.close();
-  } catch (error) {
-    console.error('窗口操作失败', error);
-  }
-}
 
 export function Titlebar({
   onOpenPalette,

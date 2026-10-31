@@ -103,6 +103,86 @@ it('界面只经 lib/api 进引擎，不直接引引擎包或 lib/engine', () =>
   expect(offenders).toEqual([]);
 });
 
+// 宿主访问只经这些封装；挪进 lib/host/ 待 #561 合后做。
+const HOST_ACCESS_MODULES = [
+  // lib/engine：给引擎装配原生读写口与应用版本
+  'src/lib/engine/agent.ts',
+  'src/lib/engine/assistant.ts',
+  'src/lib/engine/crossChapter.ts',
+  'src/lib/engine/db.ts',
+  'src/lib/engine/facts.ts',
+  'src/lib/engine/ideCommands.ts',
+  'src/lib/engine/llm.ts',
+  'src/lib/engine/reader.ts',
+  'src/lib/engine/writer.ts',
+  // lib 顶层的宿主封装
+  'src/lib/app-update.ts',
+  'src/lib/book-cover.ts',
+  'src/lib/desktop-llm-config.ts',
+  'src/lib/host-close.ts',
+  'src/lib/host-window.ts',
+  'src/lib/native-delivery.ts',
+  'src/lib/plugin-library.ts',
+  'src/lib/shadow-git.ts',
+  'src/lib/tauri-env.ts',
+  'src/lib/tauri-fs.ts',
+  'src/lib/update-check.ts',
+];
+
+it('只有白名单里的封装模块引 @tauri-apps，组件经它们调宿主', () => {
+  const importing = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => /['"]@tauri-apps\//.test(readFileSync(path, 'utf8')));
+  expect(importing.filter((path) => !HOST_ACCESS_MODULES.includes(path))).toEqual([]);
+  expect(
+    HOST_ACCESS_MODULES.filter((path) => !importing.includes(path)),
+    '不再调宿主了：从白名单去掉',
+  ).toEqual([]);
+});
+
+// 跨组件的窗口事件：名字跟着各自的领域模块以 export const XXX_EVENT 定义一次，派发与监听只引常量。
+// localStorage 键也以 storyforge: 开头，所以只认 *_EVENT 常量和事件调用的参数。
+const EVENT_CONSTANT = /^(.*?)\b(\w+_EVENT)\s*=\s*['"`](storyforge:[^'"`]*)['"`]/gm;
+const EVENT_NAME_LITERAL_IN_CALL =
+  /(?:dispatchEvent|addEventListener|removeEventListener|new\s+CustomEvent\s*(?:<[^(]*?>)?)\s*\(\s*['"`]storyforge:/;
+
+it('窗口事件名各在一处定义成 export const XXX_EVENT，别处只用常量', () => {
+  const texts = new Map(
+    sourceFiles('src').map((path) => [relativePath(path), readFileSync(path, 'utf8')] as const),
+  );
+  const definitions = [...texts].flatMap(([path, text]) =>
+    [...text.matchAll(EVENT_CONSTANT)].map(([, prefix, name, value]) => ({
+      path,
+      exported: prefix.trim() === 'export const',
+      name,
+      value,
+    })),
+  );
+  expect(definitions.length).toBeGreaterThan(20);
+  expect(definitions.filter((item) => !item.exported).map((item) => item.path)).toEqual([]);
+  const repeated = (values: string[]) =>
+    values.filter((value, index) => values.indexOf(value) !== index);
+  expect(repeated(definitions.map((item) => item.name))).toEqual([]);
+  expect(repeated(definitions.map((item) => item.value))).toEqual([]);
+
+  const quotedUses = (text: string, value: string) =>
+    ['"', "'", '`'].reduce(
+      (count, quote) => count + text.split(`${quote}${value}${quote}`).length - 1,
+      0,
+    );
+  const strayLiterals = definitions.flatMap(({ path: home, value }) =>
+    [...texts]
+      .filter(([path, text]) => quotedUses(text, value) > (path === home ? 1 : 0))
+      .map(([path]) => `${path}: ${value}`),
+  );
+  expect(strayLiterals).toEqual([]);
+
+  const literalCalls = [...texts]
+    .filter(([, text]) => EVENT_NAME_LITERAL_IN_CALL.test(text))
+    .map(([path]) => path);
+  expect(literalCalls).toEqual([]);
+});
+
 const ENGINE_SRC = '../../../packages/engine/src';
 const isTestSource = (path: string) => /\.test(-support)?\.tsx?$/.test(path);
 
