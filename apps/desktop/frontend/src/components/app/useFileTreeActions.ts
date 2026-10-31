@@ -72,7 +72,9 @@ export function useFileTreeActions({
   const onNewFile = useCallback(
     async (dir: string) => {
       if (!activeProject) return;
-      const siblings = await TauriFileSystem.listDir(dir, false).catch(() => []);
+      const siblings = await TauriFileSystem.listProjectDir(activeProject, dir, false).catch(
+        () => [],
+      );
       const input = await dialogs.prompt({
         title: '新建文件',
         message: `在 ${entryName(dir)} 下新建 Markdown 文件：`,
@@ -88,7 +90,7 @@ export function useFileTreeActions({
         return;
       }
       try {
-        if (await TauriFileSystem.pathExists(target)) {
+        if (await TauriFileSystem.projectPathExists(activeProject, target)) {
           await openFile(target, '打开已有文件');
           emitToast('该文件已存在，已为你打开');
           return;
@@ -161,7 +163,7 @@ export function useFileTreeActions({
         return;
       }
       try {
-        if (await TauriFileSystem.pathExists(target)) {
+        if (await TauriFileSystem.projectPathExists(activeProject, target)) {
           await dialogs.alert({ title: '重命名失败', message: '同目录下已存在同名项。' });
           return;
         }
@@ -182,7 +184,7 @@ export function useFileTreeActions({
       const from = parentDir(path);
       let folders: string[];
       try {
-        folders = (await TauriFileSystem.listDir(project, true))
+        folders = (await TauriFileSystem.listProjectDir(project, project, true))
           .filter((entry) => entry.isDir && isVisibleProjectTreeEntry(entry))
           .map((entry) => entry.path)
           .filter(
@@ -219,7 +221,7 @@ export function useFileTreeActions({
       const target = joinChild(dest, name);
       const label = picked === ROOT_CHOICE ? '作品根目录' : entryName(dest);
       try {
-        if (await TauriFileSystem.pathExists(target)) {
+        if (await TauriFileSystem.projectPathExists(project, target)) {
           await dialogs.alert({
             title: '移动失败',
             message: `「${label}」里已经有同名的「${name}」。`,
@@ -236,7 +238,7 @@ export function useFileTreeActions({
           label: '撤销',
           run: async () => {
             try {
-              if (await TauriFileSystem.pathExists(path)) {
+              if (await TauriFileSystem.projectPathExists(project, path)) {
                 emitToast(`原位置已经有「${name}」了，没法挪回去`, { tone: 'error' });
                 return;
               }
@@ -258,7 +260,7 @@ export function useFileTreeActions({
       if (!activeProject) return;
       const project = activeProject;
       const dir = parentDir(path);
-      const siblings = await TauriFileSystem.listDir(dir, false).catch(() => []);
+      const siblings = await TauriFileSystem.listProjectDir(project, dir, false).catch(() => []);
       const suggested = copyName(
         entryName(path),
         siblings.map((entry) => entry.name),
@@ -284,7 +286,7 @@ export function useFileTreeActions({
         return;
       }
       try {
-        if (await TauriFileSystem.pathExists(target)) {
+        if (await TauriFileSystem.projectPathExists(project, target)) {
           await dialogs.alert({ title: '复制失败', message: `「${name}」已经存在。` });
           return;
         }
@@ -381,7 +383,7 @@ async function collectDeleteBackup(
   path: string,
   isDir: boolean,
 ): Promise<DeleteBackup> {
-  const entries = isDir ? await TauriFileSystem.listDir(path, true) : [];
+  const entries = isDir ? await TauriFileSystem.listProjectDir(project, path, true) : [];
   const filePaths = isDir
     ? entries.filter((entry) => !entry.isDir).map((entry) => entry.path)
     : [path];
@@ -413,7 +415,7 @@ function isAppDataPath(project: string, path: string): boolean {
 async function restoreDeleted(project: string, name: string, backup: DeleteBackup): Promise<void> {
   try {
     for (const file of backup.files) {
-      if (await TauriFileSystem.pathExists(file.path)) {
+      if (await TauriFileSystem.projectPathExists(project, file.path)) {
         emitToast(
           `「${entryName(file.path)}」已经有同名文件，没有覆盖；可以去它的版本记录里找回。`,
           {
@@ -444,7 +446,7 @@ async function carryVersionHistory(
 ): Promise<void> {
   try {
     const moved = isDir
-      ? (await TauriFileSystem.listDir(to, true))
+      ? (await TauriFileSystem.listProjectDir(project, to, true))
           .filter((entry) => !entry.isDir)
           .map((entry) => ({ from: retargetEditorPath(entry.path, to, from), to: entry.path }))
       : [{ from, to }];

@@ -42,7 +42,8 @@ export function blankStoryProjectPath(parentPath: string, title: string): string
 /** Explicit local creation only: no model request, sample prose, prompt, or overwrite. */
 export async function createBlankStoryProject(parentPath: string, title: string): Promise<string> {
   const projectPath = blankStoryProjectPath(parentPath, title);
-  if (await TauriFileSystem.pathExists(projectPath)) {
+  // 与下面建目录同一个围栏：所选的保存位置当根，新书目录是它的直接子目录。
+  if (await TauriFileSystem.projectPathExists(parentPath, projectPath)) {
     throw new Error(`目标目录已存在：${projectPath}。请换一个书名或保存位置，不会覆盖已有内容。`);
   }
   // Non-recursive root mkdir is the atomic claim, including concurrent same-name creation.

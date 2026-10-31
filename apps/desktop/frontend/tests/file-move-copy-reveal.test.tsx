@@ -19,8 +19,8 @@ import { recordRenameLineage } from '../src/lib/versions';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: vi.fn(async () => false),
-    listDir: vi.fn(async () => []),
+    projectPathExists: vi.fn(async () => false),
+    listProjectDir: vi.fn(async () => []),
     readProjectFile: vi.fn(async () => ''),
     writeFile: vi.fn(async () => undefined),
     writeFileIfUnchanged: vi.fn(async () => undefined),
@@ -96,9 +96,9 @@ function undoAction(): ToastAction {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fsMock.pathExists.mockImplementation(async () => false);
+  fsMock.projectPathExists.mockImplementation(async () => false);
   // 宿主的递归列目录会把作品根自己也列进来。
-  fsMock.listDir.mockImplementation(async () => [
+  fsMock.listProjectDir.mockImplementation(async () => [
     dir(PROJECT),
     dir(`${PROJECT}\\正文`),
     dir(`${PROJECT}\\正文\\旧稿`),
@@ -163,7 +163,9 @@ test('移动到…：候选里没有自己所在的文件夹和 .storyforge；�
 test('移动目标已有同名：不挪，说清楚；文件夹不能移进它自己里面', async () => {
   const harness = mount();
   try {
-    fsMock.pathExists.mockImplementation(async (path) => path === `${PROJECT}\\.草稿\\第006章.md`);
+    fsMock.projectPathExists.mockImplementation(
+      async (_root, path) => path === `${PROJECT}\\.草稿\\第006章.md`,
+    );
     harness.choose.mockResolvedValueOnce(`${PROJECT}\\.草稿`);
     await act(async () => harness.actions().onMove!(CHAPTER, false));
     assert.equal(fsMock.renamePath.mock.calls.length, 0);
@@ -244,7 +246,7 @@ test.each(['外部作者刚刚写入的内容', ''])(
         readFile: (path) => disk.get(path) ?? '',
         writeFile: write,
       };
-      fsMock.pathExists.mockImplementation(async (path) => disk.has(path));
+      fsMock.projectPathExists.mockImplementation(async (_root, path) => disk.has(path));
       fsMock.writeFile.mockImplementation(async (_root, path, content) => write(path, content));
       fsMock.writeFileIfUnchanged.mockImplementation(actual.TauriFileSystem.writeFileIfUnchanged);
       fsMock.readProjectFile.mockImplementation(async () => {

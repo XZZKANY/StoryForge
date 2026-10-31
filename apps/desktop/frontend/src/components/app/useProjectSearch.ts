@@ -51,7 +51,7 @@ export function useProjectSearch(projectPath: string | null) {
       setSkippedFiles(0);
 
       try {
-        const entries = await TauriFileSystem.listDir(projectPath, true);
+        const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
         if (seq !== seqRef.current) return;
         const files = entries
           .filter(isVisibleProjectTreeEntry)

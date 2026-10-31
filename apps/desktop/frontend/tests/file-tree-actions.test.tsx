@@ -9,11 +9,15 @@ import { TauriFileSystem } from '../src/lib/tauri-fs';
 import { emitToast } from '../src/lib/toast';
 
 vi.mock('../src/lib/tauri-fs', () => ({
-  TauriFileSystem: { pathExists: vi.fn(), writeFile: vi.fn(), listDir: vi.fn(async () => []) },
+  TauriFileSystem: {
+    projectPathExists: vi.fn(),
+    writeFile: vi.fn(),
+    listProjectDir: vi.fn(async () => []),
+  },
 }));
 vi.mock('../src/lib/toast', () => ({ emitToast: vi.fn() }));
 
-const mockedPathExists = vi.mocked(TauriFileSystem.pathExists);
+const mockedPathExists = vi.mocked(TauriFileSystem.projectPathExists);
 const mockedWriteFile = vi.mocked(TauriFileSystem.writeFile);
 const mockedToast = vi.mocked(emitToast);
 

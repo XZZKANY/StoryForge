@@ -19,9 +19,9 @@ import { TauriFileSystem } from '../src/lib/tauri-fs';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: vi.fn(async () => false),
+    projectPathExists: vi.fn(async () => false),
     writeFile: vi.fn(async () => undefined),
-    listDir: vi.fn(async () => []),
+    listProjectDir: vi.fn(async () => []),
   },
   FS_MUTATION_EVENT: 'storyforge:fs-mutation',
   invalidateFileSystemCache: () => {},
@@ -35,7 +35,7 @@ vi.mock('../src/lib/api/ide-commands', () => ({
 
 const PROJECT = 'D:\\连载\\末世吞噬';
 const DIR = `${PROJECT}\\正文`;
-const mockedListDir = vi.mocked(TauriFileSystem.listDir);
+const mockedListDir = vi.mocked(TauriFileSystem.listProjectDir);
 const mockedWrite = vi.mocked(TauriFileSystem.writeFile);
 const noop = () => {};
 

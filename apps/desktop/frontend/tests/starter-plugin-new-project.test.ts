@@ -11,7 +11,7 @@ import { TauriFileSystem } from '../src/lib/tauri-fs';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: vi.fn(),
+    projectPathExists: vi.fn(),
     createDir: vi.fn(),
     writeFile: vi.fn(),
   },
@@ -29,7 +29,9 @@ let existing: Set<string>;
 beforeEach(() => {
   vi.resetAllMocks();
   existing = new Set();
-  vi.mocked(TauriFileSystem.pathExists).mockImplementation(async (path) => existing.has(path));
+  vi.mocked(TauriFileSystem.projectPathExists).mockImplementation(async (_root, path) =>
+    existing.has(path),
+  );
   vi.mocked(TauriFileSystem.createDir).mockResolvedValue(undefined);
   vi.mocked(TauriFileSystem.writeFile).mockResolvedValue(undefined);
 });
@@ -37,6 +39,11 @@ beforeEach(() => {
 test('发送即开书：新作品的插件启用文件只写起书基础包', async () => {
   const { projectPath } = await createNewBookProject('雾港回声\n第二行');
   expect(projectPath).toBe('D:\\文档\\StoryForge\\雾港回声');
+  // 挑书名与随后建目录同一个围栏：书库目录当根。
+  expect(TauriFileSystem.projectPathExists).toHaveBeenCalledWith(
+    'D:\\文档\\StoryForge',
+    projectPath,
+  );
   expect(TauriFileSystem.createDir).toHaveBeenCalledWith(
     projectPath,
     `${projectPath}\\.storyforge`,

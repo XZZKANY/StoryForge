@@ -140,9 +140,9 @@ export async function recordRenameLineage(
   }
 }
 
-async function targetFileExists(filePath: string): Promise<boolean> {
+async function targetFileExists(projectPath: string, filePath: string): Promise<boolean> {
   try {
-    return await TauriFileSystem.pathExists(filePath);
+    return await TauriFileSystem.projectPathExists(projectPath, filePath);
   } catch {
     // 是否存在决定恢复时会不会删除，探测失败时保守地视为已存在。
     return true;
@@ -177,7 +177,7 @@ export async function snapshotBeforeWrite(
 ): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   if (!projectPath) return null;
   if (!versionDirFor(projectPath, filePath)) return null;
-  const created = !(await targetFileExists(filePath));
+  const created = !(await targetFileExists(projectPath, filePath));
   const snapshot = await createShadowSnapshot(projectPath, deliveryTicket);
   return await recordShadowVersion(
     projectPath,
@@ -326,7 +326,7 @@ async function readVersionDir(
 ): Promise<VersionEntry[]> {
   let entries: FileEntry[];
   try {
-    entries = await TauriFileSystem.listDir(dir, false);
+    entries = await TauriFileSystem.listProjectDir(projectPath, dir, false);
   } catch {
     return [];
   }

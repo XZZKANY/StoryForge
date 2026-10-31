@@ -19,7 +19,7 @@ vi.mock('../src/lib/api/agent-socket', () => ({
 }));
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: async () => true,
+    projectPathExists: async () => true,
     readProjectFile: async () => JSON.stringify(state.descriptor),
   },
 }));

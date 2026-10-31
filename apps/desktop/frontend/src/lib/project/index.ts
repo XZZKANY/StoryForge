@@ -90,6 +90,6 @@ export function buildProjectIndexFromEntries(
 }
 
 export async function buildProjectIndex(projectPath: string): Promise<ProjectIndex> {
-  const entries = await TauriFileSystem.listDir(projectPath, true);
+  const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
   return buildProjectIndexFromEntries(projectPath, entries);
 }

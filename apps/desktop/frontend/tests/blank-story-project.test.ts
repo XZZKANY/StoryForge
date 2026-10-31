@@ -5,7 +5,7 @@ import { TauriFileSystem } from '../src/lib/tauri-fs';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: vi.fn(),
+    projectPathExists: vi.fn(),
     createDir: vi.fn(),
     writeFile: vi.fn(),
     deletePath: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('../src/lib/tauri-fs', () => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(TauriFileSystem.pathExists).mockResolvedValue(false);
+  vi.mocked(TauriFileSystem.projectPathExists).mockResolvedValue(false);
   vi.mocked(TauriFileSystem.createDir).mockResolvedValue(undefined);
   vi.mocked(TauriFileSystem.writeFile).mockResolvedValue(undefined);
 });
@@ -81,7 +81,7 @@ test.each([
   'a'.repeat(256),
 ])('rejects illegal Windows child name %j before touching the filesystem', async (title) => {
   await expect(createBlankStoryProject('D:/Books', title)).rejects.toThrow();
-  expect(TauriFileSystem.pathExists).not.toHaveBeenCalled();
+  expect(TauriFileSystem.projectPathExists).not.toHaveBeenCalled();
   expect(TauriFileSystem.createDir).not.toHaveBeenCalled();
 });
 
@@ -99,8 +99,10 @@ test.each(['', 'Books', 'D:Books', 'D:/Books/../Other'])(
 );
 
 test('refuses an existing directory without reusing it or overwriting any file', async () => {
-  vi.mocked(TauriFileSystem.pathExists).mockResolvedValue(true);
+  vi.mocked(TauriFileSystem.projectPathExists).mockResolvedValue(true);
   await expect(createBlankStoryProject('D:/Books', '第一本')).rejects.toThrow('已存在');
+  // 与随后建目录同一个围栏：所选保存位置当根。
+  expect(TauriFileSystem.projectPathExists).toHaveBeenCalledWith('D:/Books', 'D:/Books/第一本');
   expect(TauriFileSystem.createDir).not.toHaveBeenCalled();
   expect(TauriFileSystem.writeFile).not.toHaveBeenCalled();
   expect(TauriFileSystem.deletePath).not.toHaveBeenCalled();

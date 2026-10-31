@@ -36,7 +36,7 @@ export async function adoptWritingSkills(
   const result: AdoptResult = { created: [], skipped: [] };
   for (const skill of skills) {
     const target = resolveProjectRelativePath(projectPath, skill.relativePath);
-    if (!target || (await TauriFileSystem.pathExists(target))) {
+    if (!target || (await TauriFileSystem.projectPathExists(projectPath, target))) {
       result.skipped.push(skill);
       continue;
     }

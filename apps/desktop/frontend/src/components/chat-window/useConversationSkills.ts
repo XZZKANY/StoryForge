@@ -40,7 +40,7 @@ export async function createConversationSkillFile(
     `${CONVERSATION_SKILL_DIR}/${skill.name}.md`,
   );
   if (dir === null || file === null) throw new Error('技能的路径不在当前作品里');
-  if (await TauriFileSystem.pathExists(file)) return file;
+  if (await TauriFileSystem.projectPathExists(projectRoot, file)) return file;
   await TauriFileSystem.createDir(projectRoot, dir, true);
   await TauriFileSystem.writeFile(projectRoot, file, skill.content);
   return file;

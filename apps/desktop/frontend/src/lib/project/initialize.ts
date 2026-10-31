@@ -82,14 +82,14 @@ export async function initializeStoryProject(projectPath: string): Promise<void>
   }
 
   const readmePath = plan.readmePath;
-  const exists = await TauriFileSystem.pathExists(readmePath);
+  const exists = await TauriFileSystem.projectPathExists(projectPath, readmePath);
   if (!exists) {
     await TauriFileSystem.writeFile(projectPath, readmePath, plan.readmeContent);
   }
 }
 
 async function writeIfMissing(projectPath: string, path: string, content: string): Promise<void> {
-  const exists = await TauriFileSystem.pathExists(path);
+  const exists = await TauriFileSystem.projectPathExists(projectPath, path);
   if (!exists) {
     await TauriFileSystem.writeFile(projectPath, path, content);
   }
@@ -131,10 +131,11 @@ export function deriveNewBookName(prompt: string): string {
 async function resolveFreeChildPath(parentPath: string, name: string): Promise<string> {
   const separator = parentPath.includes('\\') ? '\\' : '/';
   const base = `${normalizeRoot(parentPath)}${separator}${name}`;
-  if (!(await TauriFileSystem.pathExists(base))) return base;
+  // 与随后建目录同一个围栏：书库目录当根，候选书名都是它的直接子目录。
+  if (!(await TauriFileSystem.projectPathExists(parentPath, base))) return base;
   for (let n = 2; n < 1000; n += 1) {
     const candidate = `${base}-${n}`;
-    if (!(await TauriFileSystem.pathExists(candidate))) return candidate;
+    if (!(await TauriFileSystem.projectPathExists(parentPath, candidate))) return candidate;
   }
   return `${base}-${Date.now()}`;
 }
