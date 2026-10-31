@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { Button } from '../ui';
@@ -32,6 +34,66 @@ function summaryText(result: WriteBatchResult): string | null {
   return (
     `这一批写了 ${writtenChapterCount(batch)} 章（计划 ${plannedChapterCount(batch)} 章）` +
     (result.used ? `· 共用 ${result.used}${leg}` : '')
+  );
+}
+
+/**
+ * 撤销的第二步，在那一行里：台账说明与确认按钮挨在一起，展开时滚进视野
+ * （清单在卡内滚动，放在行尾或卡片底部时说明会被挤出视野）。
+ */
+function UndoConfirm({
+  label,
+  notice,
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  label: string;
+  notice: { text: string; emphasis: boolean } | null;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: 'nearest' });
+  }, []);
+  return (
+    <div className="mt-1" ref={ref} data-testid="write-batch-undo-confirm-block">
+      {notice && (
+        <p
+          className={`text-xs ${notice.emphasis ? 'font-medium text-warning' : 'text-muted'}`}
+          role={notice.emphasis ? 'alert' : undefined}
+          data-testid="write-batch-undo-facts"
+          data-emphasis={notice.emphasis ? 'true' : 'false'}
+        >
+          {notice.text}
+        </p>
+      )}
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        <Button
+          type="button"
+          size="xs"
+          variant="danger"
+          className="text-xs"
+          disabled={pending}
+          onClick={onConfirm}
+          data-testid="write-batch-undo-confirm"
+        >
+          {label}
+        </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="secondary"
+          className="text-xs"
+          onClick={onCancel}
+          data-testid="write-batch-undo-cancel"
+        >
+          取消
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -190,6 +252,14 @@ export function WriteBatchResultCard({
                       目标：{row.goal}
                     </div>
                   )}
+                  {row.factsWarning && (
+                    <div
+                      className="mt-0.5 text-3xs text-warning"
+                      data-testid="write-batch-row-facts-warning"
+                    >
+                      {row.factsWarning}
+                    </div>
+                  )}
                   {row.mismatch && (
                     <div
                       className="mt-0.5 text-3xs text-warning"
@@ -198,58 +268,29 @@ export function WriteBatchResultCard({
                       {row.mismatch}
                     </div>
                   )}
-                  {confirm?.from === row.ordinal && factsNotice && (
-                    <p
-                      className={`mt-1 text-xs ${
-                        factsNotice.emphasis ? 'font-medium text-warning' : 'text-muted'
-                      }`}
-                      role={factsNotice.emphasis ? 'alert' : undefined}
-                      data-testid="write-batch-undo-facts"
-                      data-emphasis={factsNotice.emphasis ? 'true' : 'false'}
-                    >
-                      {factsNotice.text}
-                    </p>
+                  {row.undoable && batch && confirm?.from === row.ordinal && (
+                    <UndoConfirm
+                      label={`确认撤销${undoRangeLabel(confirm.from, confirm.to)}？`}
+                      notice={factsNotice}
+                      pending={result.pending}
+                      onConfirm={() => onUndo(row.ordinal)}
+                      onCancel={onCancelUndo}
+                    />
                   )}
                 </div>
-                {row.undoable && batch && (
+                {row.undoable && batch && confirm?.from !== row.ordinal && (
                   <div className="flex shrink-0 items-center gap-1">
-                    {confirm?.from === row.ordinal ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="danger"
-                          className="text-xs"
-                          disabled={result.pending}
-                          onClick={() => onUndo(row.ordinal)}
-                          data-testid="write-batch-undo-confirm"
-                        >
-                          确认撤销{undoRangeLabel(confirm.from, confirm.to)}？
-                        </Button>
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="secondary"
-                          className="text-xs"
-                          onClick={onCancelUndo}
-                          data-testid="write-batch-undo-cancel"
-                        >
-                          取消
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="secondary"
-                        className="text-xs"
-                        disabled={result.pending}
-                        onClick={() => onPrepareUndo(row.ordinal)}
-                        data-testid="write-batch-undo"
-                      >
-                        撤销这章及之后
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="secondary"
+                      className="text-xs"
+                      disabled={result.pending}
+                      onClick={() => onPrepareUndo(row.ordinal)}
+                      data-testid="write-batch-undo"
+                    >
+                      撤销这章及之后
+                    </Button>
                   </div>
                 )}
               </li>

@@ -36,8 +36,13 @@ export type WriteBatchChapterRow = {
   check: string;
   /** 连载计划里本章的目标。 */
   goal: string | null;
-  /** 新记下的事实（total 含待定的）；记录里没有为 unknown；没写进文件的章为 null。 */
+  /**
+   * 新记下的事实（total 含待定的）；记录里没有为 unknown。只有写进文件的章有：没写的为 null，
+   * 撤销了的也为 null（这些事实随台账一起回退了）。
+   */
   facts: { total: number; pending: number } | 'unknown' | null;
+  /** 写进文件的章一条新事实都没记下时的提醒；其余为 null。 */
+  factsWarning: string | null;
   tokens: number | null;
   /** 记录与正文对不上时引擎给的说明。 */
   mismatch: string | null;
@@ -61,34 +66,41 @@ function checkText(chapter: ApiWriteBatchViewChapter): string {
 }
 
 function factsOf(chapter: ApiWriteBatchViewChapter): WriteBatchChapterRow['facts'] {
-  if (chapter.state !== 'written' && chapter.state !== 'undone') return null;
+  if (chapter.state !== 'written') return null;
   if (chapter.facts_added === null) return 'unknown';
   const pending = chapter.fact_disputes ?? 0;
   return { total: chapter.facts_added + pending, pending };
 }
+
+const NO_FACTS_WARNING = '这章没抽出新事实，事实台账可能漏了这章的内容。';
 
 /** 这一批的每一章一行，没轮到的也列（每一章的去向都要在清单上）。 */
 export function chapterRows(
   batch: ApiWriteBatchViewRecord,
   mismatches: readonly ApiWriteBatchMismatch[] = [],
 ): WriteBatchChapterRow[] {
-  return batch.chapters.map((chapter) => ({
-    ordinal: chapter.ordinal,
-    name: `第 ${chapter.ordinal} 章${chapter.title ? `《${chapter.title}》` : ''}`,
-    targetPath: chapter.target_path,
-    openable: chapter.state === 'written' || chapter.state === 'skipped_written',
-    chars: chapter.state === 'written' && chapter.chars !== null ? `${chapter.chars} 字` : null,
-    check: checkText(chapter),
-    goal: chapter.goal,
-    facts: factsOf(chapter),
-    tokens: chapter.tokens,
-    mismatch:
-      mismatches
-        .filter((item) => item.ordinal === chapter.ordinal)
-        .map((item) => item.message)
-        .join(' ') || null,
-    undoable: chapter.state === 'written' && batch.status !== 'running',
-  }));
+  return batch.chapters.map((chapter) => {
+    const facts = factsOf(chapter);
+    return {
+      ordinal: chapter.ordinal,
+      name: `第 ${chapter.ordinal} 章${chapter.title ? `《${chapter.title}》` : ''}`,
+      targetPath: chapter.target_path,
+      openable: chapter.state === 'written' || chapter.state === 'skipped_written',
+      chars: chapter.state === 'written' && chapter.chars !== null ? `${chapter.chars} 字` : null,
+      check: checkText(chapter),
+      goal: chapter.goal,
+      facts,
+      factsWarning:
+        facts !== null && facts !== 'unknown' && facts.total === 0 ? NO_FACTS_WARNING : null,
+      tokens: chapter.tokens,
+      mismatch:
+        mismatches
+          .filter((item) => item.ordinal === chapter.ordinal)
+          .map((item) => item.message)
+          .join(' ') || null,
+      undoable: chapter.state === 'written' && batch.status !== 'running',
+    };
+  });
 }
 
 /** 「撤销这章及之后」确认时说的范围（引擎计划里要删的第一章到最后一章）。 */

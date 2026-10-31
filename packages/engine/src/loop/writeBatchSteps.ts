@@ -1,3 +1,4 @@
+import { chapterHeadingTitle } from '../kernel/bookBreakdown';
 import { chapterOrdinals } from '../kernel/canonRebuild';
 import { FACTS_LEDGER_PATH } from '../kernel/factLedger';
 import { resolveProjectRoot } from '../kernel/fsTools';
@@ -84,8 +85,9 @@ export type WriteBatchMismatch = {
   message: string;
 };
 
-/** 读记录时每章带上连载计划里的标题与本章目标（读时取，不存进记录）。 */
+/** 读记录时每章带上章名与连载计划里的本章目标（读时取，不存进记录）。 */
 export type WriteBatchViewChapter = WriteBatchRecordChapter & {
+  /** 正文在的章取正文开头标题里的章名；没有正文、读不到或开头不是标题时用连载计划里的标题。 */
   title: string | null;
   goal: string | null;
 };
@@ -394,6 +396,23 @@ async function fileFingerprint(
       sha256: sha256Hex(read.bytes),
       chars: chapterChars(new TextDecoder('utf-8').decode(read.bytes)),
     };
+  } catch (error) {
+    if (error instanceof ProjectReadError) return null;
+    throw error;
+  }
+}
+
+/** 正文开头标题里的章名；文件不在、读不到、太大或开头不是标题为 null。 */
+async function headingTitleOnDisk(
+  reader: ProjectReader,
+  root: string,
+  relative: string,
+): Promise<string | null> {
+  try {
+    if ((await reader.inspectProjectPath(root, relative)).targetKind !== 'file') return null;
+    const read = await reader.readProjectBytes(root, relative, MAX_READ_BYTES);
+    if (read.exceeded) return null;
+    return chapterHeadingTitle(new TextDecoder('utf-8').decode(read.bytes));
   } catch (error) {
     if (error instanceof ProjectReadError) return null;
     throw error;
@@ -768,7 +787,7 @@ export async function markWriteBatchReviewed(
 
 /**
  * 读最近一批，并标出记录与正文对不上的章（以正文为准）。没有批量记录时 batch 为 null。
- * 每章带上连载计划里的标题（读时取，不存进记录）。
+ * 每章带上章名（正文在的取正文开头标题里的，否则用连载计划里的）与本章目标，读时取，不存进记录。
  */
 export async function readWriteBatch(
   deps: Pick<WriteBatchRunDeps, 'reader' | 'platform'>,
@@ -779,6 +798,15 @@ export async function readWriteBatch(
   const book = await bookChapters(deps.reader, root, deps.platform);
   const resumeFrom = firstUnwritten(record, book)?.ordinal ?? null;
   const mismatches: WriteBatchMismatch[] = [];
+  const headingTitles = new Map<number, string | null>();
+  for (const chapter of record.chapters) {
+    const textPath =
+      chapter.state === 'written' ? chapter.target_path : book.writtenPath(chapter.ordinal);
+    headingTitles.set(
+      chapter.ordinal,
+      textPath === null ? null : await headingTitleOnDisk(deps.reader, root, textPath),
+    );
+  }
   for (const chapter of record.chapters) {
     const label = `第 ${chapter.ordinal} 章`;
     const present = book.writtenPath(chapter.ordinal) !== null;
@@ -818,7 +846,7 @@ export async function readWriteBatch(
       ...record,
       chapters: record.chapters.map((chapter) => ({
         ...chapter,
-        title: book.entry(chapter.ordinal)?.title ?? null,
+        title: headingTitles.get(chapter.ordinal) ?? book.entry(chapter.ordinal)?.title ?? null,
         goal: book.entry(chapter.ordinal)?.goal ?? null,
       })),
     },

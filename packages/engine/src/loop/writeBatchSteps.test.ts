@@ -1089,6 +1089,50 @@ describe('作者要求与章名进记录（版本 2）', () => {
     expect(batch.chapters.every((chapter) => !('title' in chapter))).toBe(true);
   });
 
+  it('names a chapter by the title in its text heading while the text is there, by the plan otherwise', async () => {
+    const h = harness({ history: true, to: 8 });
+    h.project.apply({ [pathOf(2)]: file('# 第二章 已有的一章\n\n正文。\n') });
+    const batch = await started(h, 2, 7);
+    await h.writeChapter(batch, 3, { text: '# 第三章：雾港来信\n\n正文。\n' });
+    await h.writeChapter(batch, 4, { text: '# 第四章\n\n只有章号。\n' });
+    await h.writeChapter(batch, 5, { text: '\uFEFF\r\n## 灯塔守夜 ##\r\n\r\n正文。\r\n' });
+    await h.writeChapter(batch, 6, { text: '开头不是标题。\n\n# 第六章 中间的标题\n' });
+    await h.writeChapter(batch, 7, { text: '# Chapter 7 - 会被撤销\n\n正文。\n' });
+    const titles = async () =>
+      (await readWriteBatch(h.deps, ROOT)).batch?.chapters.map((chapter) => [
+        chapter.ordinal,
+        chapter.title,
+      ]);
+    expect(await titles()).toEqual([
+      [2, '已有的一章'],
+      [3, '雾港来信'],
+      [4, '标题4'],
+      [5, '灯塔守夜'],
+      [6, '标题6'],
+      [7, '会被撤销'],
+    ]);
+    // 读时取：作者改了标题就跟着改；撤销后文件没了，回到计划里的标题。
+    h.project.apply({ [pathOf(3)]: file('# 第三章：来信改名\n\n改过的正文。\n') });
+    await stopWriteBatch(h.deps, ROOT, batch.id, { code: 'author_stopped', message: '停一下' });
+    h.project.apply({ [pathOf(7)]: null });
+    await recordWriteBatchUndo(h.deps, ROOT, batch.id, 7, {
+      deleted: [7],
+      failure: null,
+      facts_restored: false,
+      facts_error: null,
+    });
+    expect(await titles()).toEqual([
+      [2, '已有的一章'],
+      [3, '来信改名'],
+      [4, '标题4'],
+      [5, '灯塔守夜'],
+      [6, '标题6'],
+      [7, '标题7'],
+    ]);
+    // 只是读时取，记录里照旧不存章名。
+    expect((await h.saved())?.chapters.every((chapter) => !('title' in chapter))).toBe(true);
+  });
+
   it('reads a version 1 record (no note) and writes it back as version 3', async () => {
     const h = harness({ history: true });
     const batch = await started(h, 2, 3);
