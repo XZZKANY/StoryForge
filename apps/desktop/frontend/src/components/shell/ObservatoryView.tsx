@@ -62,25 +62,6 @@ function claimSummary(invariant: string, entry: Record<string, unknown>): string
   return JSON.stringify(entry);
 }
 
-function Section({
-  count,
-  children,
-  ...props
-}: Omit<Parameters<typeof PanelSection>[0], 'prefix' | 'meta' | 'defaultOpen'> & {
-  count?: number | null;
-}) {
-  return (
-    <PanelSection
-      {...props}
-      prefix="obs"
-      meta={count == null ? undefined : String(count)}
-      defaultOpen
-    >
-      <div className="flex flex-col gap-2 px-3">{children}</div>
-    </PanelSection>
-  );
-}
-
 function EmptyLine({ children }: { children: ReactNode }) {
   return <p className="text-2xs leading-relaxed text-subtle">{children}</p>;
 }
@@ -121,9 +102,12 @@ function ProposalsSection({
   merging?: boolean;
 }) {
   return (
-    <Section
+    <PanelSection
+      prefix="obs"
+      defaultOpen
+      stack
       title="待确认提案"
-      count={proposals.available ? proposals.pendingCount : null}
+      meta={proposals.available ? proposals.pendingCount : null}
       testid="proposals"
     >
       {!proposals.available ? (
@@ -201,7 +185,7 @@ function ProposalsSection({
           </EmptyLine>
         </>
       )}
-    </Section>
+    </PanelSection>
   );
 }
 
@@ -327,7 +311,14 @@ export function ObservatoryView({
               onDismissProposal={onDismissProposal}
               merging={merging}
             />
-            <Section title="事实台账" count={factLedgerCount(facts)} testid="facts">
+            <PanelSection
+              prefix="obs"
+              defaultOpen
+              stack
+              title="事实台账"
+              meta={factLedgerCount(facts)}
+              testid="facts"
+            >
               <FactLedgerBody
                 facts={facts}
                 onLocate={onLocateAnchor}
@@ -335,8 +326,15 @@ export function ObservatoryView({
                 onResolveDispute={onResolveDispute}
                 backfill={factBackfill}
               />
-            </Section>
-            <Section title="伏笔账" count={promises.ledger.length} testid="promises">
+            </PanelSection>
+            <PanelSection
+              prefix="obs"
+              defaultOpen
+              stack
+              title="伏笔账"
+              meta={promises.ledger.length}
+              testid="promises"
+            >
               {promises.ledger.length === 0 ? (
                 <EmptyLine>
                   canon.json 尚无伏笔承诺声明（invariants.promises）。
@@ -361,8 +359,15 @@ export function ObservatoryView({
                   ))}
                 </>
               )}
-            </Section>
-            <Section title="实体" count={entities.length} testid="entities">
+            </PanelSection>
+            <PanelSection
+              prefix="obs"
+              defaultOpen
+              stack
+              title="实体"
+              meta={entities.length}
+              testid="entities"
+            >
               {entities.length === 0 ? (
                 <EmptyLine>canon.json 尚无实体声明。</EmptyLine>
               ) : (
@@ -377,8 +382,15 @@ export function ObservatoryView({
                   />
                 ))
               )}
-            </Section>
-            <Section title="检查器" count={checkers.length} testid="checkers">
+            </PanelSection>
+            <PanelSection
+              prefix="obs"
+              defaultOpen
+              stack
+              title="检查器"
+              meta={checkers.length}
+              testid="checkers"
+            >
               {checkers.length === 0 ? (
                 <EmptyLine>暂无检查器信息。</EmptyLine>
               ) : (
@@ -397,7 +409,7 @@ export function ObservatoryView({
                   ))}
                 </div>
               )}
-            </Section>
+            </PanelSection>
             <p className="px-3 py-3 text-3xs leading-relaxed text-subtle">
               以上是按规则算出的参考信号，不调用模型；提醒需要对照原文核实，不代表写得好坏。
             </p>

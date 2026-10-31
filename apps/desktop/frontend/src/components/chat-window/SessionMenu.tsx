@@ -7,11 +7,8 @@ import { useState, type RefObject } from 'react';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
 import { Pencil, Plus, Search, X } from '../icons/shell-icons';
-import { FloatingSurface, PlainButton } from '../ui';
+import { FloatingSurface, MenuItem, MenuItemAction } from '../ui';
 import { sessionDisplayTitle } from './useSessionManagement';
-
-const actionClass =
-  'grid h-6 w-6 flex-shrink-0 place-items-center rounded-sm text-subtle opacity-0 transition-opacity hover:bg-elevated hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100';
 
 export function SessionMenu({
   sessions,
@@ -101,70 +98,58 @@ export function SessionMenu({
               </div>
             );
           return (
-            <div
+            <MenuItem
               key={session.id}
-              className="group flex items-center gap-0.5 rounded-sm hover:bg-elevated"
+              current={active}
+              hint={formatStoredTimeShort(session.updated_at)}
+              onClick={() => {
+                onDismiss();
+                onSelectSession?.(session.id);
+              }}
+              title={`会话 #${session.id} · ${formatStoredTimeFull(session.updated_at)}`}
+              data-testid="session-item"
+              actions={
+                (onRenameSession || onRemoveSession) && (
+                  <>
+                    {onRenameSession && (
+                      <MenuItemAction
+                        label={`改名：${title}`}
+                        title="改名"
+                        icon={<Pencil size={12} strokeWidth={1.7} />}
+                        onClick={() => setEditing({ id: session.id, title })}
+                        data-testid="session-rename"
+                      />
+                    )}
+                    {onRemoveSession && (
+                      <MenuItemAction
+                        label={`从列表移除：${title}`}
+                        title="从列表移除（记录仍保留在本机）"
+                        icon={<X size={12} strokeWidth={1.7} />}
+                        onClick={() => onRemoveSession(session.id)}
+                        data-testid="session-remove"
+                      />
+                    )}
+                  </>
+                )
+              }
             >
-              <PlainButton
-                role="menuitem"
-                className={`flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs ${
-                  active ? 'text-foreground' : 'text-muted hover:text-foreground'
-                }`}
-                onClick={() => {
-                  onDismiss();
-                  onSelectSession?.(session.id);
-                }}
-                title={`会话 #${session.id} · ${formatStoredTimeFull(session.updated_at)}`}
-                data-testid="session-item"
-              >
-                <span className="min-w-0 flex-1 truncate">
-                  {active ? '✓ ' : ''}
-                  {title}
-                </span>
-                <span className="flex-shrink-0 text-3xs text-subtle">
-                  {formatStoredTimeShort(session.updated_at)}
-                </span>
-              </PlainButton>
-              {onRenameSession && (
-                <PlainButton
-                  className={actionClass}
-                  aria-label={`改名：${title}`}
-                  title="改名"
-                  onClick={() => setEditing({ id: session.id, title })}
-                  data-testid="session-rename"
-                >
-                  <Pencil size={12} strokeWidth={1.7} />
-                </PlainButton>
-              )}
-              {onRemoveSession && (
-                <PlainButton
-                  className={actionClass}
-                  aria-label={`从列表移除：${title}`}
-                  title="从列表移除（记录仍保留在本机）"
-                  onClick={() => onRemoveSession(session.id)}
-                  data-testid="session-remove"
-                >
-                  <X size={12} strokeWidth={1.7} />
-                </PlainButton>
-              )}
-            </div>
+              {title}
+            </MenuItem>
           );
         })
       )}
       {onNewSession && (
         <>
           <div className="mx-1.5 my-1 h-px bg-border" />
-          <PlainButton
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          <MenuItem
+            icon={<Plus size={13} strokeWidth={1.7} />}
             onClick={() => {
               onDismiss();
               onNewSession();
             }}
           >
-            <Plus size={13} strokeWidth={1.7} />
             新建会话
-          </PlainButton>
+          </MenuItem>
         </>
       )}
     </FloatingSurface>

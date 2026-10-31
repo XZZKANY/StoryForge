@@ -16,14 +16,18 @@ export function PanelSection({
   prefix,
   testid,
   defaultOpen = false,
+  stack = false,
   children,
 }: {
   title: string;
-  meta?: string;
-  /** 视图前缀，如 `manuscript` / `book`。 */
+  /** 标题右侧的小字；数字照原样显示（0 也显示），不想显示就不给或给 null。 */
+  meta?: string | number | null;
+  /** 视图前缀，如 `manuscript` / `book` / `obs`。 */
   prefix: string;
   testid: string;
   defaultOpen?: boolean;
+  /** 内容是一列卡片：左右缩进、条目之间留间隔（观测镜）。 */
+  stack?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -38,9 +42,15 @@ export function PanelSection({
       >
         <Chevron size={12} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />
         <span className="min-w-0 flex-1 truncate">{title}</span>
-        {meta && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{meta}</span>}
+        {meta != null && meta !== '' && (
+          <span className="flex-shrink-0 font-mono text-3xs text-subtle">{meta}</span>
+        )}
       </PlainButton>
-      {open && <div className="pb-2">{children}</div>}
+      {open && (
+        <div className="pb-2">
+          {stack ? <div className="flex flex-col gap-2 px-3">{children}</div> : children}
+        </div>
+      )}
     </div>
   );
 }

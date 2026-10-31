@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 
 import { listLlmProfiles } from '../../lib/desktop-llm-config';
 import { MoreHorizontal, Sparkles } from '../icons/shell-icons';
-import { FloatingSurface, IconButton, PlainButton } from '../ui';
+import { FloatingSurface, IconButton, MenuItem } from '../ui';
 
 export function PolishActionsMenu({
   onPolishActive,
@@ -58,29 +58,16 @@ export function PolishActionsMenu({
           >
             {dedicated ? (
               <>
-                <MenuRow label={`用「${dedicated}」润色`} onClick={() => run(false)} />
-                <MenuRow label="本次用当前模型" onClick={() => run(true)} />
+                <MenuItem onClick={() => run(false)}>用「{dedicated}」润色</MenuItem>
+                <MenuItem onClick={() => run(true)}>本次用当前模型</MenuItem>
               </>
             ) : (
-              <MenuRow label="润色当前章" onClick={() => run(false)} />
+              <MenuItem onClick={() => run(false)}>润色当前章</MenuItem>
             )}
           </FloatingSurface>
         </>
       )}
     </div>
-  );
-}
-
-function MenuRow({ label, kbd, onClick }: { label: string; kbd?: string; onClick?: () => void }) {
-  return (
-    <PlainButton
-      role="menuitem"
-      className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground"
-      onClick={onClick}
-    >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {kbd && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{kbd}</span>}
-    </PlainButton>
   );
 }
 
@@ -128,14 +115,20 @@ export function EditorActionsMenu({
             className="w-56 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
             data-testid="editor-more-menu"
           >
-            <MenuRow label="保存" kbd="Ctrl S" onClick={run(onSaveActive)} />
-            <MenuRow label="版本历史" kbd="Ctrl Shift H" onClick={run(onToggleHistory)} />
+            <MenuItem shortcut="Ctrl S" onClick={run(onSaveActive)}>
+              保存
+            </MenuItem>
+            <MenuItem shortcut="Ctrl Shift H" onClick={run(onToggleHistory)}>
+              版本历史
+            </MenuItem>
             <div className="mx-1.5 my-1 h-px bg-border" />
-            <MenuRow label="导出当前稿" onClick={run(onExportActive)} />
+            <MenuItem onClick={run(onExportActive)}>导出当前稿</MenuItem>
             <div className="mx-1.5 my-1 h-px bg-border" />
-            <MenuRow label="关闭当前页签" kbd="Ctrl W" onClick={run(onCloseActive)} />
-            <MenuRow label="关闭其他页签" onClick={run(onCloseOthers)} />
-            <MenuRow label="关闭全部页签" onClick={run(onCloseAll)} />
+            <MenuItem shortcut="Ctrl W" onClick={run(onCloseActive)}>
+              关闭当前页签
+            </MenuItem>
+            <MenuItem onClick={run(onCloseOthers)}>关闭其他页签</MenuItem>
+            <MenuItem onClick={run(onCloseAll)}>关闭全部页签</MenuItem>
           </FloatingSurface>
         </>
       )}
