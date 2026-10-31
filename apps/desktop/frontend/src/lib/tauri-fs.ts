@@ -110,13 +110,6 @@ export function invalidateFileSystemCache(path?: string): void {
 }
 
 export class TauriFileSystem {
-  static async readFile(path: string): Promise<string> {
-    const mock = mockFs();
-    if (mock?.readFile) return await mock.readFile(path);
-    assertTauriRuntime('TauriFileSystem.readFile');
-    return await invoke<string>('read_file', { path });
-  }
-
   static async readProjectFile(projectRoot: string, path: string): Promise<string> {
     const mock = mockFs();
     if (mock?.readFile) return await mock.readFile(path);

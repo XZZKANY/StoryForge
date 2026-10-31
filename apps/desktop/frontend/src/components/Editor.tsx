@@ -250,6 +250,7 @@ export function Editor({
     originalContentRef,
     issueDecorationsRef,
     filePathRef,
+    projectPathRef,
     isDirtyRef,
     autoSaveTimerRef,
     resetSuggestionWriteback,

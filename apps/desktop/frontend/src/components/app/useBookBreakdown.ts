@@ -241,7 +241,7 @@ export function useBookBreakdown({
     try {
       const path = resolveProjectRelativePath(activeProject, BREAKDOWN_SKILLS_PATH);
       if (!path) throw new Error('找不到拆书产出的写法。');
-      const skills = adoptableSkills(await TauriFileSystem.readFile(path));
+      const skills = adoptableSkills(await TauriFileSystem.readProjectFile(activeProject, path));
       if (!skills.length) throw new Error('这次拆书没有可放进 写法/ 的 skill。');
       const { created, skipped } = await adoptWritingSkills(activeProject, skills);
       if (!isCurrent()) return;

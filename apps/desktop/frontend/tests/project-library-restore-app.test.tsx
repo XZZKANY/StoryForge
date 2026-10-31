@@ -87,7 +87,7 @@ beforeEach(() => {
   );
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(TauriFileSystem, 'readFile').mockRejectedValue(
+  vi.spyOn(TauriFileSystem, 'readProjectFile').mockRejectedValue(
     new Error('ENOENT: isolated fixture has no metadata'),
   );
   vi.spyOn(TauriFileSystem, 'listDir').mockResolvedValue([]);

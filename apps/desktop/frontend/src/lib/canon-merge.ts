@@ -118,7 +118,7 @@ export async function readCanonDeclaration(projectPath: string): Promise<CanonDe
   if (!(await TauriFileSystem.pathExists(path))) {
     return { path, raw: null, canon: { version: 1, entities: [], invariants: {} } };
   }
-  const raw = await TauriFileSystem.readFile(path);
+  const raw = await TauriFileSystem.readProjectFile(projectPath, path);
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);

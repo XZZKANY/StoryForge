@@ -28,7 +28,7 @@ vi.mock('../src/lib/project-context', async (importOriginal) => ({
 vi.mock('../src/lib/manuscript-stats', () => ({ scanManuscriptTotals: vi.fn() }));
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    readFile: vi.fn(),
+    readProjectFile: vi.fn(),
     writeFile: vi.fn(),
     writeFileIfUnchanged: vi.fn(),
     createDir: vi.fn(),
@@ -99,7 +99,7 @@ beforeEach(() => {
       }) as never,
   );
   vi.mocked(scanManuscriptTotals).mockResolvedValue({ chapters: 0, chars: 0, unreadable: 0 });
-  vi.mocked(TauriFileSystem.readFile).mockImplementation(async (path: string) => {
+  vi.mocked(TauriFileSystem.readProjectFile).mockImplementation(async (_root, path) => {
     if (!path.endsWith('灵感.md')) return '{}';
     if (unreadable) throw new Error('拒绝访问');
     const text = disk.get(path);
@@ -211,10 +211,10 @@ test('刚换到另一本书、它的灵感文件还没读出来：不拿上一�
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const read = vi.mocked(TauriFileSystem.readFile).getMockImplementation()!;
-  vi.mocked(TauriFileSystem.readFile).mockImplementation(async (path: string) => {
+  const read = vi.mocked(TauriFileSystem.readProjectFile).getMockImplementation()!;
+  vi.mocked(TauriFileSystem.readProjectFile).mockImplementation(async (root, path) => {
     if (path === NOTES_B) await gate;
-    return read(path);
+    return read(root, path);
   });
 
   await open(BOOK_B);

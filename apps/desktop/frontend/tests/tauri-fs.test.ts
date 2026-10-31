@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 vi.mock('@tauri-apps/api/core', () => ({
@@ -194,4 +196,22 @@ test('incomplete mock capability fails closed instead of falling back to writeFi
       assert.equal(writes, 0);
     },
   );
+});
+
+test('readProjectFile 带上作品根，走宿主带围栏的 read_project_file', async () => {
+  vi.mocked(invoke).mockClear();
+  vi.mocked(invoke).mockResolvedValueOnce('正文');
+  assert.equal(await TauriFileSystem.readProjectFile('D:/Book', 'D:/Book/a.md'), '正文');
+  assert.deepEqual(vi.mocked(invoke).mock.calls.at(-1), [
+    'read_project_file',
+    { projectRoot: 'D:/Book', path: 'D:/Book/a.md' },
+  ]);
+});
+
+test('前端读作品文件只留 readProjectFile 一个口子：没有 readFile，也不再调宿主的 read_file', () => {
+  assert.equal(Reflect.has(TauriFileSystem, 'readFile'), false);
+  const offenders = (readdirSync('src', { recursive: true }) as string[])
+    .filter((name) => /\.tsx?$/.test(name))
+    .filter((name) => /['"`]read_file['"`]/.test(readFileSync(join('src', name), 'utf8')));
+  assert.deepEqual(offenders, []);
 });

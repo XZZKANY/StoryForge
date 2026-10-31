@@ -100,7 +100,10 @@ function versionDirForRelative(projectPath: string, relative: string): string {
 async function readLineage(projectPath: string, dir: string): Promise<string[]> {
   try {
     const parsed = JSON.parse(
-      await TauriFileSystem.readFile(`${dir}${sep(projectPath)}${LINEAGE_FILE}`),
+      await TauriFileSystem.readProjectFile(
+        projectPath,
+        `${dir}${sep(projectPath)}${LINEAGE_FILE}`,
+      ),
     ) as { previous?: unknown };
     return Array.isArray(parsed.previous)
       ? parsed.previous.filter((name): name is string => typeof name === 'string')
@@ -277,8 +280,8 @@ export async function listVersions(
       { dir, file: relativeFile },
       ...previous.map((name) => ({ dir: versionDirForRelative(projectPath, name), file: name })),
     ].flatMap((source) => [
-      readVersionDir(source.dir, source.file, false),
-      readVersionDir(`${source.dir}${s}${CHECKPOINT_DIR}`, source.file, true),
+      readVersionDir(projectPath, source.dir, source.file, false),
+      readVersionDir(projectPath, `${source.dir}${s}${CHECKPOINT_DIR}`, source.file, true),
     ]),
   );
   const versions = lists.flat().sort((a, b) => b.timestamp - a.timestamp);
@@ -316,6 +319,7 @@ export async function listVersions(
 }
 
 async function readVersionDir(
+  projectPath: string,
   dir: string,
   expectedFile: string,
   checkpoint: boolean,
@@ -332,7 +336,7 @@ async function readVersionDir(
   const legacy = await Promise.all(
     files
       .filter((entry) => entry.name.endsWith(SNAPSHOT_SUFFIX))
-      .map((entry) => readLegacyEntry(entry, checkpoint)),
+      .map((entry) => readLegacyEntry(projectPath, entry, checkpoint)),
   );
   const treeBacked = await Promise.all(
     files
@@ -341,19 +345,20 @@ async function readVersionDir(
           entry.name.endsWith(META_SUFFIX) &&
           !names.has(entry.name.slice(0, -META_SUFFIX.length) + SNAPSHOT_SUFFIX),
       )
-      .map((entry) => readTreeEntry(entry, expectedFile, checkpoint)),
+      .map((entry) => readTreeEntry(projectPath, entry, expectedFile, checkpoint)),
   );
   return [...legacy, ...treeBacked].filter((entry): entry is VersionEntry => entry !== null);
 }
 
 async function readLegacyEntry(
+  projectPath: string,
   entry: FileEntry,
   checkpoint: boolean,
 ): Promise<VersionEntry | null> {
   const timestamp = timestampFromName(entry.name, SNAPSHOT_SUFFIX);
   if (timestamp === null) return null;
   const metaPath = entry.path.slice(0, -SNAPSHOT_SUFFIX.length) + META_SUFFIX;
-  const metadata = await readMetadata(metaPath);
+  const metadata = await readMetadata(projectPath, metaPath);
   return entryFromMetadata(
     entry.path,
     { kind: 'legacy-file', path: entry.path },
@@ -364,13 +369,14 @@ async function readLegacyEntry(
 }
 
 async function readTreeEntry(
+  projectPath: string,
   entry: FileEntry,
   expectedFile: string,
   checkpoint: boolean,
 ): Promise<VersionEntry | null> {
   const timestamp = timestampFromName(entry.name, META_SUFFIX);
   if (timestamp === null) return null;
-  const metadata = await readMetadata(entry.path);
+  const metadata = await readMetadata(projectPath, entry.path);
   const treeHash = metadata.treeHash ?? '';
   const storedFile = metadata.file ?? expectedFile;
   let unavailableReason: string | undefined;
@@ -432,9 +438,9 @@ function normalizeRelative(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
 }
 
-async function readMetadata(path: string): Promise<StoredVersionMetadata> {
+async function readMetadata(projectPath: string, path: string): Promise<StoredVersionMetadata> {
   try {
-    return decodeMetadata(JSON.parse(await TauriFileSystem.readFile(path)));
+    return decodeMetadata(JSON.parse(await TauriFileSystem.readProjectFile(projectPath, path)));
   } catch {
     return {};
   }
@@ -495,7 +501,10 @@ export async function readVersionState(
   if (entry.unavailableReason) throw new Error(entry.unavailableReason);
   if (entry.contentRef.kind === 'legacy-file') {
     if (entry.created === true) return { exists: false, content: '' };
-    return { exists: true, content: await TauriFileSystem.readFile(entry.contentRef.path) };
+    return {
+      exists: true,
+      content: await TauriFileSystem.readProjectFile(projectPath, entry.contentRef.path),
+    };
   }
   const state = await readShadowSnapshotFile(
     projectPath,

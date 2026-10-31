@@ -112,7 +112,7 @@ export async function loadBranchManifest(
   const path = manifestPathFor(projectPath, filePath);
   if (!path) return emptyManifest();
   try {
-    return normalizeManifest(JSON.parse(await TauriFileSystem.readFile(path)));
+    return normalizeManifest(JSON.parse(await TauriFileSystem.readProjectFile(projectPath, path)));
   } catch {
     return emptyManifest();
   }
