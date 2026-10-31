@@ -27,6 +27,7 @@ import {
 import { buildContextBundle, resolveProjectRelativePath } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
+import { permissionForRun } from '../../lib/write-batch-grant';
 import { filePathFromAgentResult, writableFilePatch, repairPatchApproval } from './agent-result';
 import { appendExplicitContextFiles } from './context-files';
 import { useRunResultMetadata } from './useRunResultMetadata';
@@ -43,9 +44,12 @@ import type {
   RetryRequest,
   RunAuthorAgent,
   RunAuthorAgentOptions,
+  RunAuthorAgentOutcome,
 } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 export type { RunAuthorAgent } from './types';
+
+const NOT_DISPATCHED: RunAuthorAgentOutcome = { kind: 'not_dispatched' };
 
 export function useRunAuthorAgent(
   state: ChatWindowState,
@@ -90,13 +94,13 @@ export function useRunAuthorAgent(
       intent?: 'file.revise' | 'chapter.write' | 'chapter.polish',
       excludedKnowledgeIds: string[] = [],
       options: RunAuthorAgentOptions = {},
-    ) => {
+    ): Promise<RunAuthorAgentOutcome> => {
       const scope = conversationKey(
         projectPathRef.current,
         assistantSessionIdRef.current,
         draftNonceRef.current,
       );
-      if (rejectBlockedAdmission(scope)) return;
+      if (rejectBlockedAdmission(scope)) return NOT_DISPATCHED;
       const writebackOnly = action === 'file.writeback';
       const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
@@ -114,7 +118,7 @@ export function useRunAuthorAgent(
               : '我需要先知道这是哪部作品。打开本地作品文件夹后，我们就可以直接围绕正文聊。',
           },
         ]);
-        return;
+        return NOT_DISPATCHED;
       }
       if (requiresCurrentFile && (!file || !ref)) {
         setMessages((prev) => [
@@ -127,11 +131,11 @@ export function useRunAuthorAgent(
                 : '导出需要先在编辑器里打开一份当前稿。',
           },
         ]);
-        return;
+        return NOT_DISPATCHED;
       }
       if (writebackOnly) {
         emitAcceptCurrentFileSuggestion();
-        return;
+        return NOT_DISPATCHED;
       }
       if (exportOnly) {
         try {
@@ -146,7 +150,7 @@ export function useRunAuthorAgent(
             },
           ]);
         }
-        return;
+        return NOT_DISPATCHED;
       }
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const active = claimRun(scope, runId);
@@ -163,6 +167,18 @@ export function useRunAuthorAgent(
         clearBusy: () => setAgentBusy(false),
       });
       const { assistantSessionId, ownsRun, abandonIfTaskMoved, runStartConversationKey } = task;
+      const unsettled: RunAuthorAgentOutcome = { kind: 'unsettled', runId };
+      const settled = (
+        proposal: Extract<RunAuthorAgentOutcome, { kind: 'settled' }>['proposal'] = null,
+      ): RunAuthorAgentOutcome => ({ kind: 'settled', runId, proposal });
+      // 批量写章的一次性授权只在这里换档：其余一律送作者存的档位（lib/write-batch-grant.ts）。
+      const runPermissionProfile = permissionForRun({
+        stored: agentPermissionProfile,
+        projectPath: project,
+        intent,
+        targetFilePath: options.targetFilePath,
+        grant: options.writeBatchGrant,
+      });
       runStartConversationKeyRef.current = runStartConversationKey;
       const settleDiagnostic = (detail: string) =>
         textStream.settle(runId, { kind: 'diagnostic', detail }, 'failed');
@@ -177,7 +193,7 @@ export function useRunAuthorAgent(
         goal,
         status: 'running',
         steps: [],
-        permissionProfile: agentPermissionProfile,
+        permissionProfile: runPermissionProfile,
         startedAt: Date.now(),
       });
       setChapterBrief(null);
@@ -187,6 +203,8 @@ export function useRunAuthorAgent(
         intent,
         options: {
           ...options,
+          // 重试是作者自己点的一轮，不带批量的授权。
+          writeBatchGrant: undefined,
           explicitContextPaths: options.explicitContextPaths?.slice(),
         },
         excludedKnowledgeIds: excludedKnowledgeIds.slice(),
@@ -225,7 +243,7 @@ export function useRunAuthorAgent(
           project,
           contextRefs,
         );
-        if (abandonIfTaskMoved()) return;
+        if (abandonIfTaskMoved()) return unsettled;
         const contextBundle = appendedContext.bundle;
         contextBundle.excludedKnowledgeIds = excludedKnowledgeIds;
         setLastContextBundle(contextBundle);
@@ -258,7 +276,7 @@ export function useRunAuthorAgent(
         }
         const agentRoleMentions = extractAgentRoleMentions(goal);
         const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
-        if (abandonIfTaskMoved()) return;
+        if (abandonIfTaskMoved()) return unsettled;
         const response = await sendAgentUserMessage({
           sessionId: runId,
           runId,
@@ -266,7 +284,7 @@ export function useRunAuthorAgent(
           assistantSessionId,
           userMessage: goal,
           intent,
-          permissionProfile: agentPermissionProfile,
+          permissionProfile: runPermissionProfile,
           args: payload,
           agentRoleHints,
           agentRoleMentions,
@@ -282,7 +300,7 @@ export function useRunAuthorAgent(
           // 归属判据用 claim 而非 active()：切会话会让 active() 为 false，那样 busy 永不归位；
           // claim 已被更新的 run 接管时才不动作，避免误清新 run 的 busy。
           if (isClaimedBy(runId)) setAgentBusy(false);
-          return;
+          return unsettled;
         }
 
         if (isAgentErrorMessage(response)) {
@@ -290,7 +308,7 @@ export function useRunAuthorAgent(
           setRetryRequest(retryRequest);
           settleDiagnostic(`这轮没跑通：${response.detail}`);
           void refreshAgentRunRecovery(response.run_id ?? runId);
-          return;
+          return settled();
         }
 
         if (!isAgentResultMessage(response)) {
@@ -299,7 +317,7 @@ export function useRunAuthorAgent(
           setRetryRequest(retryRequest);
           settleDiagnostic(detail);
           void refreshAgentRunRecovery(runId);
-          return;
+          return settled();
         }
 
         adoptResultMetadata(response);
@@ -333,7 +351,7 @@ export function useRunAuthorAgent(
         setAgentBusy(false);
 
         if (proposed) {
-          emitProposedPatchOutcome({
+          const proposalFile = emitProposedPatchOutcome({
             response,
             proposed,
             contextRelativePaths: contextBundle.files.map((file) => file.relativePath),
@@ -344,7 +362,15 @@ export function useRunAuthorAgent(
             settleText,
             updateAgentStatus,
           });
-          return;
+          return settled(
+            proposalFile === null
+              ? null
+              : {
+                  patchId: proposed.id,
+                  filePath: proposalFile,
+                  requiresConfirmation: proposed.requires_confirmation !== false,
+                },
+          );
         }
 
         const repairProposal = repairPatchApproval(response);
@@ -355,7 +381,7 @@ export function useRunAuthorAgent(
           const allowsWaiting =
             repairProposal.command && response.agent_result.requires_user_confirmation;
           updateAgentStatus(allowsWaiting ? 'waiting' : resultStatus);
-          return;
+          return settled();
         }
 
         const reviewSummary = reviewReportSummary(response);
@@ -369,7 +395,7 @@ export function useRunAuthorAgent(
           }
           settleText(reviewSummary);
           updateAgentStatus(resultStatus);
-          return;
+          return settled();
         }
 
         // 首次模型调用已明确失败且没有工具执行；部分完成/检查点恢复不能当成整轮重放。
@@ -393,21 +419,23 @@ export function useRunAuthorAgent(
         settleText(response.agent_result.summary ?? '这轮已经完成。');
         // P1-2：纯文本总结无真批准路径，waiting 会让作者卡死在空按钮上；仅 chapterBrief 例外。
         updateAgentStatus(responseChapterBrief ? 'waiting' : resultStatus);
+        return settled();
       } catch (error) {
         if (!ownsRun()) {
           // 归属判据用 claim 而非 active()：切会话会让 active() 为 false，那样 busy 永不归位；
           // claim 已被更新的 run 接管时才不动作，避免误清新 run 的 busy。
           if (isClaimedBy(runId)) setAgentBusy(false);
-          return;
+          return unsettled;
         }
         if (retainUnknown(error, runStartConversationKey, runId, retryRequest)) {
           textStream.hold(runId, 'unknown');
-          return;
+          return unsettled;
         }
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
         setRetryRequest(retryRequest);
         settleDiagnostic(`这轮没跑通：${message}`);
+        return settled();
       } finally {
         releaseClaim(runId);
       }

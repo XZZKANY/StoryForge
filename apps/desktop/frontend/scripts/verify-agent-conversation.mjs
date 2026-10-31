@@ -133,6 +133,7 @@ try {
 
       const originalFetch = window.fetch.bind(window);
       let latestAgentPayload = null;
+      const seenRunIds = new Set();
       window.fetch = async (input, init = {}) => {
         const requestUrl = input instanceof Request ? input.url : String(input);
         const json = (body) =>
@@ -245,25 +246,28 @@ try {
             },
           });
         }
-        if (requestPath === '/api/write-batch/plan') {
+        if (requestPath.startsWith('/api/write-batch/')) {
           if (method !== 'POST' || requestBody.project_root !== projectPath) rejectRequest();
-          window.__STORYFORGE_WRITE_BATCH_PLANS__ = [
-            ...(window.__STORYFORGE_WRITE_BATCH_PLANS__ ?? []),
-            requestBody,
+          const name = requestPath.slice('/api/write-batch/'.length);
+          window.__STORYFORGE_WRITE_BATCH_CALLS__ = [
+            ...(window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? []),
+            { name, body: requestBody },
           ];
+          // 这本书只有一章正文（第三章.md 在阅读序里是第 1 章），批量从第 2 章写起。
+          const chapterPath = (ordinal) => `正文/第${String(ordinal).padStart(3, '0')}章.md`;
           const chapter = (ordinal, status) => ({
             ordinal,
-            target_path: `正文/第${String(ordinal).padStart(3, '0')}章.md`,
+            target_path: chapterPath(ordinal),
             title: `第${ordinal}章标题`,
             goal: `第${ordinal}章目标`,
             status,
             written_path: status === 'skip_written' ? '正文/第三章.md' : null,
           });
-          return json({
+          const planFor = (from, to, permission) => ({
             project_root: projectPath,
-            from: requestBody.from,
-            to: requestBody.to,
-            permission_profile: requestBody.permission_profile,
+            from,
+            to,
+            permission_profile: permission,
             chapters: [chapter(1, 'skip_written'), chapter(2, 'write'), chapter(3, 'write')],
             blockers: [],
             can_start: true,
@@ -281,6 +285,139 @@ try {
             },
             note: null,
           });
+          const batchState = window.__STORYFORGE_WRITE_BATCH__;
+          const view = () => {
+            const record = window.__STORYFORGE_WRITE_BATCH__ ?? null;
+            // 读记录时每章带上连载计划里的标题（真引擎读时取，记录里不存）。
+            const batch = record && {
+              ...record,
+              chapters: record.chapters.map((item) => ({
+                ...item,
+                title: `第${item.ordinal}章标题`,
+              })),
+            };
+            // 与真引擎同一个口径：范围里第一章还没有正文的（跳过的那章有正文）。
+            const pending =
+              batch?.chapters.find(
+                (item) => item.state !== 'written' && item.state !== 'skipped_written',
+              ) ?? null;
+            return {
+              batch,
+              mismatches: [],
+              can_resume: batch?.status === 'stopped' && pending !== null,
+              resume_from: pending?.ordinal ?? null,
+            };
+          };
+          if (name === 'plan') {
+            window.__STORYFORGE_WRITE_BATCH_PLANS__ = [
+              ...(window.__STORYFORGE_WRITE_BATCH_PLANS__ ?? []),
+              requestBody,
+            ];
+            return json(planFor(requestBody.from, requestBody.to, requestBody.permission_profile));
+          }
+          if (name === 'recover') return json({ recovered: false, batch: batchState ?? null });
+          if (name === 'preview-resume') {
+            const record = batchState;
+            if (!record || record.status !== 'stopped') rejectRequest();
+            return json(planFor(record.from, record.to, requestBody.permission_profile));
+          }
+          if (name === 'read') return json(view());
+          if (name === 'start') {
+            const now = '2026-10-30T00:00:00Z';
+            window.__STORYFORGE_WRITE_BATCH__ = {
+              version: 1,
+              id: 'write-batch-browser',
+              from: requestBody.from,
+              to: requestBody.to,
+              created_at: now,
+              model_key: requestBody.model_key,
+              note: requestBody.note ?? null,
+              status: 'running',
+              reviewed: false,
+              stop: null,
+              legs: [
+                {
+                  basis: 'history',
+                  cap_tokens: 186000,
+                  estimated_tokens: 124000,
+                  runs: [],
+                  started_at: now,
+                  used_tokens: 0,
+                },
+              ],
+              chapters: [1, 2, 3].map((ordinal) => ({
+                ordinal,
+                target_path: chapterPath(ordinal),
+                state: ordinal === 1 ? 'skipped_written' : 'pending',
+                run_id: null,
+                written_sha256: null,
+                chars: null,
+                check: null,
+                tokens: null,
+                snapshot_version: null,
+                facts_before: null,
+                fact_disputes: null,
+              })),
+            };
+            return json({
+              started: true,
+              plan: planFor(requestBody.from, requestBody.to, requestBody.permission_profile),
+              batch: window.__STORYFORGE_WRITE_BATCH__,
+            });
+          }
+          const batch = batchState;
+          if (!batch || requestBody.batch_id !== batch.id) rejectRequest();
+          const leg = batch.legs[batch.legs.length - 1];
+          if (name === 'next') {
+            // 替身引擎只照真引擎的头一条：上一章没写进文件就停在那一章（浏览器里没有影子快照，写不进去）。
+            const last = leg.runs[leg.runs.length - 1];
+            const previous = last && batch.chapters.find((item) => item.ordinal === last.ordinal);
+            if (previous && previous.state !== 'written') {
+              batch.status = 'stopped';
+              batch.stop = {
+                code: 'no_revision',
+                message: `第 ${previous.ordinal} 章这次运行没有交出修订。`,
+                ordinal: previous.ordinal,
+              };
+              return json({ action: 'stop', ...batch.stop });
+            }
+            const target = batch.chapters.find((item) => item.state === 'pending');
+            if (!target) {
+              batch.status = 'finished';
+              return json({ action: 'finished' });
+            }
+            return json({
+              action: 'write',
+              ordinal: target.ordinal,
+              target_path: target.target_path,
+              goal: `第${target.ordinal}章目标`,
+              title: `第${target.ordinal}章标题`,
+              note: batch.note,
+            });
+          }
+          if (name === 'record') {
+            const target = batch.chapters.find((item) => item.ordinal === requestBody.ordinal);
+            Object.assign(target, {
+              state: requestBody.written_path ? 'written' : 'stopped_here',
+              run_id: requestBody.run_id,
+              tokens: 60000,
+            });
+            leg.runs.push({ ordinal: target.ordinal, run_id: requestBody.run_id, tokens: 60000 });
+            leg.used_tokens += 60000;
+            return json(batch);
+          }
+          if (name === 'stop') {
+            if (batch.status === 'running') {
+              batch.status = 'stopped';
+              batch.stop = { code: requestBody.code, message: requestBody.message, ordinal: null };
+            }
+            return json(batch);
+          }
+          if (name === 'reviewed') {
+            batch.reviewed = true;
+            return json(batch);
+          }
+          rejectRequest();
         }
         if (requestPath === '/api/assistant/sessions') {
           if (method !== 'GET' || parsedUrl.searchParams.get('project_path') !== projectPath)
@@ -344,7 +481,7 @@ try {
         }
         if (/^\/api\/agent-runs\/[^/]+\/save-points$/.test(requestPath)) {
           const runId = requestPath.split('/').at(-2);
-          if (method !== 'GET' || runId !== latestAgentPayload?.run_id) rejectRequest();
+          if (method !== 'GET' || !seenRunIds.has(runId)) rejectRequest();
           return new Response(
             JSON.stringify({
               run_id: runId,
@@ -369,6 +506,7 @@ try {
         if (method !== 'POST') rejectRequest();
         const payload = requestBody;
         latestAgentPayload = payload;
+        seenRunIds.add(payload.run_id);
         const requestHeaders = new Headers(init.headers);
         window.__STORYFORGE_AGENT_REQUESTS__ = [
           ...(window.__STORYFORGE_AGENT_REQUESTS__ ?? []),
@@ -413,42 +551,60 @@ try {
             },
           },
         ];
-        const response = {
-          type: 'agent_result',
-          session_id: streamSessionId,
-          run_id: payload.run_id ?? 'mock-run',
-          assistant_session_id: 101,
-          intent: 'file.review',
-          user_message: payload.user_message,
-          plan: [{ step: 'context-agent', detail: 'mock context', status: 'completed' }],
-          agent_result: {
-            summary: '多视角审稿完成：发现 1 个问题。未配置 LLM，本轮为启发式预扫，非模型审稿。',
-            requires_user_confirmation: false,
-            review_report: {
-              kind: 'review_report',
-              mode: 'heuristic_only',
-              context: { file_count: 1, kinds: ['character'] },
-              agent_findings: {
-                plot: { issue_count: 0 },
-                character: { issue_count: 1 },
-                prose: { issue_count: 0 },
+        const chapterWrite = payload.intent === 'chapter.write';
+        const response = chapterWrite
+          ? {
+              type: 'agent_result',
+              session_id: streamSessionId,
+              run_id: payload.run_id ?? 'mock-run',
+              assistant_session_id: 101,
+              intent: 'chapter.write',
+              user_message: payload.user_message,
+              plan: [],
+              agent_result: {
+                summary: '替身模型这一轮没有交出修订。',
+                requires_user_confirmation: false,
               },
-              issues: [
-                {
-                  id: 'character-1',
-                  category: 'character',
-                  severity: 'medium',
-                  message: '人物动机需要补证据。',
-                  evidence: '她推开门。',
-                  suggested_action: '用动作或对白证明决定。',
+              tool_trace: [],
+              proposed_patch: null,
+            }
+          : {
+              type: 'agent_result',
+              session_id: streamSessionId,
+              run_id: payload.run_id ?? 'mock-run',
+              assistant_session_id: 101,
+              intent: 'file.review',
+              user_message: payload.user_message,
+              plan: [{ step: 'context-agent', detail: 'mock context', status: 'completed' }],
+              agent_result: {
+                summary:
+                  '多视角审稿完成：发现 1 个问题。未配置 LLM，本轮为启发式预扫，非模型审稿。',
+                requires_user_confirmation: false,
+                review_report: {
+                  kind: 'review_report',
+                  mode: 'heuristic_only',
+                  context: { file_count: 1, kinds: ['character'] },
+                  agent_findings: {
+                    plot: { issue_count: 0 },
+                    character: { issue_count: 1 },
+                    prose: { issue_count: 0 },
+                  },
+                  issues: [
+                    {
+                      id: 'character-1',
+                      category: 'character',
+                      severity: 'medium',
+                      message: '人物动机需要补证据。',
+                      evidence: '她推开门。',
+                      suggested_action: '用动作或对白证明决定。',
+                    },
+                  ],
+                  suggested_actions: ['修订前核对人物小传和关系线，避免动机断裂。'],
                 },
-              ],
-              suggested_actions: ['修订前核对人物小传和关系线，避免动机断裂。'],
-            },
-          },
-          tool_trace: [],
-          proposed_patch: null,
-        };
+              },
+              tool_trace: [],
+              proposed_patch: null,
+            };
         const messages = [...sequence, response];
         const encoder = new TextEncoder();
         const body = new ReadableStream({
@@ -636,9 +792,9 @@ try {
     throw new Error('Expected user bubble to omit user name label');
   }
 
-  // 打 `/写 1-3`：不发给 AI，对话里出批量写章确认卡，按作品存的档位排计划。
+  // 打 `/写 1-3 …`：不发给 AI，对话里出批量写章确认卡，按作品存的档位排计划。
   const agentMessagesBefore = payloads.length;
-  await input.fill('/写 1-3');
+  await input.fill('/写 1-3 节奏快一点');
   await page.getByTestId('composer-submit').click();
   const batchCard = page.getByTestId('write-batch-card');
   await batchCard.waitFor({ timeout: 5000 });
@@ -652,8 +808,8 @@ try {
   if ((await input.inputValue()) !== '') {
     throw new Error('Expected the composer to be cleared after /写');
   }
-  if (!(await page.getByTestId('write-batch-start').isDisabled())) {
-    throw new Error('Expected 开始写 to stay disabled until the scheduler is wired');
+  if (await page.getByTestId('write-batch-start').isDisabled()) {
+    throw new Error('Expected 开始写 to be enabled once the scheduler is wired');
   }
   // 开发档 StrictMode 会把卡片的 effect 跑两遍，第一遍的结果被丢掉，所以只核每次请求的内容。
   const batchPlans = await page.evaluate(() => window.__STORYFORGE_WRITE_BATCH_PLANS__ ?? []);
@@ -671,8 +827,87 @@ try {
   if (agentMessagesAfter !== agentMessagesBefore) {
     throw new Error('Expected /写 not to be sent to the AI');
   }
-  await page.getByTestId('write-batch-close').click();
+
+  // 点「开始写」：调度器按自动档发起第 2 章（第 1 章已有正文跳过），等这一轮结束再记一笔、问下一步。
+  await page.getByTestId('write-batch-start').click();
   await batchCard.waitFor({ state: 'detached', timeout: 5000 });
+  const batchResult = page.getByTestId('write-batch-result');
+  try {
+    await batchResult.waitFor({ timeout: 10000 });
+  } catch (error) {
+    const panelText = await page.locator('[data-testid="assistant-panel"]').innerText();
+    throw new Error(
+      `Write batch did not settle: ${String(error)}\n${panelText}\n${errors.join('\n')}`,
+      {
+        cause: error,
+      },
+    );
+  }
+  const chapterRuns = (
+    await page.evaluate(() => window.__STORYFORGE_AGENT_MESSAGES__ ?? [])
+  ).filter((message) => message.intent === 'chapter.write');
+  if (
+    chapterRuns.length !== 1 ||
+    chapterRuns[0].permission_profile !== 'auto' ||
+    chapterRuns[0].args?.file_path !== '正文/第002章.md' ||
+    chapterRuns[0].user_message !== '写第 2 章（批量第 1 / 2 章）\n作者要求：节奏快一点'
+  ) {
+    throw new Error(
+      `Expected one auto-profile chapter run for 第 2 章: ${JSON.stringify(chapterRuns)}`,
+    );
+  }
+  const batchCalls = await page.evaluate(() =>
+    (window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? []).map((call) => call.name),
+  );
+  const loopCalls = batchCalls.filter((name) => ['start', 'next', 'record', 'stop'].includes(name));
+  if (JSON.stringify(loopCalls) !== JSON.stringify(['start', 'next', 'record', 'next'])) {
+    throw new Error(`Expected start → next → record → next: ${JSON.stringify(batchCalls)}`);
+  }
+  const startCall = await page.evaluate(() =>
+    (window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? []).find((call) => call.name === 'start'),
+  );
+  if (
+    startCall?.body.permission_profile !== 'ask' ||
+    startCall?.body.model_key !== 'browser-fixture-model' ||
+    startCall?.body.note !== '节奏快一点'
+  ) {
+    throw new Error(
+      `Expected the batch to start with the stored profile: ${JSON.stringify(startCall)}`,
+    );
+  }
+  await batchResult
+    .getByText('这一批停下了：写了 0 章，用了 6 万', { exact: true })
+    .waitFor({ timeout: 5000 });
+  await batchResult
+    .getByText('第 2 章这次运行没有交出修订。', { exact: true })
+    .waitFor({ timeout: 5000 });
+  await batchResult
+    .getByText('第 2 章《第2章标题》 · 没写进文件', { exact: true })
+    .waitFor({ timeout: 5000 });
+  await page.getByTestId('write-batch-resume').filter({ hasText: '从第 2 章接着写' }).waitFor();
+  // 「从第 2 章接着写」先只读出续写计划给作者确认；取消就回到停下的卡，记录不动。
+  await page.getByTestId('write-batch-resume').click();
+  await batchCard.getByText('从第 2 章接着写', { exact: true }).waitFor({ timeout: 5000 });
+  await batchCard.getByText('要求：节奏快一点', { exact: true }).waitFor({ timeout: 5000 });
+  await page.getByTestId('write-batch-close').click();
+  await batchResult.waitFor({ timeout: 5000 });
+  const resumeCalls = await page.evaluate(() =>
+    (window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? [])
+      .map((call) => call.name)
+      .filter((name) => name === 'preview-resume' || name === 'resume'),
+  );
+  if (JSON.stringify(resumeCalls) !== JSON.stringify(['preview-resume'])) {
+    throw new Error(`Expected only a read-only resume preview: ${JSON.stringify(resumeCalls)}`);
+  }
+  // 授权只管这一批：作者存的档位没变，输入框底部照旧显示「询问」。
+  const shownProfile = await page.getByTestId('permission-profile-selector').first().innerText();
+  if (!shownProfile.includes('询问')) {
+    throw new Error(`Expected the stored permission profile to stay 询问: ${shownProfile}`);
+  }
+  await page.getByTestId('write-batch-reviewed').click();
+  await page.getByTestId('write-batch-reviewed-done').waitFor({ timeout: 5000 });
+  await page.getByTestId('write-batch-result-close').click();
+  await batchResult.waitFor({ state: 'detached', timeout: 5000 });
 
   const unexpectedRequests = await page.evaluate(
     () => window.__STORYFORGE_UNEXPECTED_REQUESTS__ ?? [],

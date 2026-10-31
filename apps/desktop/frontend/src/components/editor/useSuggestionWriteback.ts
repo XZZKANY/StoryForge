@@ -34,6 +34,11 @@ import {
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
 import { recordAcceptedChapterFacts } from '../../lib/fact-write';
+import {
+  reportChapterWriteback,
+  writtenChapter,
+  type ChapterWriteback,
+} from '../../lib/write-batch-writeback';
 import { isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import {
   associateIssuesToOps,
@@ -586,6 +591,8 @@ export function useSuggestionWriteback({
       const assistantSessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
       return enqueueWriteback(() =>
         withNativeDelivery(projectRoot, async (deliveryTicket) => {
+          // 写前快照那条版本记录：批量写章要把它存进批量记录，撤销一批时用。
+          let snapshotPath: string | null = null;
           const expected = targetStateAtStart.diskBaseline;
           const summary = overrides.summary ?? suggestion.summary;
           const note = overrides.note ?? suggestion.note;
@@ -666,6 +673,7 @@ export function useSuggestionWriteback({
                 },
                 deliveryTicket,
               );
+              snapshotPath = result?.path ?? null;
               return result;
             },
             advanceBranchHead: async (timestamp) => {
@@ -801,6 +809,7 @@ export function useSuggestionWriteback({
             receipt: loopRecord.receipt,
             recordPath: loopRecord.record?.recordPath ?? null,
             createdFile: loopRecord.receipt.createdFile,
+            snapshotPath,
             warning,
             writebackWarning: warning,
             retryCaches,
@@ -1139,6 +1148,10 @@ export function useSuggestionWriteback({
     // 硬闸：有截断警告且没武装就不写，这一次只武装。逐处接受不经过这里。
     if (suggestion.truncationWarning && truncationArmedIdRef.current !== suggestion.id) {
       if (!actionInFlightRef.current) armTruncatedAccept(suggestion.id);
+      reportChapterWriteback(suggestion.runId, {
+        written: false,
+        reason: '这份修订疑似没写完，要你在编辑器里看过再接受。',
+      });
       return;
     }
     cancelTruncatedAccept();
@@ -1146,6 +1159,9 @@ export function useSuggestionWriteback({
     const projectRoot = projectPathRef.current;
     const actionToken = beginAction('accept', suggestion);
     if (!actionToken) return;
+    // 批量写章的调度器按运行 id 等这份结果：写进去了就连同事实记账一起交，没写进去交原因。
+    let settlement: Promise<ChapterWriteback> | null = null;
+    let failure: string | null = null;
 
     try {
       const currentContent = editorRef.current.getValue();
@@ -1241,13 +1257,16 @@ export function useSuggestionWriteback({
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
       if (!recoveredRecord) await markChapterWrittenInPlan(projectRoot, path);
       // 同一层上把写章检查时抽出的新事实记进台账；不等它，失败只提示，不影响已落盘的正文。
-      if (!recoveredRecord)
-        void recordAcceptedChapterFacts(
-          projectRoot,
-          path,
-          suggestion.runId,
-          () => mountedRef.current && projectPathRef.current === projectRoot,
-        );
+      // 批量写章要等它落定才开下一章（下一章的章纲读已写事实），所以把它连同写前快照交出去。
+      const facts = recoveredRecord
+        ? null
+        : recordAcceptedChapterFacts(
+            projectRoot,
+            path,
+            suggestion.runId,
+            () => mountedRef.current && projectPathRef.current === projectRoot,
+          );
+      settlement = writtenChapter(projectRoot, path, loopRecord.snapshotPath, facts);
       const runStatus = loopRecord.auditComplete
         ? await forgetSuggestionRecovery(suggestion, true)
         : undefined;
@@ -1302,6 +1321,7 @@ export function useSuggestionWriteback({
         recordPath: loopRecord.recordPath ?? undefined,
       });
     } catch (err) {
+      failure = err instanceof Error ? err.message : String(err);
       if (!isCurrentAction(actionToken)) return;
       failAction(actionToken, `接受失败: ${err instanceof Error ? err.message : String(err)}`);
       emitAuthorLoopResult({
@@ -1312,6 +1332,10 @@ export function useSuggestionWriteback({
       });
     } finally {
       finishAction(actionToken);
+      reportChapterWriteback(
+        suggestion.runId,
+        settlement ?? { written: false, reason: failure ?? '这次接受没有写进文件。' },
+      );
     }
   }, [
     armTruncatedAccept,

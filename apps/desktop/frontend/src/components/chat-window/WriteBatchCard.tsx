@@ -1,7 +1,7 @@
 import { WRITE_BATCH_USAGE, type WriteBatchCommand } from '@storyforge/project-core';
 import { Button } from '../ui';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type {
@@ -72,9 +72,10 @@ function useWriteBatchPlan(
   command: WriteBatchCommand,
   projectPath: string,
   permissionProfile: AgentPermissionProfile,
+  skip: boolean,
 ): PlanView | null {
   const key =
-    command.kind === 'range'
+    command.kind === 'range' && !skip
       ? `${projectPath}\n${command.from}\n${command.to}\n${permissionProfile}`
       : null;
   const [loaded, setLoaded] = useState<{ key: string; view: PlanView } | null>(null);
@@ -101,9 +102,13 @@ function useWriteBatchPlan(
   return loaded?.key === key ? loaded.view : { status: 'loading' };
 }
 
+/** 点了「开始写」之后：开不了时引擎重出的计划（带新的拦法），或出错的原因；开成了卡片会被收起。 */
+export type WriteBatchStartFeedback = { plan?: ApiWriteBatchPlan; error?: string; started?: true };
+
 /**
- * `/写 …` 的确认卡：列出这一批写哪几章、为什么还不能开始、预估多少。只出卡不开跑，
- * 「开始写」只把计划交给外面传进来的 onStart。
+ * `/写 …` 的确认卡：列出这一批写哪几章、为什么还不能开始、预估多少。
+ * 「开始写」只把计划交给外面传进来的 onStart（调度器）；开不了时把引擎重出的计划显示回卡上。
+ * 续写时调度器已经拿到了引擎重出的计划，直接用 plan 显示，不再排一遍。
  * 从上到下：标题与摘要 → 不能开跑的原因 → 章列表（限高、卡内滚动）→ 底部说明与按钮。
  * 右栏窄、窗口矮时让中间一段让位，底部按钮始终露在卡片里。
  */
@@ -111,6 +116,8 @@ export function WriteBatchCard({
   command,
   projectPath,
   permissionProfile,
+  plan: givenPlan,
+  title,
   onStart,
   onClose,
 }: {
@@ -118,10 +125,27 @@ export function WriteBatchCard({
   projectPath: string;
   /** 作者为这部作品存的档位。 */
   permissionProfile: AgentPermissionProfile;
-  onStart?: (plan: ApiWriteBatchPlan) => void;
+  /** 已经由引擎出好的计划（续写）；给了就不再排计划。 */
+  plan?: ApiWriteBatchPlan;
+  title?: string;
+  onStart?: (plan: ApiWriteBatchPlan) => void | Promise<WriteBatchStartFeedback>;
   onClose: () => void;
 }) {
-  const view = useWriteBatchPlan(command, projectPath, permissionProfile);
+  const fetched = useWriteBatchPlan(command, projectPath, permissionProfile, Boolean(givenPlan));
+  const [starting, setStarting] = useState(false);
+  const [feedback, setFeedback] = useState<WriteBatchStartFeedback | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const view: PlanView | null = feedback?.plan
+    ? { status: 'ready', plan: feedback.plan }
+    : givenPlan
+      ? { status: 'ready', plan: givenPlan }
+      : fetched;
   const startHintId = useId();
   const plan = view?.status === 'ready' ? view.plan : null;
   // 能开跑的计划；有不能开跑的原因时为 null，卡上不给「开始写」。
@@ -131,12 +155,12 @@ export function WriteBatchCard({
   return (
     <section
       className="flex min-h-0 flex-col rounded-lg border border-agent/40 bg-panel px-3 py-3"
-      aria-label={cardTitle(command)}
+      aria-label={title ?? cardTitle(command)}
       data-testid="write-batch-card"
     >
       <div className="flex-shrink-0">
         <div className="text-xs font-semibold text-foreground" data-testid="write-batch-title">
-          {cardTitle(command)}
+          {title ?? cardTitle(command)}
         </div>
         {summary && (
           <div className="mt-0.5 text-xs text-muted" data-testid="write-batch-summary">
@@ -174,6 +198,14 @@ export function WriteBatchCard({
             data-testid="write-batch-error"
           >
             排不出这一批：{view.message}
+          </p>
+        )}
+        {feedback?.error && (
+          <p
+            className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-xs text-warning"
+            data-testid="write-batch-start-error"
+          >
+            没能开始：{feedback.error}
           </p>
         )}
         {plan && plan.blockers.length > 0 && (
@@ -274,10 +306,26 @@ export function WriteBatchCard({
               size="sm"
               variant="agent"
               className="text-xs"
-              disabled={!onStart}
+              disabled={!onStart || starting}
               title={onStart ? undefined : '下一步接上'}
               aria-describedby={onStart ? undefined : startHintId}
-              onClick={() => onStart?.(ready)}
+              onClick={() => {
+                if (!onStart || starting) return;
+                setStarting(true);
+                setFeedback(null);
+                void Promise.resolve(onStart(ready)).then(
+                  (result) => {
+                    if (!mounted.current) return;
+                    setStarting(false);
+                    if (result && !result.started) setFeedback(result);
+                  },
+                  (error: unknown) => {
+                    if (!mounted.current) return;
+                    setStarting(false);
+                    setFeedback({ error: errorText(error) });
+                  },
+                );
+              }}
               data-testid="write-batch-start"
             >
               开始写

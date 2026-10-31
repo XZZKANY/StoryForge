@@ -16,6 +16,7 @@ import {
 import {
   markWriteBatchReviewed,
   nextWriteBatchStep,
+  previewWriteBatchResume,
   readWriteBatch,
   recordWriteBatchChapter,
   recoverInterruptedWriteBatch,
@@ -218,12 +219,13 @@ describe('批量记录的读写', () => {
     expect(Object.keys(writes)).toEqual([WRITE_BATCH_RELATIVE_PATH]);
     expect(await h.saved()).toEqual(batch);
     expect(batch).toMatchObject({
-      version: 1,
+      version: 2,
       id: 'write-batch-h1',
       from: 2,
       to: 4,
       created_at: '2026-10-30T08:00:00Z',
       model_key: MODEL,
+      note: null,
       status: 'running',
       reviewed: false,
       stop: null,
@@ -265,7 +267,7 @@ describe('批量记录的读写', () => {
   };
 
   it.each([
-    ['an unknown version', (raw: Record<string, unknown>) => (raw.version = 2), '版本是 2'],
+    ['an unknown version', (raw: Record<string, unknown>) => (raw.version = 3), '版本是 3'],
     ['an unknown status', (raw: Record<string, unknown>) => (raw.status = 'paused'), 'status'],
     [
       'chapters that do not match the range',
@@ -656,6 +658,8 @@ describe('下一步：规则 7 以正文为准取下一章', () => {
       ordinal: 2,
       target_path: '正文/第002章.md',
       goal: '第2章目标',
+      title: '标题2',
+      note: null,
     });
     await h.writeChapter(batch, 2);
     expect(await h.next(batch)).toMatchObject({ action: 'write', ordinal: 3, goal: '第3章目标' });
@@ -1017,5 +1021,176 @@ describe('给作者看的 token 数', () => {
     [400, '不到 0.1 万'],
   ])('says %i tokens as %s', (tokens, text) => {
     expect(formatTokenCount(tokens)).toBe(text);
+  });
+});
+
+describe('作者要求与章名进记录（版本 2）', () => {
+  const startWith = async (h: ReturnType<typeof harness>, note: unknown) =>
+    startWriteBatch(h.deps, {
+      project_root: ROOT,
+      from: 2,
+      to: 3,
+      permission_profile: 'ask',
+      model_key: MODEL,
+      note: note as string | null,
+    });
+
+  it('stores the note the author typed after the range and hands it out with every chapter', async () => {
+    const h = harness({ history: true });
+    const result = await startWith(h, '  这几章节奏快一点\n多写对话  ');
+    if (!result.started) throw new Error('should start');
+    expect(result.batch.note).toBe('这几章节奏快一点\n多写对话');
+    expect((await h.saved())?.note).toBe('这几章节奏快一点\n多写对话');
+    expect(await h.next(result.batch)).toMatchObject({
+      action: 'write',
+      ordinal: 2,
+      title: '标题2',
+      note: '这几章节奏快一点\n多写对话',
+    });
+    await h.writeChapter(result.batch, 2);
+    expect(await h.next(result.batch)).toMatchObject({ ordinal: 3, title: '标题3' });
+  });
+
+  it('keeps a blank note as none and refuses a note that is not text', async () => {
+    const h = harness({ history: true });
+    const result = await startWith(h, '   ');
+    expect(result.started && result.batch.note).toBeNull();
+    const other = harness({ history: true });
+    await expect(startWith(other, 42)).rejects.toThrow(WriteBatchError);
+  });
+
+  it('gives each chapter its plan title when read, without storing the titles', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 3);
+    const view = await readWriteBatch(h.deps, ROOT);
+    expect(view.batch?.chapters.map((chapter) => [chapter.ordinal, chapter.title])).toEqual([
+      [2, '标题2'],
+      [3, '标题3'],
+    ]);
+    const raw = JSON.parse(
+      new TextDecoder().decode(
+        (await h.project.reader.readProjectBytes(ROOT, WRITE_BATCH_RELATIVE_PATH, 1 << 20)).bytes,
+      ),
+    ) as { chapters: Record<string, unknown>[] };
+    expect(raw.chapters.every((chapter) => !('title' in chapter))).toBe(true);
+    expect(batch.chapters.every((chapter) => !('title' in chapter))).toBe(true);
+  });
+
+  it('reads a version 1 record (no note) and writes it back as version 2', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 3);
+    const raw = JSON.parse(JSON.stringify(batch)) as Record<string, unknown>;
+    raw.version = 1;
+    delete raw.note;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(raw)) });
+    expect((await readWriteBatch(h.deps, ROOT)).batch).toMatchObject({ version: 2, note: null });
+    expect(await h.next(batch)).toMatchObject({ action: 'write', ordinal: 2, note: null });
+    const written = JSON.parse(
+      new TextDecoder().decode(
+        (await h.project.reader.readProjectBytes(ROOT, WRITE_BATCH_RELATIVE_PATH, 1 << 20)).bytes,
+      ),
+    ) as Record<string, unknown>;
+    expect(written).toMatchObject({ version: 2, note: null });
+  });
+
+  it('refuses a version 2 record without the note field', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 3);
+    const raw = JSON.parse(JSON.stringify(batch)) as Record<string, unknown>;
+    delete raw.note;
+    h.project.apply({ [WRITE_BATCH_RELATIVE_PATH]: file(JSON.stringify(raw)) });
+    await expect(readWriteBatch(h.deps, ROOT)).rejects.toThrow(InputDomainError);
+  });
+});
+
+describe('界面出错停下', () => {
+  it('accepts scheduler_error from the interface and keeps its message as is', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 4);
+    await h.writeChapter(batch, 2);
+    const stopped = await stopWriteBatch(h.deps, ROOT, batch.id, {
+      code: 'scheduler_error',
+      message: '第 3 章出错停下：写进的文件不是第 3 章的目标文件',
+    });
+    expect(stopped.stop).toEqual({
+      code: 'scheduler_error',
+      message: '第 3 章出错停下：写进的文件不是第 3 章的目标文件',
+      ordinal: 3,
+    });
+    expect((await h.saved())?.stop?.code).toBe('scheduler_error');
+    expect(await h.next(batch)).toMatchObject({ action: 'stop', code: 'scheduler_error' });
+  });
+});
+
+describe('续写前只读的预览', () => {
+  /** 预览走的写口记下每一次写（连内容不变的重写也算：内存作品只记有变化的写）。 */
+  const writesDuring = async <T>(
+    h: ReturnType<typeof harness>,
+    run: (deps: WriteBatchRunDeps) => Promise<T>,
+  ) => {
+    const paths: string[] = [];
+    const deps: WriteBatchRunDeps = {
+      ...h.deps,
+      writer: {
+        writeProjectFile: async (base, path, bytes) => {
+          paths.push(path);
+          return h.deps.writer.writeProjectFile(base, path, bytes);
+        },
+      },
+    };
+    return { result: await run(deps), paths };
+  };
+  const preview = async (h: ReturnType<typeof harness>) => {
+    const { result, paths } = await writesDuring(h, (deps) =>
+      previewWriteBatchResume(deps, ROOT, { permission_profile: 'ask', model_key: MODEL }),
+    );
+    expect(paths).toEqual([]);
+    return result;
+  };
+  const resume = (h: ReturnType<typeof harness>) =>
+    resumeWriteBatch(h.deps, { project_root: ROOT, permission_profile: 'ask', model_key: MODEL });
+
+  it('shows the same plan the resume would use, without touching the record', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 4);
+    await h.writeChapter(batch, 2);
+    await h.writeChapter(batch, 3, { patch: null, check: null, written: false });
+    await h.next(batch);
+    const before = await h.saved();
+    h.project.takeWrites();
+    const plan = await preview(h);
+    expect(h.project.takeWrites()).toEqual({});
+    expect(await h.saved()).toEqual(before);
+    expect(plan.can_start).toBe(true);
+    expect(plan.chapters.map((chapter) => [chapter.ordinal, chapter.status])).toEqual([
+      [2, 'skip_written'],
+      [3, 'write'],
+      [4, 'write'],
+    ]);
+    const resumed = await resume(h);
+    expect(resumed.started).toBe(true);
+    expect(resumed.plan).toEqual(plan);
+  });
+
+  it('says the batch is all written without marking it finished', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 3);
+    await h.writeChapter(batch, 2);
+    await h.writeChapter(batch, 3, { written: false });
+    await h.next(batch);
+    h.project.apply({ [pathOf(3)]: file('第3章\n\n作者接受的修订。\n') });
+    h.project.takeWrites();
+    const plan = await preview(h);
+    expect(plan.blockers.map((blocker) => blocker.code)).toEqual(['batch_all_written']);
+    expect(plan.can_start).toBe(false);
+    expect(h.project.takeWrites()).toEqual({});
+    expect((await h.saved())?.status).toBe('stopped');
+  });
+
+  it('refuses to preview a batch that is not stopped, or no batch', async () => {
+    const h = harness({ history: true });
+    await expect(preview(h)).rejects.toThrow(WriteBatchError);
+    await started(h, 2, 3);
+    await expect(preview(h)).rejects.toThrow('还在写');
   });
 });
