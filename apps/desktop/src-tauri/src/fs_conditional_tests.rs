@@ -1,7 +1,7 @@
 use super::*;
 use tempfile::TempDir;
 
-fn write(root: &TempDir, target: &Path, expected: DiskBaseline) -> Result<(), String> {
+fn write(root: &TempDir, target: &Path, expected: DiskBaseline) -> Result<(), HostError> {
     write_file_if_unchanged(
         root.path().to_string_lossy().into_owned(),
         target.to_string_lossy().into_owned(),
@@ -21,9 +21,16 @@ fn changed_disk_is_not_overwritten() {
     let root = TempDir::new().unwrap();
     let target = root.path().join("chapter.md");
     fs::write(&target, "external edit").unwrap();
-    assert!(write(&root, &target, baseline("original"))
-        .unwrap_err()
-        .contains("磁盘内容已变化"));
+    assert_eq!(
+        write(&root, &target, baseline("original")).unwrap_err(),
+        HostError::new(
+            "drift",
+            format!(
+                "磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: {}",
+                target.display()
+            )
+        )
+    );
     assert_eq!(fs::read_to_string(&target).unwrap(), "external edit");
     assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
 }
@@ -32,7 +39,12 @@ fn changed_disk_is_not_overwritten() {
 fn deleted_disk_is_not_recreated() {
     let root = TempDir::new().unwrap();
     let target = root.path().join("chapter.md");
-    assert!(write(&root, &target, baseline("original")).is_err());
+    assert_eq!(
+        write(&root, &target, baseline("original"))
+            .unwrap_err()
+            .kind,
+        "drift"
+    );
     assert!(!target.exists());
 }
 
@@ -42,7 +54,12 @@ fn missing_baseline_cannot_overwrite_an_external_creation_even_when_empty() {
         let root = TempDir::new().unwrap();
         let target = root.path().join("chapter.md");
         fs::write(&target, content).unwrap();
-        assert!(write(&root, &target, DiskBaseline::Missing {}).is_err());
+        assert_eq!(
+            write(&root, &target, DiskBaseline::Missing {})
+                .unwrap_err()
+                .kind,
+            "drift"
+        );
         assert_eq!(fs::read_to_string(&target).unwrap(), content);
     }
 }
@@ -116,8 +133,11 @@ fn changes_after_staging_reject_commit_and_cleanup_only_staged_file() {
             "delete" => fs::remove_file(&target).unwrap(),
             _ => fs::write(&target, "").unwrap(),
         }
-        assert!(
-            commit_staged_write_if_unchanged(&canonical_root, &target, &staged, &expected).is_err()
+        assert_eq!(
+            commit_staged_write_if_unchanged(&canonical_root, &target, &staged, &expected)
+                .unwrap_err()
+                .kind,
+            "drift"
         );
         assert!(!staged.exists());
         if change == "delete" {

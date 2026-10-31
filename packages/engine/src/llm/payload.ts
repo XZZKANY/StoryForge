@@ -1,11 +1,4 @@
-import {
-  dumpJson,
-  isJsonObject,
-  JsonFloat,
-  pythonStr,
-  pythonTruthy,
-  type JsonValue,
-} from '../kernel/json';
+import { dumpJson, isJsonObject, JsonFloat, strOr, type JsonValue } from '../kernel/json';
 import { cpLen, pythonStrip } from '../kernel/pythonText';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import {
@@ -177,9 +170,6 @@ export function assistantMessage(data: { [key: string]: JsonValue }) {
     throw new LlmError('真实 LLM 响应缺少 message，这次没有拿到可用的结果。');
   return message;
 }
-
-const strOr = (value: JsonValue | undefined, fallback: string) =>
-  pythonTruthy(value) ? pythonStr(value) : fallback;
 
 /** 把 message.tool_calls 归一成 OpenAI 形状；参数对象序列化成 JSON 文本。 */
 export function messageToolCalls(message: { [key: string]: JsonValue }) {

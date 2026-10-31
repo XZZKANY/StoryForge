@@ -1,4 +1,5 @@
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
+import { DiskDriftError } from '../../lib/host-file-errors';
 
 // 补丁审阅面板用到的纯函数：动作名、失败提示、追溯标题、改动行数、圈号。
 export type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry' | 'undo';
@@ -16,11 +17,11 @@ export const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
 const DETERMINISTIC_LOCATE_FAILURE = /无法安全定位|无法唯一确定|插入点前文已变/;
 
 /**
- * P2-D：漂移拒写（内容已变化）与定位类拒写直接重试必再撞墙，不应误导作者「可重试」；
+ * P2-D：漂移拒写（DiskDriftError）与定位类拒写直接重试必再撞墙，不应误导作者「可重试」；
  * 定位类给出真能走通的路。普通错误（写盘失败、网络抖动等）才提示可重试。
  */
-export function actionFailureText(error: string): string {
-  if (error.includes('内容已变化')) return `操作失败：${error}`;
+export function actionFailureText(error: string, cause: unknown): string {
+  if (cause instanceof DiskDriftError) return `操作失败：${error}`;
   if (DETERMINISTIC_LOCATE_FAILURE.test(error)) {
     const way = error.startsWith('接受分块失败')
       ? '可以让 AI 重出一版。'

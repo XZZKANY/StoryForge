@@ -255,7 +255,7 @@ export function useWholeSuggestionAccept(
     } catch (err) {
       failure = err instanceof Error ? err.message : String(err);
       if (!isCurrentAction(actionToken)) return;
-      failAction(actionToken, `接受失败: ${err instanceof Error ? err.message : String(err)}`);
+      failAction(actionToken, `接受失败: ${err instanceof Error ? err.message : String(err)}`, err);
       emitAuthorLoopResult({
         filePath: path,
         status: 'error',

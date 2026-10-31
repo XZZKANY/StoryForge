@@ -11,7 +11,7 @@ import { FsToolError, resolveProjectRoot, resolveScopedPath } from '../../kernel
 import { isObj, pythonFloatRepr, type Obj } from '../../kernel/json';
 import { isManuscriptPath } from '../../kernel/manuscript';
 import { pythonFixed } from '../../kernel/math';
-import { cpLen, cpSlice } from '../../kernel/pythonText';
+import { cpLen, cpSlice, optionalString } from '../../kernel/pythonText';
 import {
   heuristicReviewReasoner,
   llmReviewReasoner,
@@ -38,7 +38,7 @@ import { authorViewFromPayload } from '../authorView';
 import { PatchProposal } from '../chatLoopTypes';
 import { patchRequiresConfirmation } from '../permission';
 import { revisionTargetLength, targetLengthHint } from '../reviseTargetLength';
-import { AgentOrchestrationError, optionalString, roleHints, roleMentions } from '../runPayloads';
+import { AgentOrchestrationError, roleHints, roleMentions } from '../runPayloads';
 import {
   SubagentExecutor,
   type ToolExecutionContext,

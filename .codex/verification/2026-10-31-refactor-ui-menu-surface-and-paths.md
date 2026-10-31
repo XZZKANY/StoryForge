@@ -79,3 +79,18 @@
   - 观感只在 happy-dom、源码与生成 CSS 层面核过，没截图、没在装机版上点；`group-has-[:focus-visible]` 依赖 WebView2 的 `:has()`（Chromium 105 起支持），没在真宿主上用键盘走一遍。
   - 路径拼接没在真宿主上建过作品、开过示例作品（宿主命令没变，传给宿主的路径在可达输入下逐字不变）。
   - 没跑 Rust 测试与 Tauri 冒烟（本刀没动宿主与引擎）。
+
+## 2026-10-31 合并 origin/master（#578 / #580 / #581 / #582 合入后）
+
+- 改动：PR 与 master 冲突、GitHub 没跑 CI，按要求 `git merge origin/master`（`73f7c46f`），不 rebase、不 force push。三个文件冲突，两边都保留：
+  - `lib/tauri-fs.ts`：本分支的 `import { joinPath } from './fs-path-ops'` 与 master 的 `host-file-errors` 四个错误类型 import 并存；master 的 `hostFileFailure` 翻译、`pickDirectory` / `pickFile` 原样保留，`readWritebackAudit` 仍用 `joinPath` 拼审计路径。
+  - `lib/writeback-receipt-fixture.ts`：`joinPath` 与 master 的 `DiskDriftError` 两个 import 并存；master 的 `detailKind` 原样保留，两处审计路径仍用 `joinPath`。
+  - `tests/source-standards.test.ts`：master 新增的「引擎共享小函数各只定义一次」与本分支的「按 base 认分隔符拼路径只写在 joinPath 里」两个守护都完整保留（master 的在前）。
+  - 合并后复查：认分隔符的写法仍只在 `fs-path-ops.ts`；master 新进来的代码里没有新的 `joinChild`、`type Confirm =`、手写菜单外框或悬停显隐写法（全套守护通过）。
+- 验证（合并后重跑）：
+  - `pnpm lint`：EXIT=0，0 error，2 warning 仍是没动过的 `tests/independent-claim-history.test.ts`（原有），0 新 warning；prettier 全过。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，273 个文件，2815 passed。
+  - `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14268 passed / 2 skipped；本分支对 `origin/master` 的 `packages/` diff 为空，golden 零变化。
+  - 行尾：冲突的两个 CRLF 文件解决后仍全 CRLF，`source-standards.test.ts` 仍全 LF，无 CRCRLF。
+- 未覆盖：同上一段（浏览器回归以 CI 为准；没跑 Rust 测试与 Tauri 冒烟）。

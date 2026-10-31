@@ -2,6 +2,7 @@
 // Intent and outcome are separate immutable, synced files. A surviving intent without
 // outcome is UNKNOWN, including when target bytes equal before/after: never replay it.
 use crate::fs::{self as project_fs, DiskBaseline};
+use crate::host_error::HostError;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -35,6 +36,17 @@ pub struct WritebackReceipt {
     pub receipt_persisted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail_kind: Option<DetailKind>,
+}
+/// 回执 detail 的类别。前端只按它判断，detail 文字留给作者看；其余失败不写类别。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DetailKind {
+    /// 正文已写入、canon 派生缓存没清掉：前端据此给「修复缓存」入口。
+    CanonCacheStale,
+    /// 登记写入意图之后才撞上磁盘漂移、没写进去：再点结果一样，前端据此不提示「可重试」。
+    Drift,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -55,6 +67,9 @@ struct Outcome {
     fingerprint: String,
     state: String,
     detail: Option<String>,
+    // 后加的可选字段：旧回执没有它照样能读，没有类别时不落盘，旧格式的字节不变。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    detail_kind: Option<DetailKind>,
 }
 struct Location {
     root: PathBuf,
@@ -207,6 +222,7 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
     let outcome_path = checked_path(location, "outcome")?;
     let mut state = "outcome_unknown".to_string();
     let mut detail = None;
+    let mut detail_kind = None;
     let mut persisted = false;
     match fs::read(outcome_path) {
         Ok(bytes) => {
@@ -220,6 +236,9 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
                 return Err("写入结果回执身份无效，已禁止重复写入".into());
             }
             state = outcome.state;
+            detail_kind = outcome
+                .detail_kind
+                .or_else(|| legacy_detail_kind(outcome.detail.as_deref()));
             detail = outcome.detail;
             persisted = true;
         }
@@ -229,11 +248,7 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
         }
     }
     // 失效结果单独补记，原始正文 outcome 保持不可变；损坏补记不得掩盖原警告。
-    if state == "applied"
-        && detail
-            .as_deref()
-            .is_some_and(|value| value.starts_with(CANON_INVALIDATION_WARNING))
-    {
+    if state == "applied" && detail_kind == Some(DetailKind::CanonCacheStale) {
         if let Ok(path) = checked_path(location, "canon-invalidation") {
             if let Ok(bytes) = fs::read(path) {
                 if let Ok(repair) = serde_json::from_slice::<Outcome>(&bytes) {
@@ -243,6 +258,7 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
                         && repair.state == "invalidated"
                     {
                         detail = None;
+                        detail_kind = None;
                     }
                 }
             }
@@ -250,6 +266,7 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
     }
     let current = current_state(location, &intent).unwrap_or_else(|error| {
         detail = Some(error);
+        detail_kind = None;
         "unreadable".into()
     });
     Ok(Some(WritebackReceipt {
@@ -260,7 +277,20 @@ fn inspect(location: &Location) -> Result<Option<WritebackReceipt>, String> {
         created_file: intent.before_hash.is_none(),
         receipt_persisted: persisted,
         detail,
+        detail_kind,
     }))
+}
+/// 加 detail_kind 之前落盘的回执只有 detail 文字，读回时按当时的前缀认一次；别处一律只看
+/// detail_kind。这两段是旧回执的落盘格式，不跟着现行文案改。
+fn legacy_detail_kind(detail: Option<&str>) -> Option<DetailKind> {
+    let detail = detail?;
+    if detail.starts_with("canon 派生缓存未失效: ") {
+        Some(DetailKind::CanonCacheStale)
+    } else if detail.starts_with("磁盘内容已变化，已拒绝覆盖") {
+        Some(DetailKind::Drift)
+    } else {
+        None
+    }
 }
 #[tauri::command]
 pub fn describe_writeback_operation(
@@ -286,7 +316,7 @@ pub fn write_file_with_receipt(
     request: WritebackRequest,
     expected: DiskBaseline,
     checkpoint_timestamp: Option<u64>,
-) -> Result<WritebackReceipt, String> {
+) -> Result<WritebackReceipt, HostError> {
     apply_with(
         &project_root,
         &request,
@@ -340,12 +370,7 @@ fn invalidate_canon_derived_caches(root: &Path) -> Result<(), String> {
 // 仅修复已知 applied 的派生缓存，函数没有正文写回闭包。
 fn repair_canon_invalidation(location: &Location, mut receipt: WritebackReceipt) -> WritebackReceipt {
     // 正文已有结果时绝不重放。只允许重试可弃缓存清理，并独立持久化补记。
-    if receipt.state == "applied"
-        && receipt
-            .detail
-            .as_deref()
-            .is_some_and(|value| value.starts_with(CANON_INVALIDATION_WARNING))
-    {
+    if receipt.state == "applied" && receipt.detail_kind == Some(DetailKind::CanonCacheStale) {
         let repair = invalidate_canon_derived_caches(&location.root).and_then(|()| {
             let outcome = Outcome {
                 schema_version: 1,
@@ -353,6 +378,7 @@ fn repair_canon_invalidation(location: &Location, mut receipt: WritebackReceipt)
                 fingerprint: location.fingerprint.clone(),
                 state: "invalidated".into(),
                 detail: None,
+                detail_kind: None,
             };
             // 这是可重复生成的缓存维护状态，不是正文 admission/outcome。
             // 原子替换允许修复中断的补记；并发同身份补记写入相同结果。
@@ -364,7 +390,10 @@ fn repair_canon_invalidation(location: &Location, mut receipt: WritebackReceipt)
             )
         });
         match repair {
-            Ok(()) => receipt.detail = None,
+            Ok(()) => {
+                receipt.detail = None;
+                receipt.detail_kind = None;
+            }
             Err(error) => receipt.detail = Some(format!("{CANON_INVALIDATION_WARNING}{error}")),
         }
     }
@@ -389,8 +418,8 @@ fn apply_with(
     request: &WritebackRequest,
     expected: DiskBaseline,
     checkpoint_timestamp: Option<u64>,
-    write: impl FnOnce(DiskBaseline) -> Result<(), String>,
-) -> Result<WritebackReceipt, String> {
+    write: impl FnOnce(DiskBaseline) -> Result<(), HostError>,
+) -> Result<WritebackReceipt, HostError> {
     let location = resolve(project_root, request)?;
     if let Some(receipt) = inspect(&location)? {
         return Ok(repair_canon_invalidation(&location, receipt));
@@ -413,11 +442,15 @@ fn apply_with(
     };
     if let Err(error) = append_once(&intent_path, &intent) {
         // Another process may own this identity. No contender gets to dispatch.
-        return inspect(&location)?.ok_or(error);
+        return inspect(&location)?.ok_or_else(|| error.into());
     }
-    let (state, mut detail) = match write(expected) {
-        Ok(()) => ("applied", None),
-        Err(error) => ("not_written", Some(error)),
+    let (state, mut detail, mut detail_kind) = match write(expected) {
+        Ok(()) => ("applied", None, None),
+        Err(error) => (
+            "not_written",
+            Some(error.message),
+            (error.kind == "drift").then_some(DetailKind::Drift),
+        ),
     };
     // D04：正文落盘成功后使 canon 派生缓存失效（可弃缓存，缺失即触发后端按需重建）。
     // proposals.json 不在此列——它承载 canon_delta 的待决提案草稿，不是正文派生。
@@ -425,6 +458,7 @@ fn apply_with(
     if state == "applied" {
         if let Err(error) = invalidate_canon_derived_caches(&location.root) {
             detail = Some(format!("{CANON_INVALIDATION_WARNING}{error}"));
+            detail_kind = Some(DetailKind::CanonCacheStale);
         }
     }
     let outcome = Outcome {
@@ -433,21 +467,29 @@ fn apply_with(
         fingerprint: intent.fingerprint.clone(),
         state: state.into(),
         detail: detail.clone(),
+        detail_kind,
     };
     let committed =
         checked_path(&location, "outcome").and_then(|path| append_once(&path, &outcome));
     let current = current_state(&location, &intent).unwrap_or_else(|error| {
         detail = Some(error);
+        detail_kind = None;
         "unreadable".into()
     });
+    let receipt_persisted = committed.is_ok();
+    let (detail, detail_kind) = match committed {
+        Ok(()) => (detail, detail_kind),
+        Err(error) => (Some(error), None),
+    };
     Ok(WritebackReceipt {
         operation_id: intent.operation_id.clone(),
         state: state.into(),
         current,
         checkpoint_timestamp,
         created_file: intent.before_hash.is_none(),
-        receipt_persisted: committed.is_ok(),
-        detail: committed.err().or(detail),
+        receipt_persisted,
+        detail,
+        detail_kind,
     })
 }
 /// Create a fixed, receipt-keyed audit exclusively. Existing bytes are never replaced.

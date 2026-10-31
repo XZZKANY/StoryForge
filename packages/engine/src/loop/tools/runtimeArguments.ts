@@ -1,18 +1,14 @@
-import { compareCodePoints, isObj, JsonFloat, type Obj } from '../../kernel/json';
+import { compareCodePoints, isObj, isPyInt, JsonFloat, type Obj } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
-import { compactText, cpLen, pythonStrip } from '../../kernel/pythonText';
+import { compactText, cpLen, optionalString, pythonStrip } from '../../kernel/pythonText';
 import {
   isSensitiveKey,
   REDACTED,
   redactSensitiveText,
   type SecretContext,
 } from '../../kernel/redaction';
-import { AgentOrchestrationError, optionalString } from '../runPayloads';
+import { AgentOrchestrationError } from '../runPayloads';
 import { listLoopToolSpecs } from './catalog';
-
-/** Python 的 int 包含 bool；非整数的 number 视为 float。 */
-const isPyInt = (value: unknown): value is number | boolean =>
-  typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
 
 /** 后端独占的参数：模型给了也在进执行与证据之前丢掉。 */
 export const PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = new Set([

@@ -10,6 +10,7 @@ import { __getLastDiffEditor } from 'monaco-editor';
 
 import { buildPatchReviewTraceTitle, PatchReviewPanel } from '../src/components/PatchReviewPanel';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
+import { DiskDriftError } from '../src/lib/host-file-errors';
 import { buildPatchHunks, type PatchHunk } from '../src/lib/patch-hunks';
 
 function sampleSuggestion(
@@ -402,6 +403,64 @@ test('U-24：定位类拒写每次结果都一样，不再提示可重试，指�
   // 对照：写盘失败这类偶发错误仍提示可重试。
   render('接受失败: 写回失败');
   assert.equal(status(), '操作失败：接受失败: 写回失败，可重试');
+});
+
+test('漂移拒写按错误类型认：DiskDriftError 不提示可重试，同样的字换成普通错误照常提示', () => {
+  const drift = '磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: D:/书/正文/第01章.md';
+  const render = (cause: unknown) =>
+    act(() => {
+      root.render(
+        <PatchReviewPanel
+          suggestion={sampleSuggestion()}
+          editorFontSize={14}
+          editorFontFamily="test-font"
+          onAccept={() => undefined}
+          onAcceptHunk={() => undefined}
+          onReject={() => undefined}
+          onSaveNote={() => undefined}
+          onRetryWithoutKnowledge={() => undefined}
+          error={`接受失败: ${drift}`}
+          errorCause={cause}
+        />,
+      );
+    });
+  const status = () => byTestId('patch-action-status')?.textContent ?? '';
+
+  render(new DiskDriftError(drift));
+  assert.equal(status(), `操作失败：接受失败: ${drift}`);
+  render(new Error(drift));
+  assert.equal(status(), `操作失败：接受失败: ${drift}，可重试`);
+});
+
+test('面板自己接住的漂移拒写同样不提示可重试', async () => {
+  let rejectAccept!: (error: Error) => void;
+  act(() => {
+    root.render(
+      <PatchReviewPanel
+        suggestion={sampleSuggestion()}
+        editorFontSize={14}
+        editorFontFamily="test-font"
+        onAccept={() =>
+          new Promise<void>((_resolve, reject) => {
+            rejectAccept = reject;
+          })
+        }
+        onAcceptHunk={() => undefined}
+        onReject={() => undefined}
+        onSaveNote={() => undefined}
+        onRetryWithoutKnowledge={() => undefined}
+      />,
+    );
+  });
+
+  click('suggestion-accept');
+  await act(async () => {
+    rejectAccept(new DiskDriftError('磁盘内容已变化，已拒绝覆盖'));
+  });
+  assert.equal(
+    byTestId('patch-action-status')?.textContent,
+    '操作失败：磁盘内容已变化，已拒绝覆盖',
+  );
 });
 
 test('确认键的字面随有没有话说而变', () => {

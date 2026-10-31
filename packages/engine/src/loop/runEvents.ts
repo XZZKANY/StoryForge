@@ -1,4 +1,5 @@
 import { cloneJson, isObj, type JsonValue, type Obj } from '../kernel/json';
+import { optionalString } from '../kernel/pythonText';
 import { normalizeAgentRoleInputs } from '../kernel/roleCatalog';
 import {
   redactSensitive,
@@ -31,7 +32,6 @@ import {
   executionResultPayload,
   messageInputSummary,
   optionalPositiveInt,
-  optionalString,
   payloadMessageText,
   PERMISSION_REQUIRED,
   scopeSummary,

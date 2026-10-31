@@ -271,6 +271,35 @@ it('正文字数只在 project-core 实现一份，界面与引擎都从那里�
   );
 });
 
+// 引擎里原来各抄一份的小函数，合并后只在共享模块定义一次，别处从那里取。
+const ENGINE_SHARED_HELPERS: Record<string, string> = {
+  isPyInt: 'kernel/json.ts',
+  strOr: 'kernel/json.ts',
+  countOf: 'kernel/pythonText.ts',
+  stripNewlines: 'kernel/pythonText.ts',
+  optionalString: 'kernel/pythonText.ts',
+  clipWithEllipsis: 'kernel/pythonText.ts',
+};
+
+it('引擎的共享小函数各只定义一次，在 kernel/json.ts 或 kernel/pythonText.ts', () => {
+  const files = sourceFiles(ENGINE_SRC).filter((path) => !isTestSource(path));
+  expect(files.length).toBeGreaterThan(100);
+  const definitions = files.flatMap((path) => {
+    const text = readFileSync(path, 'utf8');
+    const home = relative(ENGINE_SRC, path).replace(/\\/g, '/');
+    return Object.keys(ENGINE_SHARED_HELPERS).flatMap((name) =>
+      [...text.matchAll(new RegExp(`\\b(?:function|const|let|var)\\s+${name}\\b`, 'g'))].map(
+        () => `${home}: ${name}`,
+      ),
+    );
+  });
+  expect(definitions.sort()).toEqual(
+    Object.entries(ENGINE_SHARED_HELPERS)
+      .map(([name, home]) => `${home}: ${name}`)
+      .sort(),
+  );
+});
+
 // 按路径里的分隔符拼路径只留 lib/fs-path-ops 的 joinPath：前端 17 个文件曾各自先
 // `x.includes('\\') ? '\\' : '/'` 认分隔符、再手拼。要项目边界检查的走 project-core 的 joinProjectPath。
 const SEPARATOR_SNIFF = /\.includes\(\s*(['"])\\\\\1\s*\)\s*\?/;

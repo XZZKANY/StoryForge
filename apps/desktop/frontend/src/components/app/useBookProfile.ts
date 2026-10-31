@@ -32,6 +32,7 @@ import {
 } from '../../lib/idea-notes';
 import { scanManuscriptTotals, type ManuscriptTotals } from '../../lib/manuscript-stats';
 import { limitOutlineEntries, parseHeadings, type OutlineEntry } from '../../lib/outline-index';
+import { ProjectFileMissingError } from '../../lib/host-file-errors';
 import { buildProjectIndex } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { emitToast } from '../../lib/toast';
@@ -77,11 +78,8 @@ async function readTextOrNull(projectPath: string, path: string): Promise<string
   try {
     return await TauriFileSystem.readProjectFile(projectPath, path);
   } catch (error) {
-    const detail = message(error).toLowerCase();
-    // 档案 / 灵感文件尚未创建是常态，不是错误；其它 I/O 错误必须暴露。
-    if (/not found|no such file|enoent|不存在|找不到|找不到指定|notfound/.test(detail)) {
-      return null;
-    }
+    // 档案 / 灵感文件尚未创建是常态，不是错误；作品目录读不了等其它错误必须暴露。
+    if (error instanceof ProjectFileMissingError) return null;
     throw error;
   }
 }

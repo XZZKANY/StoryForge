@@ -1,6 +1,7 @@
 // Uncached, bounded raw reads for the deterministic engine. UI list_project_dir keeps
 // its own filtering contract; visibility and completeness belong to the kernel.
-use super::ensure_canonical_path_inside_project;
+use super::{ensure_canonical_path_inside_project, outside};
+use crate::host_error::HostError;
 use base64::Engine;
 use serde::Serialize;
 use std::fs;
@@ -11,37 +12,6 @@ const MAX_ENTRIES: usize = 20_000;
 // Must equal the engine's MAX_NATIVE_READ_BYTES (readPort.ts): the largest budget any reader asks for.
 const MAX_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
-
-// Preserve containment failures across IPC; callers must not parse localized messages.
-#[derive(Debug, Serialize)]
-pub struct EngineReadError {
-    kind: &'static str,
-    message: String,
-}
-
-impl EngineReadError {
-    fn outside(message: impl Into<String>) -> Self {
-        Self {
-            kind: "outside-project",
-            message: message.into(),
-        }
-    }
-}
-
-impl From<String> for EngineReadError {
-    fn from(message: String) -> Self {
-        Self {
-            kind: "io",
-            message,
-        }
-    }
-}
-
-impl From<&str> for EngineReadError {
-    fn from(message: &str) -> Self {
-        message.to_string().into()
-    }
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -124,10 +94,7 @@ fn resolve_missing_suffix(path: &Path) -> Result<PathBuf, String> {
     Ok(resolved)
 }
 
-fn reader_paths(
-    project_root: &str,
-    path: &str,
-) -> Result<(PathBuf, PathBuf, PathBuf), EngineReadError> {
+fn reader_paths(project_root: &str, path: &str) -> Result<(PathBuf, PathBuf, PathBuf), HostError> {
     if !Path::new(project_root).is_absolute() {
         return Err("作品读取根路径必须为绝对路径".into());
     }
@@ -139,7 +106,7 @@ fn reader_paths(
         supplied
             .strip_prefix(Path::new(project_root))
             .or_else(|_| supplied.strip_prefix(&root))
-            .map_err(|_| EngineReadError::outside("作品读取路径不在当前作品内"))?
+            .map_err(|_| outside("作品读取路径不在当前作品内"))?
     } else {
         supplied
     };
@@ -150,15 +117,14 @@ fn reader_paths(
             Component::CurDir => {}
             Component::ParentDir => {
                 if !original.pop() {
-                    return Err(EngineReadError::outside("作品读取路径越过文件系统根"));
+                    return Err(outside("作品读取路径越过文件系统根"));
                 }
             }
             _ => return Err("作品读取路径包含非规范片段".into()),
         }
     }
     let resolved = resolve_missing_suffix(&original)?;
-    ensure_canonical_path_inside_project(&root, &resolved, &original, true)
-        .map_err(EngineReadError::outside)?;
+    ensure_canonical_path_inside_project(&root, &resolved, &original, true).map_err(outside)?;
     Ok((root, original, resolved))
 }
 
@@ -166,7 +132,7 @@ fn reader_paths(
 pub fn resolve_engine_project_path(
     project_root: String,
     path: String,
-) -> Result<ResolvedProjectPath, EngineReadError> {
+) -> Result<ResolvedProjectPath, HostError> {
     let (root, original, resolved) = reader_paths(&project_root, &path)?;
     Ok(ResolvedProjectPath {
         relative_path: relative_string(original.strip_prefix(&root).map_err(|_| "作品路径越界")?)?,
@@ -215,7 +181,7 @@ fn is_reparse(info: &fs::Metadata) -> bool {
 pub fn inspect_engine_project_path(
     project_root: String,
     path: String,
-) -> Result<ProjectPathMetadata, EngineReadError> {
+) -> Result<ProjectPathMetadata, HostError> {
     let (_, original, resolved) = reader_paths(&project_root, &path)?;
     let entry = optional_metadata(&original, true)?;
     let target = optional_metadata(&resolved, false)?;
@@ -269,7 +235,7 @@ pub fn read_engine_project_directory(
     project_root: String,
     path: String,
     remaining_entries: usize,
-) -> Result<RawProjectDirectory, EngineReadError> {
+) -> Result<RawProjectDirectory, HostError> {
     if remaining_entries > MAX_ENTRIES {
         return Err("作品目录读取预算无效".into());
     }
@@ -298,7 +264,7 @@ pub fn read_engine_project_bytes(
     project_root: String,
     path: String,
     max_bytes: usize,
-) -> Result<RawProjectBytes, EngineReadError> {
+) -> Result<RawProjectBytes, HostError> {
     if max_bytes > MAX_BYTES {
         return Err("作品文件读取预算无效".into());
     }

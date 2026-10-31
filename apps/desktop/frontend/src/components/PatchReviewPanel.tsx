@@ -33,6 +33,8 @@ type PatchReviewPanelProps = {
   editorFontFamily: string;
   actionKind?: PatchAction | null;
   error?: string | null;
+  /** 失败时抛出的原错误：按类型判断要不要提示可重试，不看文字。 */
+  errorCause?: unknown;
   onAccept: () => void | Promise<void>;
   onAcceptHunk: (hunk: PatchHunk) => void | Promise<void>;
   /** 兑现为 false 表示没否掉（恢复记录写不进去等）：草稿留着。 */
@@ -58,8 +60,15 @@ export function PatchReviewPanel({
   onCancelTruncatedAccept,
   actionKind = null,
   error = null,
+  errorCause,
 }: PatchReviewPanelProps) {
-  const actions = usePatchReviewActions({ suggestion, actionKind, error, onCancelTruncatedAccept });
+  const actions = usePatchReviewActions({
+    suggestion,
+    actionKind,
+    error,
+    errorCause,
+    onCancelTruncatedAccept,
+  });
   const {
     detailsOpen,
     setDetailsOpen,
@@ -70,6 +79,7 @@ export function PatchReviewPanel({
     setRejectDraft,
     actionState,
     actionError,
+    actionFailure,
     actionInFlightRef,
     panelRef,
     actionBusy,
@@ -375,8 +385,8 @@ export function PatchReviewPanel({
             aria-live="polite"
             data-testid="patch-action-status"
           >
-            {actionError
-              ? actionFailureText(actionError)
+            {actionFailure
+              ? actionFailureText(actionFailure.message, actionFailure.cause)
               : `处理中：${PATCH_ACTION_LABELS[actionState!]}`}
           </div>
         )}

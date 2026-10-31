@@ -43,3 +43,18 @@ export const stringArgList = (value: unknown): string[] =>
     : [];
 
 export const orderedUnique = (values: readonly string[]): string[] => [...new Set(values)];
+
+/** 字符串去空白后非空就返回去空白后的值，否则 null。 */
+export const optionalString = (value: unknown): string | null =>
+  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
+
+export const countOf = (text: string, part: string) => text.split(part).length - 1;
+
+/** Python `text.strip('\n')`。 */
+export const stripNewlines = (text: string) => text.replace(/^\n+|\n+$/g, '');
+
+/** 超出 limit 个码点就保留开头、再加「……」。 */
+export const clipWithEllipsis = (text: string, limit: number) => {
+  const points = Array.from(text);
+  return points.length > limit ? `${points.slice(0, limit).join('')}……` : text;
+};

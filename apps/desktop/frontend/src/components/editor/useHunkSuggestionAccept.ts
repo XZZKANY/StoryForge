@@ -205,6 +205,7 @@ export function useHunkSuggestionAccept(
         failAction(
           actionToken,
           `接受分块失败: ${err instanceof Error ? err.message : String(err)}`,
+          err,
         );
       } finally {
         finishAction(actionToken);

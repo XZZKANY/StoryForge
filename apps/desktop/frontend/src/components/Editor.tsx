@@ -126,6 +126,7 @@ export function Editor({
     handleRetrySuggestion,
     actionState,
     actionError,
+    actionErrorCause,
     truncationAcceptArmed,
     cancelTruncatedAccept,
     isReviseLoading,
@@ -426,6 +427,7 @@ export function Editor({
             projectPath={projectPath}
             actionKind={actionState?.kind ?? null}
             error={actionError}
+            errorCause={actionErrorCause}
             editorFontSize={editorFontSize}
             editorFontFamily={resolveEditorFontFamily(editorFontMode)}
             truncationArmed={truncationAcceptArmed}

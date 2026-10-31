@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useBookProfile, type BookProfileHandle } from '../src/components/app/useBookProfile';
+import { DiskDriftError, ProjectFileMissingError } from '../src/lib/host-file-errors';
 import {
   appendIdeaNote,
   editIdeaNote,
@@ -103,14 +104,14 @@ beforeEach(() => {
     if (!path.endsWith('灵感.md')) return '{}';
     if (unreadable) throw new Error('拒绝访问');
     const text = disk.get(path);
-    if (text === undefined) throw new Error('not found');
+    if (text === undefined) throw new ProjectFileMissingError(`作品文件不存在: ${path}`);
     return text;
   });
   vi.mocked(TauriFileSystem.writeFileIfUnchanged).mockImplementation(
     async (_root, path, content, expected) => {
       const current = disk.get(path) ?? null;
       const matches = expected.kind === 'missing' ? current === null : current === expected.content;
-      if (!matches) throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+      if (!matches) throw new DiskDriftError('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
       disk.set(path, content);
     },
   );
