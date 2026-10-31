@@ -227,3 +227,39 @@ it('treats a presence cache holding a non-string id as invalid, not as a partial
   expect(await roster(',{"id":7}')).toMatchObject({ first_chapter: null, last_chapter: null });
   expect(await roster(',{"id":null}')).toMatchObject({ first_chapter: 1, last_chapter: 2 });
 });
+
+it('accepts the optional detailKind the host now writes into a receipt outcome', async () => {
+  const encode = (text: string) => ({
+    chunks: [{ base64: btoa(String.fromCharCode(...new TextEncoder().encode(text))), repeat: 1 }],
+  });
+  const operationId = '1'.repeat(64);
+  const identity = { schemaVersion: 1, operationId, fingerprint: '2'.repeat(64) };
+  const intent = { ...identity, relativePath: 'chapter.md', afterHash: '3'.repeat(64) };
+  const revision = async (outcome: Record<string, unknown>) => {
+    const { reader, root } = contextFixtureReader({
+      files: {
+        [`.storyforge/writeback-receipts/${operationId}.intent.json`]: encode(
+          JSON.stringify(intent),
+        ),
+        [`.storyforge/writeback-receipts/${operationId}.outcome.json`]: encode(
+          JSON.stringify({ ...identity, ...outcome }),
+        ),
+      },
+      missing_root: false,
+    });
+    return captureCanonSourceRevision(reader, root);
+  };
+  expect(await revision({ state: 'applied', detail: null })).not.toBeNull();
+  expect(
+    await revision({ state: 'not_written', detail: '磁盘内容已变化', detailKind: 'drift' }),
+  ).not.toBeNull();
+  expect(
+    await revision({
+      state: 'applied',
+      detail: 'canon 派生缓存未失效: locked',
+      detailKind: 'canon-cache-stale',
+    }),
+  ).not.toBeNull();
+  expect(await revision({ state: 'applied', detail: null, detailKind: 'future' })).toBeNull();
+  expect(await revision({ state: 'applied', detail: null, detailKind: null })).toBeNull();
+});

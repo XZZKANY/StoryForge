@@ -1,4 +1,5 @@
 /** Browser smoke fixture only. Production admission/durability belongs to the Rust commands. */
+import { DiskDriftError } from './host-file-errors';
 import { relativePathInsideProject } from './project/path';
 import type { DiskBaseline } from './tauri-fs';
 import type { WritebackReceipt, WritebackRequest } from './writeback-receipt-types';
@@ -97,6 +98,8 @@ export async function writeFixtureReceipt(
       ...stored.receipt,
       state: 'not_written',
       detail: error instanceof Error ? error.message : String(error),
+      // 照宿主：登记写入后才撞上的漂移在回执里记下类别。
+      ...(error instanceof DiskDriftError ? { detailKind: 'drift' as const } : {}),
     };
   }
   try {
@@ -106,7 +109,9 @@ export async function writeFixtureReceipt(
     );
     return { ...stored.receipt, receiptPersisted: true };
   } catch (error) {
-    return { ...stored.receipt, detail: error instanceof Error ? error.message : String(error) };
+    // detail 换成了回执落不了盘的原因，类别随之作废（宿主同样如此）。
+    const { detailKind: _stale, ...receipt } = stored.receipt;
+    return { ...receipt, detail: error instanceof Error ? error.message : String(error) };
   }
 }
 
