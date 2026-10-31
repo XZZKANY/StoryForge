@@ -30,7 +30,7 @@ fn bearer() -> String {
     format!("Bearer {CREDENTIAL_PLACEHOLDER}")
 }
 
-fn refusal(result: Result<Outbound, EngineLlmError>) -> EngineLlmError {
+fn refusal(result: Result<Outbound, HostError>) -> HostError {
     let error = result.err().expect("request must be refused");
     assert_eq!(error.kind, "refused");
     assert!(!error.message.contains(KEY));
@@ -338,7 +338,7 @@ async fn call(
     base: &str,
     path: &str,
     timeout_seconds: f64,
-) -> Result<(Head, Vec<BodyEvent>), EngineLlmError> {
+) -> Result<(Head, Vec<BodyEvent>), HostError> {
     let configured = slot(base, Some(KEY));
     let bearer = bearer();
     let mut outbound = request(
@@ -442,7 +442,7 @@ async fn refused_connection_and_silent_server_map_to_python_kinds() {
 
     let (base, _server) = fake_server(vec![vec![Act::Hang]]).await;
     let error = call(&base, "/chat/completions", 0.3).await.err().unwrap();
-    assert_eq!(error, EngineLlmError::new("timeout", "timed out"));
+    assert_eq!(error, HostError::new("timeout", "timed out"));
 }
 
 #[tokio::test]
@@ -550,7 +550,7 @@ fn ipc_shapes_match_the_desktop_adapter() {
         json!({"id": 1, "status": 200, "headers": {"retry-after": "2"}})
     );
     assert_eq!(
-        serde_json::to_value(EngineLlmError::new("refused", "x")).unwrap(),
+        serde_json::to_value(HostError::new("refused", "x")).unwrap(),
         json!({"kind": "refused", "message": "x"})
     );
 }

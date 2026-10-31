@@ -9,6 +9,7 @@ mod fs;
 mod fs_writeback_receipts;
 mod host_close;
 mod host_close_state;
+mod host_error;
 mod llm_config;
 mod llm_config_store;
 mod llm_draft_probe;

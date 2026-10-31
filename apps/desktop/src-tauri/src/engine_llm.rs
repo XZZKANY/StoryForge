@@ -1,6 +1,7 @@
 //! Engine LLM egress. The WebView engine only ever holds `CREDENTIAL_PLACEHOLDER`:
 //! Rust swaps it for the decrypted key inside credential headers, sends only to the
 //! configured base URL origin, and maps any echo of the key in responses back.
+use crate::host_error::HostError;
 use crate::llm_config;
 use crate::llm_config_store::{self, RevealedSlot};
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -51,24 +52,8 @@ pub enum LlmSlot {
     Polish,
 }
 
-/// `config`：配置文件读不出或密钥解不开；`refused`：出网策略拒绝；其余是网络层失败。
-#[derive(Debug, Serialize, PartialEq, Eq)]
-pub struct EngineLlmError {
-    kind: &'static str,
-    message: String,
-}
-
-impl EngineLlmError {
-    fn new(kind: &'static str, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-        }
-    }
-}
-
-fn refused(message: &str) -> EngineLlmError {
-    EngineLlmError::new("refused", message)
+fn refused(message: &str) -> HostError {
+    HostError::new("refused", message)
 }
 
 #[derive(Deserialize)]
@@ -163,7 +148,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 pub(crate) fn prepare(
     slot: &RevealedSlot,
     request: EngineHttpRequest,
-) -> Result<Outbound, EngineLlmError> {
+) -> Result<Outbound, HostError> {
     let base = http_url(&slot.base_url)
         .ok_or_else(|| refused("尚未配置有效的模型 base URL；请在设置中检查后重试。"))?;
     let url = http_url(&request.url).ok_or_else(|| refused("模型请求地址无效。"))?;
@@ -349,7 +334,7 @@ pub(crate) async fn open(
     client: &reqwest::Client,
     outbound: Outbound,
     key: Option<&str>,
-) -> Result<(Head, reqwest::Response), EngineLlmError> {
+) -> Result<(Head, reqwest::Response), HostError> {
     let mut builder = client
         .request(outbound.method, outbound.url)
         .headers(outbound.headers);
@@ -357,15 +342,15 @@ pub(crate) async fn open(
         builder = builder.body(body);
     }
     let response = match tokio::time::timeout(outbound.timeout, builder.send()).await {
-        Err(_) => return Err(EngineLlmError::new("timeout", "timed out")),
+        Err(_) => return Err(HostError::new("timeout", "timed out")),
         Ok(Err(error)) if error.is_connect() => {
-            return Err(EngineLlmError::new(
+            return Err(HostError::new(
                 "connect",
                 scrub_text(&innermost(&error), key),
             ))
         }
         Ok(Err(error)) => {
-            return Err(EngineLlmError::new(
+            return Err(HostError::new(
                 "read",
                 python_read_error(&error, "RemoteDisconnected"),
             ))
@@ -439,27 +424,27 @@ pub struct EngineLlmState {
 }
 
 impl EngineLlmState {
-    pub(crate) fn client(&self) -> Result<reqwest::Client, EngineLlmError> {
+    pub(crate) fn client(&self) -> Result<reqwest::Client, HostError> {
         if let Some(client) = self.client.get() {
             return Ok(client.clone());
         }
-        let client = build_client(true)
-            .map_err(|error| EngineLlmError::new("connect", innermost(&error)))?;
+        let client =
+            build_client(true).map_err(|error| HostError::new("connect", innermost(&error)))?;
         Ok(self.client.get_or_init(|| client).clone())
     }
 }
 
-fn revealed_slot(app: &AppHandle, slot: LlmSlot) -> Result<RevealedSlot, EngineLlmError> {
+fn revealed_slot(app: &AppHandle, slot: LlmSlot) -> Result<RevealedSlot, HostError> {
     llm_config::config_path(app)
         .and_then(|path| llm_config_store::read_revealed_slot(&path, slot == LlmSlot::Polish))
-        .map_err(|error| EngineLlmError::new("config", error.to_string()))
+        .map_err(|error| HostError::new("config", error.to_string()))
 }
 
 #[tauri::command]
 pub fn get_engine_llm_source(
     app: AppHandle,
     slot: LlmSlot,
-) -> Result<BTreeMap<String, String>, EngineLlmError> {
+) -> Result<BTreeMap<String, String>, HostError> {
     let revealed = revealed_slot(&app, slot)?;
     Ok(engine_source(
         Some(&revealed),
@@ -475,7 +460,7 @@ pub async fn engine_llm_send(
     slot: LlmSlot,
     request: EngineHttpRequest,
     on_body: Channel<BodyEvent>,
-) -> Result<EngineHttpHead, EngineLlmError> {
+) -> Result<EngineHttpHead, HostError> {
     let revealed = revealed_slot(&app, slot)?;
     let outbound = prepare(&revealed, request)?;
     let timeout = outbound.timeout;
@@ -487,7 +472,7 @@ pub async fn engine_llm_send(
     let mut bodies = state
         .bodies
         .lock()
-        .map_err(|_| EngineLlmError::new("read", "EngineLlmStateLock"))?;
+        .map_err(|_| HostError::new("read", "EngineLlmStateLock"))?;
     bodies.insert(
         id,
         tauri::async_runtime::spawn(async move {
