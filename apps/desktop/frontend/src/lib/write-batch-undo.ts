@@ -34,6 +34,29 @@ export type WriteBatchUndoOutcome =
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/**
+ * 正文派生的 canon 缓存，与宿主写进文件后清掉的是同一张单子（fs_writeback_receipts.rs 的
+ * CANON_DERIVED_INVALIDATION_NAMES；proposals.json 是待决草稿，不在其列）。
+ */
+const CANON_DERIVED_CACHES = ['presence.json', 'observations.json', 'dossier.md', 'report.json'];
+
+/**
+ * 删章不经写入回执，派生缓存的来源版本不变：删之前写的缓存（还算着删掉的章）删之后仍会被当成最新的。
+ * 照写进文件那样先清掉，删章触发的观测重扫再按现在的正文重建。清不掉也只是缓存，那次重扫照样会覆盖它。
+ */
+async function invalidateCanonDerivedCaches(projectRoot: string): Promise<void> {
+  for (const name of CANON_DERIVED_CACHES) {
+    const filePath = resolveProjectRelativePath(projectRoot, `.storyforge/canon/derived/${name}`);
+    if (!filePath) continue;
+    try {
+      if (await TauriFileSystem.pathExists(filePath))
+        await TauriFileSystem.deletePath(projectRoot, filePath);
+    } catch {
+      // 见上：重扫会覆盖它。
+    }
+  }
+}
+
 async function stillThere(filePath: string): Promise<boolean> {
   try {
     return await TauriFileSystem.pathExists(filePath);
@@ -101,6 +124,7 @@ export async function undoWriteBatchFrom(input: {
   }
   if (!deleted.length)
     return { kind: 'done', deleted, failure, factsError: null, recordError: null };
+  await invalidateCanonDerivedCaches(projectRoot);
 
   // 删到哪一章停下，台账就回到已删各章里最早一次记账之前（引擎按删的顺序给好了）。
   const restoreTo = plan.chapters[deleted.length - 1].facts_restore;

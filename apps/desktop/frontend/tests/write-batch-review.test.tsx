@@ -204,6 +204,7 @@ const PARTS = [
   'write-batch-row-facts',
   'write-batch-row-tokens',
   'write-batch-row-goal',
+  'write-batch-row-facts-warning',
   'write-batch-row-mismatch',
 ];
 const rows = () =>
@@ -371,13 +372,15 @@ test('清单：汇总、每章各列、待定事实标出来、对不上的如�
   expect(text('write-batch-stop-reason')).toBe('第 6 章检查拦下了（检查拦下：1 个硬问题）。');
   expect(rows()).toEqual([
     '第 4 章《标题4》 | · 3000 字 | · 检查：通过，有 2 条建议 | · 新记下的事实 4 条（其中待定 1 条） | · 用量 6 万 | 目标：目标4',
-    '第 5 章《标题5》 | · 2800 字 | · 检查：修过一次后通过 | · 新记下的事实 0 条 | · 用量 9 万 | 目标：目标5 | 第 5 章写进文件以后又改过，和写进去时的内容对不上：以正文为准。',
+    '第 5 章《标题5》 | · 2800 字 | · 检查：修过一次后通过 | · 新记下的事实 0 条 | · 用量 9 万 | 目标：目标5 | 这章没抽出新事实，事实台账可能漏了这章的内容。 | 第 5 章写进文件以后又改过，和写进去时的内容对不上：以正文为准。',
     '第 6 章《标题6》 | · 没写（停在这里），检查拦下：1 个硬问题 | · 用量 7 万 | 目标：目标6',
     '第 7 章 | · 没写',
   ]);
-  // 待定的标出来；只有写进文件的章能撤。
+  // 待定的标出来；一条新事实都没记下的章照警示的样子提醒；只有写进文件的章能撤。
   expect(q('write-batch-row-pending', row(4))?.className).toContain('text-warning');
   expect(q('write-batch-row-pending', row(5))).toBeNull();
+  expect(q('write-batch-row-facts-warning', row(5))?.className).toContain('text-warning');
+  expect(q('write-batch-row-facts-warning', row(4))).toBeNull();
   expect([4, 5, 6, 7].map((ordinal) => q('write-batch-undo', row(ordinal)) !== null)).toEqual([
     true,
     true,
@@ -624,4 +627,128 @@ test('台账没能恢复、记录没记上：删了的照实说，错误留在�
   expect(text('write-batch-result-error')).toBe(
     '撤销删了第 5 章，但批量记录没记上：批量记录写不进去；事实台账没能恢复：facts.json 刚被别处改过',
   );
+});
+
+test('一条新事实都没记下才提醒：有待定的、记录里没有条数的、没写进文件的都不提醒', async () => {
+  await openBook(
+    view(
+      [
+        chapter(4, { facts_added: 0, fact_disputes: 1 }),
+        chapter(5, { facts_added: null, fact_disputes: null }),
+        chapter(6, { facts_added: 0, fact_disputes: 0 }),
+        chapter(7, {
+          state: 'stopped_here',
+          chars: null,
+          facts_added: 0,
+          fact_disputes: 0,
+          written_sha256: null,
+        }),
+      ],
+      { status: 'stopped', stop: { code: 'check_blocked', message: '停在第 7 章。', ordinal: 7 } },
+    ),
+  );
+  expect(
+    [4, 5, 6, 7].map((ordinal) => q('write-batch-row-facts', row(ordinal))?.textContent ?? null),
+  ).toEqual([
+    '· 新记下的事实 1 条（其中待定 1 条）',
+    '· 新记下的事实 —',
+    '· 新记下的事实 0 条',
+    null,
+  ]);
+  expect(
+    [4, 5, 6, 7].map(
+      (ordinal) => q('write-batch-row-facts-warning', row(ordinal))?.textContent ?? null,
+    ),
+  ).toEqual([null, null, '这章没抽出新事实，事实台账可能漏了这章的内容。', null]);
+});
+
+test('撤销以后那一行只说已撤销：不再报新记下的事实（台账已经回退），也不再提醒没抽出事实', async () => {
+  await openBook(view([chapter(4), chapter(5, { facts_added: 0, fact_disputes: 0 })]));
+  expect(q('write-batch-row-facts-warning', row(5))).not.toBeNull();
+  engine.planWriteBatchUndo.mockResolvedValue(undoPlan(4, 5));
+  await undoFrom(4);
+  await until(() => expect(text('write-batch-stop-reason')).toBe('撤销了第 4 章起的章。'));
+  expect(rows()).toEqual([
+    '第 4 章《标题4》 | · 已撤销 | · 用量 6 万 | 目标：目标4',
+    '第 5 章《标题5》 | · 已撤销 | · 用量 6 万 | 目标：目标5',
+  ]);
+  for (const ordinal of [4, 5]) {
+    expect(q('write-batch-row-facts', row(ordinal))).toBeNull();
+    expect(q('write-batch-row-facts-warning', row(ordinal))).toBeNull();
+  }
+});
+
+test('撤销的第二步在那一行里：台账说明与确认、取消挨在一起，展开时滚进视野', async () => {
+  const scrolled: Element[] = [];
+  const original = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: Element) {
+    scrolled.push(this);
+  };
+  try {
+    await openBook(view([chapter(4), chapter(5), chapter(6)]));
+    engine.planWriteBatchUndo.mockResolvedValue(undoPlan(6, 6));
+    await press(q('write-batch-undo', row(6)));
+    await until(() => expect(q('write-batch-undo-confirm', row(6))).not.toBeNull());
+    const block = q('write-batch-undo-confirm-block', row(6))!;
+    expect(block).not.toBeNull();
+    // 说明、确认、取消都在这一块里，这一块在第 6 章那一行里；行尾不再留「撤销这章及之后」。
+    expect(block.contains(q('write-batch-undo-facts'))).toBe(true);
+    expect(block.contains(q('write-batch-undo-confirm'))).toBe(true);
+    expect(block.contains(q('write-batch-undo-cancel'))).toBe(true);
+    expect(q('write-batch-undo-facts')?.textContent).toBe(SHORT_FACTS(6));
+    expect(q('write-batch-undo', row(6))).toBeNull();
+    expect(q('write-batch-undo-confirm-block', q('write-batch-result-footer')!)).toBeNull();
+    expect(scrolled).toEqual([block]);
+    // 换到另一行确认：那一行的确认块滚进视野。
+    engine.planWriteBatchUndo.mockResolvedValue(undoPlan(5, 6));
+    await press(q('write-batch-undo-cancel', row(6)));
+    await press(q('write-batch-undo', row(5)));
+    await until(() => expect(q('write-batch-undo-confirm', row(5))).not.toBeNull());
+    expect(scrolled).toEqual([block, q('write-batch-undo-confirm-block', row(5))]);
+  } finally {
+    Element.prototype.scrollIntoView = original;
+  }
+});
+
+test('删掉了章：清掉正文派生的 canon 缓存（与写进文件后宿主清的同一张单子），再恢复台账', async () => {
+  const derived = (name: string) => `${ROOT}/.storyforge/canon/derived/${name}`;
+  const exists = vi
+    .spyOn(TauriFileSystem, 'pathExists')
+    .mockImplementation(async (filePath: string) => filePath !== derived('report.json'));
+  try {
+    await openBook(view([chapter(4), chapter(5)]));
+    engine.planWriteBatchUndo.mockResolvedValue(undoPlan(5, 5));
+    await undoFrom(5);
+    await until(() => expect(engine.recordWriteBatchUndo).toHaveBeenCalled());
+    expect(order).toEqual([
+      'check:5',
+      `delete:${abs(5)}`,
+      `unmark:${abs(5)}`,
+      `drop:${abs(5)}`,
+      `delete:${derived('presence.json')}`,
+      `delete:${derived('observations.json')}`,
+      `delete:${derived('dossier.md')}`,
+      'restore:facts-5',
+      'record:5',
+    ]);
+  } finally {
+    exists.mockRestore();
+  }
+});
+
+test('一章都没删成：不动派生缓存', async () => {
+  const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  try {
+    await openBook(view([chapter(4), chapter(5)]));
+    engine.planWriteBatchUndo.mockResolvedValue(undoPlan(5, 5));
+    deletePath.mockImplementation(async (_root: string, filePath: string) => {
+      order.push(`delete:${filePath}`);
+      throw new Error('文件被占用');
+    });
+    await undoFrom(5);
+    await until(() => expect(q('write-batch-result-error')).not.toBeNull());
+    expect(order).toEqual(['check:5', `delete:${abs(5)}`]);
+  } finally {
+    exists.mockRestore();
+  }
 });
