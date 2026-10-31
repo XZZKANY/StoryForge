@@ -23,13 +23,21 @@ const HARD_LINE_LIMITS: Record<string, number> = {
   'src/components/chat-window/useChatWindowState.ts': 500,
   'src/components/chat-window/useRunAuthorAgent.ts': 500,
 };
+// components 下每个子目录都列在这里（下面有测试钉住），加上 components 顶层的文件，
+// 就是 components 下的全部文件。
+const COMPONENTS_ROOT = 'src/components';
 const LIVE_MODULE_ROOTS = [
   'src/components/app',
   'src/components/chat-window',
+  'src/components/command-palette',
   'src/components/editor',
+  'src/components/icons',
+  'src/components/settings',
+  'src/components/shell',
+  'src/components/ui',
 ];
 const LIVE_MODULE_LINE_LIMIT = 500;
-// 拆分前就有的叶子视图，是冻结的旧账，不作为新模块的先例。
+// 拆分前就有的叶子视图，是冻结的旧账，不作为新模块的先例；另一会话 #561 正在改它，等那边合了再拆。
 const LIVE_MODULE_EXCEPTIONS = new Set(['src/components/chat-window/panels.tsx']);
 const ENGINE_GATEWAYS = ['src/lib/api/', 'src/lib/engine/'];
 
@@ -48,6 +56,12 @@ function sourceFiles(root: string): string[] {
   });
 }
 
+function topLevelSourceFiles(root: string): string[] {
+  return readdirSync(root)
+    .map((name) => join(root, name))
+    .filter((path) => statSync(path).isFile() && /\.tsx?$/.test(path));
+}
+
 const relativePath = (path: string) => relative('.', path).replace(/\\/g, '/');
 
 it('拆过的大文件不超过各自的硬上限', () => {
@@ -59,8 +73,8 @@ it('拆过的大文件不超过各自的硬上限', () => {
   expect(over).toEqual([]);
 });
 
-it('活跃模块目录下的文件不超过 500 行', () => {
-  const over = LIVE_MODULE_ROOTS.flatMap(sourceFiles)
+it('components 下的文件不超过 500 行', () => {
+  const over = [...topLevelSourceFiles(COMPONENTS_ROOT), ...LIVE_MODULE_ROOTS.flatMap(sourceFiles)]
     .map(relativePath)
     .filter((path) => !LIVE_MODULE_EXCEPTIONS.has(path))
     .flatMap((path) => {
@@ -68,6 +82,13 @@ it('活跃模块目录下的文件不超过 500 行', () => {
       return lines > LIVE_MODULE_LINE_LIMIT ? [`${path}: ${lines}`] : [];
     });
   expect(over).toEqual([]);
+});
+
+it('components 下每个子目录都列进了行数门禁', () => {
+  const unlisted = readdirSync(COMPONENTS_ROOT)
+    .map((name) => `${COMPONENTS_ROOT}/${name}`)
+    .filter((path) => statSync(path).isDirectory() && !LIVE_MODULE_ROOTS.includes(path));
+  expect(unlisted).toEqual([]);
 });
 
 it('界面只经 lib/api 进引擎，不直接引引擎包或 lib/engine', () => {

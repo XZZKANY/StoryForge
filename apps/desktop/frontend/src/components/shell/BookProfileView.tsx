@@ -21,21 +21,13 @@ import {
   type BookProfile,
 } from '../../lib/book-profile';
 import { readDailyProgress } from '../../lib/daily-progress';
-import type { OutlineEntry } from '../../lib/outline-index';
-import {
-  BookOpen,
-  Check,
-  FileText,
-  ImagePlus,
-  Library,
-  Pencil,
-  Plus,
-  RefreshCw,
-  X,
-} from '../icons/shell-icons';
-import { Button, IconButton, PlainButton, Spinner } from '../ui';
+import { FileText, ImagePlus, Library, Plus, RefreshCw, X } from '../icons/shell-icons';
+import { IconButton, PlainButton, Spinner } from '../ui';
 import { PanelSection } from './PanelSection';
 import { LiveStatus } from './LiveStatus';
+import { BookBreakdownBody } from './BookBreakdown';
+import { BookNotesBody, type EditingNote } from './BookNotes';
+import { BookOutlineBody, type OutlineGroup } from './BookOutline';
 
 /** 文本字段留在本地 draft：每敲一个字就写盘既无必要，也会把 `.storyforge/` 刷成日志。 */
 type Draft = { title: string; synopsis: string; wordGoal: string };
@@ -50,22 +42,6 @@ function toDraft(profile: BookProfile): Draft {
 
 function Section(props: Omit<Parameters<typeof PanelSection>[0], 'prefix'>) {
   return <PanelSection {...props} prefix="book" />;
-}
-
-const BREAKDOWN_FIELD_LABELS: Record<string, string> = {
-  story_structure: '故事结构',
-  characters_and_relations: '角色与关系',
-  conflict_and_rhythm: '冲突与节奏',
-  setting_and_world: '设定与世界观',
-  craft_methods: '写作技法',
-  transferable_insights: '可迁移洞察',
-};
-
-function breakdownStatusLabel(status?: string): string {
-  if (status === 'completed') return '模型分析完成';
-  if (status === 'completed_deterministic') return '确定性底稿';
-  if (status === 'stale') return '需要重新生成';
-  return status ?? '未知状态';
 }
 
 function GoalBar({ progress, testid, label }: { progress: number; testid: string; label: string }) {
@@ -134,11 +110,7 @@ export function BookProfileView({
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   // 正在改的那条速记（按行号与原文认）：回车或移开焦点就保存，Esc 放弃。
-  const [editingNote, setEditingNote] = useState<{
-    line: number;
-    original: string;
-    text: string;
-  } | null>(null);
+  const [editingNote, setEditingNote] = useState<EditingNote | null>(null);
   const addingNote = useRef(false);
 
   // 档案换了一份（切项目 / 点刷新重读磁盘）就把编辑框拉回磁盘上的值。渲染期调整而不是
@@ -193,7 +165,7 @@ export function BookProfileView({
 
   // 大纲按文件分组：一本书的大纲常散在总纲 / 分卷几份文件里，混成一条流就读不出归属。
   const outlineGroups = useMemo(() => {
-    const groups = new Map<string, { relativePath: string; path: string; items: OutlineEntry[] }>();
+    const groups = new Map<string, OutlineGroup>();
     for (const entry of handle.outline) {
       const group = groups.get(entry.relativePath);
       if (group) group.items.push(entry);
@@ -427,105 +399,16 @@ export function BookProfileView({
         </Section>
 
         <Section title="拆书" testid="breakdown" defaultOpen>
-          <div className="px-3">
-            <p className="text-3xs leading-relaxed text-subtle">
-              把想学的书（txt / md / docx）放进作品的「资料」或「参考」文件夹，拆书就只拆它们；
-              没有就拆这本书自己的正文。拆完会多出几份写法 skill，点「放进 写法/」才落进作品。
-            </p>
-            <div className="mt-2 flex gap-1.5">
-              <Button
-                size="xs"
-                onClick={onRunBreakdown}
-                disabled={handle.loading || breakdownRunning}
-                leadingIcon={<BookOpen size={12} strokeWidth={1.7} />}
-                data-testid="book-breakdown-run"
-              >
-                {breakdownRunning ? '生成中…' : '生成拆书报告'}
-              </Button>
-              {breakdownRunning && (
-                <Button
-                  size="xs"
-                  onClick={onCancelBreakdown}
-                  disabled={breakdownCancelling}
-                  leadingIcon={<X size={12} strokeWidth={1.7} />}
-                  data-testid="book-breakdown-cancel"
-                >
-                  {breakdownCancelling ? '取消中…' : '取消'}
-                </Button>
-              )}
-            </div>
-            {breakdown && (
-              <div
-                className="mt-2 border-t border-border pt-2"
-                data-testid="book-breakdown-preview"
-              >
-                <div className="flex items-center justify-between gap-2 text-3xs text-muted">
-                  <span>
-                    {breakdown.stale ? '报告已过期' : '报告可用'} · {breakdown.chapter_count ?? 0}{' '}
-                    章
-                  </span>
-                  <span className={breakdown.stale ? 'text-warning' : 'text-subtle'}>
-                    {breakdownStatusLabel(breakdown.status)}
-                  </span>
-                </div>
-                <ul className="mt-1 space-y-1" data-testid="book-breakdown-fields">
-                  {Object.entries(breakdown.analysis ?? {}).map(([key, value]) => (
-                    <li
-                      key={key}
-                      className="max-h-[3.75rem] overflow-hidden text-3xs leading-relaxed text-subtle"
-                    >
-                      <span className="text-muted">{BREAKDOWN_FIELD_LABELS[key] ?? key}</span>：
-                      {value.summary ?? '待补充'}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-2 flex gap-1.5">
-                  <Button
-                    size="compact"
-                    onClick={() => onOpenBreakdown('markdown')}
-                    leadingIcon={<FileText size={11} strokeWidth={1.7} />}
-                    data-testid="book-breakdown-open"
-                  >
-                    打开 Markdown
-                  </Button>
-                  <Button
-                    size="compact"
-                    onClick={() => onOpenBreakdown('json')}
-                    leadingIcon={<BookOpen size={11} strokeWidth={1.7} />}
-                    data-testid="book-breakdown-open-json"
-                  >
-                    查看 JSON
-                  </Button>
-                </div>
-                {breakdown.writing_skills && (
-                  <div
-                    className="mt-2 text-3xs leading-relaxed text-subtle"
-                    data-testid="book-breakdown-skills"
-                  >
-                    {breakdown.writing_skills.count ? (
-                      <>
-                        <div>
-                          拆出的写法 skill：{(breakdown.writing_skills.names ?? []).join('、')}
-                        </div>
-                        <Button
-                          size="compact"
-                          className="mt-1"
-                          onClick={onAdoptBreakdownSkills}
-                          data-testid="book-breakdown-adopt-skills"
-                        >
-                          放进 写法/
-                        </Button>
-                      </>
-                    ) : (
-                      <div>
-                        这次没拆出写法 skill（{breakdown.writing_skills.error ?? '原因不明'}）。
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <BookBreakdownBody
+            handle={handle}
+            onRunBreakdown={onRunBreakdown}
+            breakdown={breakdown}
+            breakdownRunning={breakdownRunning}
+            breakdownCancelling={breakdownCancelling}
+            onCancelBreakdown={onCancelBreakdown}
+            onOpenBreakdown={onOpenBreakdown}
+            onAdoptBreakdownSkills={onAdoptBreakdownSkills}
+          />
         </Section>
 
         <Section
@@ -534,54 +417,11 @@ export function BookProfileView({
           testid="outline"
           defaultOpen
         >
-          {handle.outlineLoading ? (
-            <p className="px-3 py-3 text-2xs text-subtle" role="status">
-              正在读取大纲…
-            </p>
-          ) : handle.outlineError ? (
-            <p className="px-3 py-3 text-2xs text-error" role="alert">
-              大纲读取失败：{handle.outlineError}。请点击顶部刷新重试。
-            </p>
-          ) : outlineGroups.length === 0 ? (
-            <p className="px-3 text-3xs leading-relaxed text-subtle">
-              「大纲」目录下还没有带标题的文档。写下 `## 第三幕` 一类的标题，这里就能一键跳过去。
-            </p>
-          ) : (
-            <div data-testid="book-outline-list">
-              {outlineGroups.map((group) => (
-                <div key={group.relativePath} className="pb-1">
-                  <PlainButton
-                    className="flex h-6 w-full items-center px-3 text-left text-3xs text-subtle hover:text-foreground"
-                    onClick={() => onOpenOutline(group.path, 0)}
-                    title={group.relativePath}
-                  >
-                    <span className="min-w-0 truncate">{group.relativePath}</span>
-                  </PlainButton>
-                  <ul>
-                    {group.items.map((item) => (
-                      <li key={`${item.relativePath}:${item.line}`}>
-                        <PlainButton
-                          className="flex h-6 w-full items-center text-left text-2xs text-muted hover:bg-elevated hover:text-foreground"
-                          style={{ paddingLeft: `${12 + (item.level - 1) * 10}px` }}
-                          onClick={() => onOpenOutline(item.path, item.line)}
-                          title={`${item.relativePath} · 第 ${item.line + 1} 行`}
-                          data-testid="book-outline-row"
-                        >
-                          <span className="min-w-0 truncate pr-2">{item.text}</span>
-                        </PlainButton>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              {handle.outlineDropped > 0 && (
-                <p className="px-3 pt-1 text-3xs leading-relaxed text-subtle">
-                  另有 <span className="text-foreground">{handle.outlineDropped}</span>{' '}
-                  条标题没列出来。
-                </p>
-              )}
-            </div>
-          )}
+          <BookOutlineBody
+            handle={handle}
+            outlineGroups={outlineGroups}
+            onOpenOutline={onOpenOutline}
+          />
         </Section>
 
         <Section
@@ -590,108 +430,14 @@ export function BookProfileView({
           testid="notes"
           defaultOpen
         >
-          <div className="px-3">
-            <input
-              value={noteDraft}
-              onChange={(event) => setNoteDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return;
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  addNote();
-                }
-              }}
-              placeholder="记一条，回车存进 灵感.md"
-              className="sf-input w-full rounded-sm border border-border bg-panel px-2 py-1 text-2xs text-foreground placeholder:text-subtle"
-              data-testid="book-note-input"
-            />
-          </div>
-          {handle.notes.length > 0 && (
-            <ul className="mt-1" data-testid="book-note-list">
-              {handle.notes.map((note) => (
-                <li
-                  key={note.line}
-                  className="group flex items-start gap-1.5 px-3 py-0.5 hover:bg-elevated"
-                  data-testid="book-note-row"
-                  data-done={note.done}
-                >
-                  {editingNote?.line === note.line && editingNote.original === note.text ? (
-                    <input
-                      autoFocus
-                      className="sf-input min-w-0 flex-1 rounded-sm border border-border-strong bg-background px-1.5 py-0.5 text-2xs text-foreground outline-none"
-                      aria-label="改这条速记"
-                      value={editingNote.text}
-                      onChange={(event) =>
-                        setEditingNote({ ...editingNote, text: event.target.value })
-                      }
-                      onKeyDown={(event) => {
-                        if (event.nativeEvent.isComposing) return;
-                        if (event.key === 'Escape') setEditingNote(null);
-                        if (event.key !== 'Enter') return;
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                      }}
-                      onBlur={() => {
-                        const draft = editingNote;
-                        setEditingNote(null);
-                        if (draft && draft.text.trim() && draft.text.trim() !== note.text)
-                          void handle
-                            .editNote(note, draft.text)
-                            .catch(() => false)
-                            .then((saved) => {
-                              // 没存进去：改到一半的字放回编辑框（那一条还在原处时才显示），不让作者重敲。
-                              if (!saved) setEditingNote((current) => current ?? draft);
-                            });
-                      }}
-                      data-testid="book-note-edit-input"
-                    />
-                  ) : (
-                    <PlainButton
-                      className="flex min-w-0 flex-1 items-start gap-1.5 text-left"
-                      title={note.done ? '标记为未完成' : '标记为已完成'}
-                      aria-label={note.done ? '标记为未完成' : '标记为已完成'}
-                      aria-pressed={note.done}
-                      onClick={() => void handle.toggleNote(note)}
-                    >
-                      <span
-                        className={`mt-px grid h-4 w-4 flex-shrink-0 place-items-center rounded-xs border ${
-                          note.done ? 'border-muted text-muted' : 'border-border text-transparent'
-                        } hover:border-muted`}
-                      >
-                        <Check size={11} strokeWidth={3} aria-hidden="true" />
-                      </span>
-                      <span
-                        className={`min-w-0 flex-1 break-words text-2xs leading-snug ${
-                          note.done ? 'text-subtle line-through' : 'text-muted'
-                        }`}
-                      >
-                        {note.text}
-                      </span>
-                    </PlainButton>
-                  )}
-                  <PlainButton
-                    className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
-                    title="改这条"
-                    aria-label={`改速记 ${note.text}`}
-                    onClick={() =>
-                      setEditingNote({ line: note.line, original: note.text, text: note.text })
-                    }
-                    data-testid="book-note-edit"
-                  >
-                    <Pencil size={11} strokeWidth={2} />
-                  </PlainButton>
-                  <PlainButton
-                    className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
-                    title="删除这条"
-                    aria-label={`删除速记 ${note.text}`}
-                    onClick={() => void handle.removeNote(note)}
-                  >
-                    <X size={11} strokeWidth={2} />
-                  </PlainButton>
-                </li>
-              ))}
-            </ul>
-          )}
+          <BookNotesBody
+            handle={handle}
+            noteDraft={noteDraft}
+            setNoteDraft={setNoteDraft}
+            addNote={addNote}
+            editingNote={editingNote}
+            setEditingNote={setEditingNote}
+          />
         </Section>
       </div>
     </div>

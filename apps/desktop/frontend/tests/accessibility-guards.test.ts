@@ -34,7 +34,12 @@ const SWEPT_FILES = [
   'src/components/shell/KnowledgeInboxView.tsx',
   'src/components/shell/ManuscriptView.tsx',
   'src/components/shell/ObservatoryView.tsx',
+  'src/components/shell/ObservatoryCards.tsx',
+  'src/components/shell/ObservatoryCheckers.tsx',
   'src/components/shell/BookProfileView.tsx',
+  'src/components/shell/BookBreakdown.tsx',
+  'src/components/shell/BookOutline.tsx',
+  'src/components/shell/BookNotes.tsx',
 ];
 
 /** 从 start 处的 `<标签` 起，按引号/花括号计深找开标签的 `>` 下标（避开 `=>` 与属性里的 `>`）。 */

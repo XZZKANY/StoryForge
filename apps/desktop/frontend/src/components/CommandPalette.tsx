@@ -6,127 +6,33 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
-import { projectBasename, relativePathInsideProject } from '../lib/project-context';
 import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
-import { emitEditorCommand } from '../lib/assistant-events';
-import { entryName, parentDir } from '../lib/fs-path-ops';
-import { isSameOrInsidePath } from './app/editor-tabs-state';
-import type { FileTreeActions } from './app/useFileTreeActions';
 import { Command as CommandIcon, FileText } from './icons/shell-icons';
-import { VIEW_ENTRIES } from './shell/ActivityBar';
-import type { SidePanelView } from './shell/useShellState';
 import { Button, ModalDialog, PlainButton, Spinner } from './ui';
+import {
+  fuzzyMatch,
+  fuzzyScore,
+  HighlightedLabel,
+  relativeToProject,
+} from './command-palette/palette-items';
+import {
+  usePaletteCommands,
+  type PaletteCommandSources,
+} from './command-palette/usePaletteCommands';
 
 export type PaletteMode = 'files' | 'commands';
-
-type Command = {
-  id: string;
-  title: string;
-  /** 说明性小字（项目路径、当前状态等），纯文本渲染。 */
-  hint?: string;
-  /** 真实快捷键，才用 kbd 样式。 */
-  shortcut?: string;
-  run: () => void;
-};
 
 type FileLoadState =
   | { projectPath: null; status: 'idle'; files: FileEntry[] }
   | { projectPath: string; status: 'loading' | 'loaded' | 'error'; files: FileEntry[] };
 
-type CommandPaletteProps = {
+type CommandPaletteProps = PaletteCommandSources & {
   mode: PaletteMode;
-  projectPath: string | null;
-  currentFile: string | null;
   onClose: () => void;
   /** 面板里再按 Ctrl+P / Ctrl+Shift+P 切到文件 / 命令。 */
   onModeChange?: (mode: PaletteMode) => void;
   onOpenFile: (path: string) => void;
-  onOpenProject: () => void;
-  onReopenWelcome: () => void;
-  onInitializeProject: () => void;
-  onRefreshCanon: () => void;
-  onExportCurrent: () => void;
-  onToggleAssistant: () => void;
-  onToggleWorkspace: () => void;
-  onOpenSettings: () => void;
-  onShowShortcuts?: () => void;
-  onFocusAssistantOnly: () => void;
-  onFocusWorkspaceOnly: () => void;
-  onRestoreLayout: () => void;
-  onToggleFontMode: () => void;
-  onCycleProseMeasure: () => void;
-  fontModeLabel: string;
-  proseMeasureLabel: string;
-  /** 左栏各视图（作品 / 手稿 / 资源管理器 / 知识收件箱 / 搜索 / 观测镜）；未开作品时不传。 */
-  onShowView?: (view: SidePanelView) => void;
-  fileActions?: Pick<FileTreeActions, 'onNewFile' | 'onRename'>;
-  onNewSession?: () => void;
 };
-
-function basename(path: string): string {
-  return projectBasename(path);
-}
-
-function relativeToProject(projectPath: string | null, filePath: string): string {
-  return projectPath
-    ? (relativePathInsideProject(projectPath, filePath) ?? basename(filePath))
-    : basename(filePath);
-}
-
-/** fuzzy 子序列匹配：query 的每个字符按顺序出现在 target 中即可，返回匹配位置用于高亮。 */
-function fuzzyMatch(target: string, query: string): number[] | null {
-  const t = target.toLowerCase();
-  const q = query.toLowerCase();
-  const positions: number[] = [];
-  let ti = 0;
-  for (let qi = 0; qi < q.length; qi++) {
-    const found = t.indexOf(q[qi], ti);
-    if (found === -1) return null;
-    positions.push(found);
-    ti = found + 1;
-  }
-  return positions;
-}
-
-/** fuzzy 评分：匹配越紧凑（首尾跨度小）、越靠前，分越高。 */
-function fuzzyScore(target: string, positions: number[]): number {
-  if (positions.length === 0) return 0;
-  const span = positions[positions.length - 1] - positions[0] + 1;
-  const density = positions.length / span;
-  const startBonus = positions[0] === 0 ? 2 : positions[0] < 3 ? 1 : 0;
-  const lengthPenalty = 1 / (1 + target.length * 0.01);
-  return density * 10 + startBonus + lengthPenalty;
-}
-
-/** 将 label 按匹配位置拆分为高亮片段。 */
-function HighlightedLabel({ label, positions }: { label: string; positions: number[] | null }) {
-  if (!positions || positions.length === 0) return <span className="truncate">{label}</span>;
-  const posSet = new Set(positions);
-  const parts: { text: string; match: boolean }[] = [];
-  let current = { text: '', match: posSet.has(0) };
-  for (let i = 0; i < label.length; i++) {
-    const isMatch = posSet.has(i);
-    if (isMatch !== current.match) {
-      parts.push(current);
-      current = { text: '', match: isMatch };
-    }
-    current.text += label[i];
-  }
-  parts.push(current);
-  return (
-    <span className="truncate">
-      {parts.map((part, i) =>
-        part.match ? (
-          <span key={i} className="font-semibold text-foreground underline underline-offset-2">
-            {part.text}
-          </span>
-        ) : (
-          <span key={i}>{part.text}</span>
-        ),
-      )}
-    </span>
-  );
-}
 
 export function CommandPalette({
   mode,
@@ -214,104 +120,7 @@ export function CommandPalette({
     setFileLoadRequest((request) => request + 1);
   };
 
-  const commands = useMemo<Command[]>(() => {
-    const list: Command[] = [
-      { id: 'open-project', title: '打开本地作品…', shortcut: 'Ctrl O', run: onOpenProject },
-    ];
-    list.push({ id: 'project-library', title: '打开作品库', run: onReopenWelcome });
-    if (projectPath && fileActions) {
-      // 与左栏顶部「新建文件」同一落点：当前文件所在的文件夹，没开文件就是作品根目录。
-      const dir =
-        currentFile && isSameOrInsidePath(currentFile, projectPath)
-          ? parentDir(currentFile)
-          : projectPath;
-      list.push({
-        id: 'new-file',
-        title: '新建文件',
-        hint: dir === projectPath ? '在作品根目录' : `在「${entryName(dir)}」里`,
-        run: () => void fileActions.onNewFile(dir),
-      });
-    }
-    if (currentFile) {
-      const relative = relativeToProject(projectPath, currentFile);
-      if (fileActions) {
-        list.push({
-          id: 'rename-current',
-          title: '重命名当前文件',
-          hint: relative,
-          run: () => void fileActions.onRename(currentFile, false),
-        });
-      }
-      list.push(
-        {
-          id: 'toggle-history',
-          title: '切换：版本历史',
-          hint: relative,
-          shortcut: 'Ctrl Shift H',
-          run: () => emitEditorCommand('toggle-history'),
-        },
-        { id: 'export-current', title: '导出当前稿', hint: relative, run: onExportCurrent },
-      );
-    }
-    if (projectPath && onNewSession) {
-      list.push({ id: 'new-session', title: '新建会话', run: onNewSession });
-    }
-    if (onShowView) {
-      for (const entry of VIEW_ENTRIES) {
-        if (entry.projectOnly && !projectPath) continue;
-        list.push({
-          id: `show-view-${entry.view}`,
-          title: `打开：${entry.label}`,
-          shortcut: entry.title.match(/·\s*(.+)$/)?.[1],
-          run: () => onShowView(entry.view),
-        });
-      }
-    }
-    list.push(
-      { id: 'toggle-assistant', title: '切换：对话栏', run: onToggleAssistant },
-      { id: 'toggle-workspace', title: '切换：资源管理器', run: onToggleWorkspace },
-      { id: 'open-settings', title: '打开：设置', run: onOpenSettings },
-    );
-    if (onShowShortcuts) {
-      list.push({ id: 'show-shortcuts', title: '帮助：快捷键速查', run: onShowShortcuts });
-    }
-    list.push(
-      { id: 'focus-assistant-only', title: '只保留：对话栏', run: onFocusAssistantOnly },
-      { id: 'focus-workspace-only', title: '只保留：资源管理器', run: onFocusWorkspaceOnly },
-      { id: 'restore-layout', title: '恢复：完整布局', run: onRestoreLayout },
-    );
-    list.push(
-      {
-        id: 'toggle-font-mode',
-        title: '正文：切换字体模式（格子 / 书稿）',
-        hint: fontModeLabel,
-        run: onToggleFontMode,
-      },
-      {
-        id: 'cycle-prose-measure',
-        title: '正文：切换行宽',
-        hint: proseMeasureLabel,
-        run: onCycleProseMeasure,
-      },
-    );
-    if (projectPath) {
-      list.push(
-        {
-          id: 'initialize-story-project',
-          title: '补齐作品目录',
-          hint: '正文 / 大纲 / 人物 / 设定等，已有的不动',
-          run: onInitializeProject,
-        },
-        {
-          id: 'canon-refresh',
-          title: '刷新设定事实卡',
-          hint: '按设定重新整理一遍，不改正文',
-          run: onRefreshCanon,
-        },
-      );
-    }
-    return list;
-  }, [
+  const commands = usePaletteCommands({
     currentFile,
     projectPath,
     fontModeLabel,
@@ -333,7 +142,7 @@ export function CommandPalette({
     onShowView,
     fileActions,
     onNewSession,
-  ]);
+  });
 
   const fileItems = useMemo(() => {
     const q = query.trim();
