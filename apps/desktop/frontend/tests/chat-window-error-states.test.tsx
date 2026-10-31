@@ -10,7 +10,7 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
 }));
 
 import { ChatWindow } from '../src/components/ChatWindow';
-import { ContextSummaryPanel } from '../src/components/chat-window/panels';
+import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
 import { getAssistantSession } from '../src/lib/api-client';
 import {
   buildProjectIndex,

@@ -15,7 +15,8 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
 }));
 
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
-import { ContextSummaryPanel, RunActionBar } from '../src/components/chat-window/panels';
+import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
+import { RunActionBar } from '../src/components/chat-window/panels';
 import type { AgentRun } from '../src/components/chat-window/types';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 

@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
 import { CHAT_COLUMN } from '../src/components/chat-window/column';
-import {
-  ContextSummaryPanel,
-  LightweightStatus,
-  RunActionBar,
-} from '../src/components/chat-window/panels';
+import { ComposerBox } from '../src/components/chat-window/Composer';
+import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
+import { LightweightStatus, RunActionBar } from '../src/components/chat-window/panels';
 import type { AgentRun } from '../src/components/chat-window/types';
+import { WriteBatchProgressBar } from '../src/components/chat-window/WriteBatchPanel';
 
 // 对话占满中右（Ctrl+3）时，底部这些块要和消息、输入框落在同一条居中栏里；
 // 它们原本按 384px 右栏设计，铺满后曾横跨整宽、按钮被推到窗口最右。
@@ -75,10 +75,35 @@ test('delivery-unknown action bar keeps its buttons in the chat column', () => {
 });
 
 // 章节检查记录已挪进对话头的小浮窗，不再占对话栏，不在这里校验栏宽。
-test('context summary is column-width', () => {
-  const context = mount(
+// 参考资料和批量写章进度是输入框顶边的小条，不再各自是一张悬在输入框上方的卡。
+function composerWithDock(dock: ReactNode): HTMLElement {
+  return mount(
     renderToStaticMarkup(
+      <ComposerBox
+        value=""
+        disabled={false}
+        busy={false}
+        explicitContextPaths={[]}
+        onAddContext={() => undefined}
+        onChange={() => undefined}
+        onSubmit={() => undefined}
+        permissionProfile="ask"
+        onPermissionProfileChange={() => undefined}
+        dock={dock}
+      />,
+    ),
+  );
+}
+
+test('context summary and write-batch progress are rows docked on the composer', () => {
+  const host = composerWithDock(
+    <>
+      <WriteBatchProgressBar
+        progress={{ ordinal: 7, index: 1, total: 4, used: '0 万', cap: '23.4 万', stopping: false }}
+        onStop={() => undefined}
+      />
       <ContextSummaryPanel
+        compact
         currentFileLabel="正文/第005章.md"
         explicitContextPaths={[]}
         contextCandidates={[]}
@@ -90,10 +115,26 @@ test('context summary is column-width', () => {
         onAddContext={() => undefined}
         onTogglePinnedContext={() => undefined}
         onRetryContextCandidates={() => undefined}
-      />,
-    ),
+      />
+    </>,
   );
-  assert.ok(inColumn(context.querySelector('[data-testid="context-summary"]')));
+  const dock = host.querySelector('[data-testid="composer-dock"]');
+  assert.ok(inColumn(dock));
+  assert.equal(dock?.nextElementSibling?.tagName, 'FORM', '小条要紧贴在输入框上沿');
+  assert.ok(dock?.contains(host.querySelector('[data-testid="context-summary"]')));
+  assert.ok(dock?.contains(host.querySelector('[data-testid="write-batch-progress"]')));
+  for (const testid of ['context-summary', 'write-batch-progress']) {
+    const row = host.querySelector(`[data-testid="${testid}"]`)!;
+    for (const card of ['border', 'rounded-lg', 'shadow-sm']) {
+      assert.equal(row.classList.contains(card), false, `${testid} 不该自带 ${card} 成一张卡`);
+    }
+  }
+});
+
+test('composer dock collapses when no row has anything to say', () => {
+  const dock = composerWithDock(null).querySelector('[data-testid="composer-dock"]');
+  assert.equal(dock?.childElementCount, 0);
+  assert.ok(dock?.classList.contains('empty:hidden'));
 });
 
 test('decision choices and lightweight status sit in the chat column', () => {

@@ -43,6 +43,17 @@ import type { ChatWindowState } from './useChatWindowState';
 /** 等一章写进文件、事实记账落定的上限：整本书拍快照加记账，几秒到几十秒；过了就当被拦下。 */
 export const WRITE_BATCH_WRITEBACK_TIMEOUT_MS = 180_000;
 
+/** 这一批里的一章：去向是引擎记录里的，章名是开跑时计划里的。 */
+export type WriteBatchProgressChapter = {
+  ordinal: number;
+  title: string | null;
+  state: ApiWriteBatch['chapters'][number]['state'];
+  /** 作品内相对路径。 */
+  targetPath: string;
+  /** 写进文件时记下的字数；没写或没记为 null。 */
+  chars: number | null;
+};
+
 export type WriteBatchProgress = {
   ordinal: number | null;
   index: number;
@@ -51,6 +62,8 @@ export type WriteBatchProgress = {
   /** 试写段没有上限，为 null。 */
   cap: string | null;
   stopping: boolean;
+  /** 引擎最近一次记下的每章去向；还没读到记录时为空。 */
+  chapters: WriteBatchProgressChapter[];
 };
 
 export type WriteBatchResult = {
@@ -91,6 +104,8 @@ export type WriteBatchRun = {
   batchId: string;
   grant: WriteBatchGrant;
   total: number;
+  /** 计划里的章名，记录里没有。 */
+  titles: ReadonlyMap<number, string | null>;
   stopRequested: boolean;
   inFlightRunId: string | null;
 };
@@ -118,6 +133,7 @@ export function createWriteBatchRun(
       targets: writing.map((chapter) => chapter.target_path),
     }),
     total: writing.length,
+    titles: new Map(plan.chapters.map((chapter) => [chapter.ordinal, chapter.title])),
     stopRequested: false,
     inFlightRunId: null,
   };
@@ -182,11 +198,22 @@ export async function driveWriteBatchRun({
     used: null,
     cap: null,
     stopping: false,
+    chapters: [],
   };
   const update = (patch: Partial<WriteBatchProgress>) => {
     progress = { ...progress, ...patch, stopping: run.stopRequested };
     if (isCurrent()) show(progress);
   };
+  const showChapters = (record: ApiWriteBatch) =>
+    update({
+      chapters: record.chapters.map((chapter) => ({
+        ordinal: chapter.ordinal,
+        title: run.titles.get(chapter.ordinal) ?? null,
+        state: chapter.state,
+        targetPath: chapter.target_path,
+        chars: chapter.chars,
+      })),
+    });
   const showUsage = async (record: ApiWriteBatch) => {
     const leg = record.legs[record.legs.length - 1];
     if (!leg) return;
@@ -194,7 +221,7 @@ export async function driveWriteBatchRun({
     const cap = leg.cap_tokens === null ? null : await formatWriteBatchTokens(leg.cap_tokens);
     update({ used, cap });
   };
-  update({});
+  showChapters(batch);
   try {
     await showUsage(batch);
     return await runWriteBatchLoop({
@@ -213,7 +240,10 @@ export async function driveWriteBatchRun({
       stopRequested: () => run.stopRequested,
       alive: () => owner.active && isCurrent(),
       onChapterStart: (step, position) => update({ ordinal: step.ordinal, ...position }),
-      onRecorded: (record) => void showUsage(record).catch(() => undefined),
+      onRecorded: (record) => {
+        showChapters(record);
+        void showUsage(record).catch(() => undefined);
+      },
       onLeaveChapter: closeWriteBatchTab,
     });
   } catch (error) {

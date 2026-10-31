@@ -189,6 +189,7 @@ test('上下文只按需展开在消息滚动区外，添加和取消引用不�
   const context = host.querySelector('[data-testid="context-summary"]')!;
   expect(context).not.toBeNull();
   expect(messageList.contains(context)).toBe(false);
+  expect(host.querySelector('[data-testid="composer-dock"]')!.contains(context)).toBe(true);
   expect(opener.getAttribute('aria-expanded')).toBe('true');
   expect(context.textContent).not.toMatch(/上下文尚未生成|未选择文件|本轮还没有/);
   await click('[data-context-path="资料/规则.md"]');
@@ -231,15 +232,18 @@ test('真实上下文预算与文件可按需查看，默认不挂空参考卡',
   expect(host.querySelector('[data-testid="context-summary"]')).toBeNull();
   await click('[aria-label="添加上下文"]');
   expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain(
-    '上下文 1/8 文件',
+    '这一轮带了 1 份参考资料',
   );
+  expect(host.querySelector('li[title="资料/规则.md"]')!.textContent).toBe('规则');
   expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain(
     '资料/规则.md',
   );
   expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain(
-    '本轮参考资料（发送前选入，工具另读的不在此列）',
+    'AI 回答时自己翻的文件不算',
   );
-  expect(host.querySelector('[data-testid="context-summary"]')!.textContent).toContain('作品里：');
+  expect(host.querySelector('[data-testid="context-summary"]')!.textContent).not.toMatch(
+    /作品里：|字符|席位/,
+  );
   expect(host.querySelector('[data-testid="context-truncated-badge"]')).toBeNull();
 });
 
@@ -253,7 +257,7 @@ test('参考没送全时按原因分别亮徽标', async () => {
   const badges = [...host.querySelectorAll('[data-testid="context-truncated-badge"]')].map(
     (badge) => badge.textContent,
   );
-  expect(badges).toEqual(['超出席位 2', '读取失败 1']);
+  expect(badges).toEqual(['2 份没带上', '1 份读不出']);
 });
 
 test('未打开参考选择时仍显示缺失和截断警告', async () => {
@@ -264,9 +268,7 @@ test('未打开参考选择时仍显示缺失和截断警告', async () => {
   expect(host.querySelector('[data-testid="missing-context-warning"]')!.textContent).toContain(
     '资料/已删除.md',
   );
-  expect(host.querySelector('[data-testid="context-truncated-badge"]')!.textContent).toBe(
-    '已截断（原因未记录）',
-  );
+  expect(host.querySelector('[data-testid="context-truncated-badge"]')!.textContent).toBe('没带全');
   expect(host.querySelector('[data-testid="context-picker"]')).toBeNull();
   expect(host.textContent).not.toMatch(/上下文尚未生成|未选择文件/);
 });

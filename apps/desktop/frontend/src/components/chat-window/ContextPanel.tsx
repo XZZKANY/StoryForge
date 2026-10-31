@@ -384,21 +384,21 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
   );
 }
 
-/** 「上下文」浮窗里的内容：作者能看到 AI 每轮带着什么、有哪些技能、这一轮读了什么。 */
+/** 「上下文」浮窗里的内容：作者能看到 AI 每轮带着什么、有哪些技能、这一轮读了什么。对话侧栏里也放这一份。 */
 export function ContextPanel({
   projectPath,
   run,
   onOpenSettings,
+  scrollClassName = 'max-h-[min(70vh,36rem)] overflow-y-auto',
 }: {
   projectPath: string | null;
   run: AgentRun | null;
   onOpenSettings?: () => void;
+  /** 浮窗里自己限高滚动；放进侧栏时由侧栏滚，传空串。 */
+  scrollClassName?: string;
 }) {
   return (
-    <div
-      className="max-h-[min(70vh,36rem)] divide-y divide-border overflow-y-auto"
-      data-testid="context-panel"
-    >
+    <div className={`divide-y divide-border ${scrollClassName}`} data-testid="context-panel">
       <InstructionsBlock projectPath={projectPath} />
       <SkillsBlock projectPath={projectPath} run={run} />
       <PluginsBlock
