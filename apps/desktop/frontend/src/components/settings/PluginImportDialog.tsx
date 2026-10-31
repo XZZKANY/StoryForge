@@ -164,7 +164,7 @@ function SkippedFiles({ skipped }: { skipped: readonly SkippedPluginFile[] }) {
   );
 }
 
-/** 从文件夹导入的预览：看清里面有什么、会替换什么，再决定装不装。 */
+/** 从文件夹或压缩包导入的预览：看清里面有什么、会替换什么，再决定装不装。 */
 export function PluginImportDialog({
   preview,
   installed,

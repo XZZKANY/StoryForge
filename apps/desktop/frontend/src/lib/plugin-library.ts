@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import { assertTauriRuntime } from './tauri-env';
 
-/** 暂存里收下的一个文本文件；path 相对所选文件夹、用「/」分隔。 */
+/** 暂存里收下的一个文本文件；path 相对插件根（所选文件夹，或压缩包里的插件目录）、用「/」分隔。 */
 export type StagedPluginFile = {
   path: string;
   bytes: number;
@@ -14,7 +14,7 @@ export type SkippedPluginFile = {
   reason: string;
 };
 
-/** 一次从文件夹导入的暂存；stageRoot 是暂存副本的绝对路径，预览时拿它当根去读。 */
+/** 一次从文件夹或 .zip 导入的暂存；stageRoot 是暂存副本的绝对路径，预览时拿它当根去读。 */
 export type StagedPluginImport = {
   stageId: string;
   stageRoot: string;
@@ -28,7 +28,7 @@ export async function pluginLibraryDir(): Promise<string> {
   return await invoke<string>('plugin_library_dir');
 }
 
-/** 把一个文件夹里的文本文件复制进暂存；会先清掉上一次没确认的暂存。 */
+/** 把一个文件夹或 .zip 压缩包里的文本文件复制进暂存；会先清掉上一次没确认的暂存。 */
 export async function stagePluginImport(source: string): Promise<StagedPluginImport> {
   assertTauriRuntime('plugin_stage_import');
   return await invoke<StagedPluginImport>('plugin_stage_import', { source });
