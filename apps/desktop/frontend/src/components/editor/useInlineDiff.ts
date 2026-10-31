@@ -118,7 +118,6 @@ export function useInlineDiff(
         'assertive',
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
   }, [
     editorRef,
     filePathRef,
@@ -128,6 +127,8 @@ export function useInlineDiff(
     qualifySession,
     teardown,
     writeAcceptedSuggestion,
+    sessionIdRef,
+    sessionRef,
   ]);
 
   // 把已算好的插入 / 修订计划画成红标 + 绿块 + 动作条。revise 与 continue 共用这一段，
@@ -288,8 +289,7 @@ export function useInlineDiff(
         plan.droppedOffAnchor > 0 ? `（已忽略别处 ${plan.droppedOffAnchor} 处改动）` : '';
       flashStatus(`行间修订建议已就绪：+${plan.addedLines} / -${plan.removedLines}${droppedNote}`);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-    [applyAccepted, editorRef, flashStatus, isSessionActive, teardown],
+    [applyAccepted, editorRef, flashStatus, isSessionActive, teardown, sessionRef],
   );
 
   const renderDiff = useCallback(
@@ -311,8 +311,7 @@ export function useInlineDiff(
       }
       renderPlan(before, plan);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-    [flashStatus, renderPlan, teardown],
+    [flashStatus, renderPlan, teardown, sessionRef],
   );
 
   return { renderPlan, renderDiff };

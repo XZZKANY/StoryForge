@@ -37,8 +37,7 @@ export function useInlineRequest(
     session.abortController?.abort();
     teardown();
     flashStatus(wasContinue ? '已取消续写' : '已取消行间修订');
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [flashStatus, teardown]);
+  }, [flashStatus, teardown, sessionRef]);
 
   const send = useCallback(
     async (userInstruction: string) => {
@@ -188,7 +187,6 @@ export function useInlineRequest(
         );
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
     [
       cancelLoading,
       editorRef,
@@ -200,6 +198,9 @@ export function useInlineRequest(
       renderDiff,
       renderPlan,
       teardown,
+      sessionIdProjectRef,
+      sessionIdRef,
+      sessionRef,
     ],
   );
 

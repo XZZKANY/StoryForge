@@ -252,7 +252,6 @@ export function useSuggestionUndo(
         },
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
     [
       beginAction,
       editorRef,
@@ -265,6 +264,12 @@ export function useSuggestionUndo(
       projectPathRef,
       updatePendingSuggestion,
       writeAcceptedSuggestion,
+      actionInFlightRef,
+      dropOpenFilePathRef,
+      mountedRef,
+      pendingSuggestionRef,
+      recoveryEpochRef,
+      suggestionOpsRef,
     ],
   );
 

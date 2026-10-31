@@ -115,8 +115,7 @@ export function useEditorWindowCommands({
     window.addEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
     return () => window.removeEventListener(REQUEST_SAVE_ACTIVE_FILE_EVENT, onRequestSave);
     // 挂载期只注册一次；保存逻辑经 ref 读取最新文件和分支闭包。
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, []);
+  }, [editorRef, filePathRef, isDirtyRef, modelCacheRef, projectPathRef, saveCurrentFileRef]);
 
   const handleExport = async () => {
     const path = filePathRef.current;
@@ -170,6 +169,5 @@ export function useEditorWindowCommands({
     };
     window.addEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
     return () => window.removeEventListener(REQUEST_EDITOR_COMMAND_EVENT, onEditorCommand);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, []);
+  }, [setShowHistory]);
 }

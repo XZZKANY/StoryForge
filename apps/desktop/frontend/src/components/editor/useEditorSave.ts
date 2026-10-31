@@ -113,8 +113,19 @@ export function useEditorSave({
         setIsDirty(remainsDirty);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [advanceBranchHead, enqueueWriteback, getActiveBranchSnapshot, onDirtyChange]);
+  }, [
+    advanceBranchHead,
+    enqueueWriteback,
+    getActiveBranchSnapshot,
+    onDirtyChange,
+    cleanVersionIdRef,
+    editorRef,
+    filePathRef,
+    modelCacheRef,
+    originalContentRef,
+    projectPathRef,
+    setIsDirty,
+  ]);
   const saveCurrentFileRef = useRef(saveCurrentFile);
 
   useEffect(() => {

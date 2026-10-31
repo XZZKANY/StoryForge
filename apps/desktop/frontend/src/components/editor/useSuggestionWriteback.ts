@@ -80,8 +80,7 @@ export function useSuggestionWriteback(params: UseSuggestionWritebackParams) {
     };
     window.addEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
     return () => window.removeEventListener(SUGGESTION_RESULT_EVENT, onSuggestionResult);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [filePathRef, setSuggestionStatus]);
+  }, [filePathRef, setSuggestionStatus, assistantSessionIdRef, setIsReviseLoading]);
 
   useEffect(() => {
     const onAcceptCurrentSuggestion = (event: Event) => {
@@ -108,8 +107,7 @@ export function useSuggestionWriteback(params: UseSuggestionWritebackParams) {
     window.addEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
     return () =>
       window.removeEventListener(ACCEPT_CURRENT_FILE_SUGGESTION_EVENT, onAcceptCurrentSuggestion);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [armTruncatedAccept, handleAcceptSuggestion]);
+  }, [armTruncatedAccept, handleAcceptSuggestion, actionInFlightRef, pendingSuggestionRef]);
 
   const { handleSaveSuggestionNote, handleRetrySuggestion, rejectPendingSuggestion } =
     useSuggestionDismissal(params, state, { forgetSuggestionRecovery });
@@ -135,8 +133,7 @@ export function useSuggestionWriteback(params: UseSuggestionWritebackParams) {
     window.addEventListener(REJECT_CURRENT_FILE_SUGGESTION_EVENT, onRejectCurrentSuggestion);
     return () =>
       window.removeEventListener(REJECT_CURRENT_FILE_SUGGESTION_EVENT, onRejectCurrentSuggestion);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [rejectPendingSuggestion]);
+  }, [rejectPendingSuggestion, actionInFlightRef, pendingSuggestionRef]);
 
   return {
     adoptPendingSuggestion,

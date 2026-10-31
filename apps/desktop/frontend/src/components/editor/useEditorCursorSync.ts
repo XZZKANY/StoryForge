@@ -69,8 +69,7 @@ export function useEditorCursorSync({
       if (timer) window.clearTimeout(timer);
       subscription.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, onCursorPersist]);
+  }, [editorReady, onCursorPersist, editorRef, filePathRef]);
 
   // 恢复现场：某文件首次装载完成时，把上次停笔的光标放回去并滚到视野中央。
   // 每个路径只应用一次（appliedInitialCursorRef），否则来回切页签会把作者刚移动的光标拽回去。
@@ -90,8 +89,7 @@ export function useEditorCursorSync({
     const line = Math.min(Math.max(cursor.line, 1), model.getLineCount());
     editor.setPosition({ lineNumber: line, column: Math.max(cursor.column, 1) });
     if (typeof editor.revealLineInCenter === 'function') editor.revealLineInCenter(line);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, filePath, initialCursors, loadedFilePath]);
+  }, [editorReady, filePath, initialCursors, loadedFilePath, editorRef]);
 
   // 作者当前视图：内容 / 选区 / 换模型共用去抖广播；订阅前确认事件接口齐全。
   useEffect(() => {
@@ -141,8 +139,7 @@ export function useEditorCursorSync({
       if (timer) window.clearTimeout(timer);
       for (const subscription of subscriptions) subscription.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady]);
+  }, [editorReady, editorRef, filePathRef]);
 
   // 观测面板点行定位：目标文件已就绪立即跳；否则挂起等 loader 完成（打开文件是异步的）。
   const pendingLocateRef = useRef<LocateInEditorDetail | null>(null);
@@ -169,8 +166,7 @@ export function useEditorCursorSync({
       if (typeof editor.focus === 'function') editor.focus();
       return true;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-    [setSuggestionStatus],
+    [setSuggestionStatus, editorRef],
   );
 
   useEffect(() => {
@@ -182,8 +178,7 @@ export function useEditorCursorSync({
     };
     window.addEventListener(LOCATE_IN_EDITOR_EVENT, onLocate);
     return () => window.removeEventListener(LOCATE_IN_EDITOR_EVENT, onLocate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [applyLocate]);
+  }, [applyLocate, filePathRef]);
 
   useEffect(() => {
     const pending = pendingLocateRef.current;

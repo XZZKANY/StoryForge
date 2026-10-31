@@ -118,7 +118,6 @@ export function useSuggestionDismissal(
     } finally {
       finishAction(actionToken);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
   }, [
     beginAction,
     failAction,
@@ -129,6 +128,8 @@ export function useSuggestionDismissal(
     projectPathRef,
     setSuggestionStatus,
     updatePendingSuggestion,
+    dropOpenFilePathRef,
+    pendingSuggestionRef,
   ]);
 
   const handleRetrySuggestion = useCallback(
@@ -145,8 +146,7 @@ export function useSuggestionDismissal(
         finishAction(token);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-    [beginAction, failAction, finishAction],
+    [beginAction, failAction, finishAction, pendingSuggestionRef],
   );
 
   /**
@@ -203,7 +203,6 @@ export function useSuggestionDismissal(
       }
       return true;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
     [
       beginAction,
       failAction,
@@ -215,6 +214,7 @@ export function useSuggestionDismissal(
       pendingSuggestionRef,
       setSuggestionStatus,
       updatePendingSuggestion,
+      dropOpenFilePathRef,
     ],
   );
 

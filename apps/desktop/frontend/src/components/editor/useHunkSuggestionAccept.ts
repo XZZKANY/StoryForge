@@ -210,7 +210,6 @@ export function useHunkSuggestionAccept(
         finishAction(actionToken);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
     [
       beginAction,
       emitAuthorLoopResult,
@@ -224,6 +223,8 @@ export function useHunkSuggestionAccept(
       offerUndo,
       setSuggestionStatus,
       writeAcceptedSuggestion,
+      pendingSuggestionRef,
+      suggestionOpsRef,
     ],
   );
 

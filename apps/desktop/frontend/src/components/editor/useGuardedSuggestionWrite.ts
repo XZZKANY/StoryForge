@@ -370,7 +370,6 @@ export function useGuardedSuggestionWrite(
         }),
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
     [
       advanceBranchHead,
       emitAuthorLoopResult,
@@ -386,6 +385,8 @@ export function useGuardedSuggestionWrite(
       recordRevisionLoop,
       setIsDirty,
       setLoadedContentPreview,
+      assistantSessionIdRef,
+      mountedRef,
     ],
   );
 

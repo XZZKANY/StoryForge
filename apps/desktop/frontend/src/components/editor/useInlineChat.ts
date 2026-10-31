@@ -216,14 +216,23 @@ export function useInlineChat(params: UseInlineChatParams) {
         window.requestAnimationFrame(focusInput);
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-    [editorRef, filePathRef, flashStatus, isSessionActive, projectPathRef, send, teardown],
+    [
+      editorRef,
+      filePathRef,
+      flashStatus,
+      isSessionActive,
+      projectPathRef,
+      send,
+      teardown,
+      sessionIdProjectRef,
+      sessionIdRef,
+      sessionRef,
+    ],
   );
 
   useEffect(() => {
     openRef.current = open;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [open]);
+  }, [open, openRef]);
 
   // Ctrl+K（改锚定文本）/ Ctrl+Shift+K（光标处续写）各注册一次。
   useEffect(() => {
@@ -234,8 +243,7 @@ export function useInlineChat(params: UseInlineChatParams) {
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyK, () =>
       openRef.current('continue'),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, editorRef]);
+  }, [editorReady, editorRef, openRef, registeredRef]);
 
   // 上面两条只在正文有焦点时生效；焦点在文件树、对话框、页签行时按 Ctrl+K 曾是死键，
   // 作者看不到任何反应。正文看得见时把焦点拉回正文，按原选区 / 光标行开同一个行间框。
@@ -257,8 +265,7 @@ export function useInlineChat(params: UseInlineChatParams) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, editorRef]);
+  }, [editorReady, editorRef, openRef]);
 
   // 输入阶段：光标移出锚定行即拆除（点到别的行就是「不改这儿了」）。仅限 input 阶段——
   // diff 阶段点「接受/弃用」按钮会顺带移光标，若此时拆除会话，点击就落空（接受只能用快捷键）。
@@ -273,8 +280,7 @@ export function useInlineChat(params: UseInlineChatParams) {
       if (line < session.anchor.startLine || line > session.anchor.endLine) teardown();
     });
     return () => disposable.dispose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, editorRef, teardown]);
+  }, [editorReady, editorRef, teardown, sessionRef]);
 
   // 换文件时拆掉进行中的行间会话，避免 zone/decoration 残留到新文件。
   useEffect(() => {
@@ -304,8 +310,7 @@ export function useInlineChat(params: UseInlineChatParams) {
       modelSubscription?.dispose();
       contentSubscription?.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, editorRef, matchesSessionTarget, qualifySession]);
+  }, [editorReady, editorRef, matchesSessionTarget, qualifySession, sessionRef]);
 
   // 卸载时清掉 toast 与其计时器。
   useEffect(() => {

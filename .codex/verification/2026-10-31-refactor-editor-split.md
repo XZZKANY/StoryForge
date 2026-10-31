@@ -91,3 +91,61 @@
   - 三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话）本地未跑，以 CI（`Windows Verify` 的 `pnpm verify`）为准；其中行间续写回归直接覆盖 Ctrl+K / 续写。
   - 没跑 Tauri 冒烟、真宿主探针、Rust 测试（本刀没动宿主与引擎接口）；没在装机版或真模型上点穿。
   - 36 条 lint 抑制是「依赖数组一字不改」换来的；若作者更愿意把这些稳定的 ref / setter 补进依赖数组（行为不变、可去掉抑制），可另开一刀。
+
+## 2026-10-31 追加：36 条依赖抑制换成补稳定依赖
+
+- 改动：上一个提交为守住「依赖数组一字不改」加了 36 条 `eslint-disable-next-line react-hooks/exhaustive-deps`。按协调者要求换掉：逐条核实 lint 报漏的每个名字的来源，只把「身份保证不变」的补进依赖数组（`useRef` 返回的 ref 对象、`useState` 的 setter；本刀没有 `useReducer`）。这些值在组件整个生命周期里是同一个对象，补进依赖数组后依赖比较永远相等，effect 的触发时机与 callback 的身份都不变，行为等价；去掉抑制后，以后真漏依赖时 lint 又能报出来。来源不是这三种的保留原抑制和理由——只有 1 处。
+- 来源核实（沿传递链追到建它的那一行，不看名字）：
+  - `Editor.tsx`：`editorRef`、`filePathRef`、`projectPathRef`、`modelCacheRef`、`originalContentRef`、`cleanVersionIdRef`、`isDirtyRef`、`issueDecorationsRef` 都是 `useRef(...)`；`setIsDirty`、`setShowHistory` 是 `useState` 解构出的 setter。它们以简写属性原样传给 `useEditorSave` / `useReviewIssueMarkers` / `useEditorCursorSync` / `useEditorWindowCommands`，中间没有包装。这四个 hook 只有 `Editor.tsx` 调用（全仓搜过，测试里只按文件名读源码）。
+  - `useEditorSave.ts`：`saveCurrentFileRef = useRef(saveCurrentFile)`，作为返回值交给 `Editor.tsx`，再原样转给 `useEditorWindowCommands`。
+  - `useSuggestionState.ts`：`mountedRef`、`pendingSuggestionRef`、`actionInFlightRef`、`assistantSessionIdRef`、`dropOpenFilePathRef`、`truncationArmedIdRef`、`suggestionOpsRef`、`recoveryEpochRef` 都是 `useRef(...)`；`setIsReviseLoading` 是 `useState` 的 setter。它们放在返回对象里，门面把同一个 `state` 对象传给各子 hook，子 hook 在签名里解构。这些都在 hook 内部建，不来自调用方参数，所以测试直接挂 `useSuggestionWriteback` 时也一样稳定。
+  - `useInlineSession.ts`：`sessionRef`、`sessionIdRef`、`sessionIdProjectRef`、`registeredRef`、`openRef` 都是 `useRef(...)`，经同一个 `sessionState` 对象传给门面与 diff / 请求两个 hook；同样不来自调用方参数。
+  - 逐条结果（脚本按文件白名单判定：名字不在该文件的白名单里就整条保留抑制）：
+
+| 文件 | 位置 | lint 报漏的依赖 | 来源 | 处理 |
+| --- | --- | --- | --- | --- |
+| `useEditorCursorSync.ts` | effect（光标行广播 + 记光标） | `editorRef`, `filePathRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useEditorCursorSync.ts` | effect（恢复现场光标） | `editorRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useEditorCursorSync.ts` | effect（作者视图广播） | `editorRef`, `filePathRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useEditorCursorSync.ts` | applyLocate | `editorRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useEditorCursorSync.ts` | effect（LOCATE_IN_EDITOR_EVENT） | `filePathRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useEditorSave.ts` | saveCurrentFile | `cleanVersionIdRef`, `editorRef`, `filePathRef`, `modelCacheRef`, `originalContentRef`, `projectPathRef`, `setIsDirty` | Editor.tsx 的 useRef；Editor.tsx 的 useState setter | 补进依赖数组 |
+| `useEditorWindowCommands.ts` | effect（REQUEST_SAVE_ACTIVE_FILE_EVENT） | `editorRef`, `filePathRef`, `isDirtyRef`, `modelCacheRef`, `projectPathRef`, `saveCurrentFileRef` | Editor.tsx 的 useRef；useEditorSave.ts 的 useRef（经 Editor.tsx 原样转交） | 补进依赖数组 |
+| `useEditorWindowCommands.ts` | effect（EXPORT_CURRENT_FILE_EVENT） | `filePathRef`, `handleExport` | `filePathRef`：Editor.tsx 的 useRef；`handleExport`：本文件里每次渲染新建的普通函数，不是三种之一 | 保留抑制（依赖数组与理由都不动） |
+| `useEditorWindowCommands.ts` | effect（REQUEST_EDITOR_COMMAND_EVENT） | `setShowHistory` | Editor.tsx 的 useState setter | 补进依赖数组 |
+| `useGuardedSuggestionWrite.ts` | writeAcceptedSuggestion | `assistantSessionIdRef`, `mountedRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useHunkSuggestionAccept.ts` | handleAcceptHunk | `pendingSuggestionRef`, `suggestionOpsRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useInlineChat.ts` | open | `sessionIdProjectRef`, `sessionIdRef`, `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineChat.ts` | effect（同步 openRef） | `openRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineChat.ts` | effect（注册 Ctrl+K / Ctrl+Shift+K 命令） | `openRef`, `registeredRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineChat.ts` | effect（正文没焦点时的 Ctrl+K 兜底） | `openRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineChat.ts` | effect（光标移出锚定行即拆除） | `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineChat.ts` | effect（换模型 / 改内容重核会话） | `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineDiff.ts` | applyAccepted | `sessionIdRef`, `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineDiff.ts` | renderPlan | `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineDiff.ts` | renderDiff | `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineRequest.ts` | cancelLoading | `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useInlineRequest.ts` | send | `sessionIdProjectRef`, `sessionIdRef`, `sessionRef` | useInlineSession.ts 的 useRef | 补进依赖数组 |
+| `useReviewIssueMarkers.ts` | applyIssueDecorations | `editorRef`, `issueDecorationsRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useReviewIssueMarkers.ts` | effect（REVIEW_ISSUES_EVENT） | `filePathRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useReviewIssueMarkers.ts` | effect（改字后去抖重标） | `editorRef` | Editor.tsx 的 useRef | 补进依赖数组 |
+| `useSuggestionDismissal.ts` | handleSaveSuggestionNote | `dropOpenFilePathRef`, `pendingSuggestionRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionDismissal.ts` | handleRetrySuggestion | `pendingSuggestionRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionDismissal.ts` | rejectPendingSuggestion | `dropOpenFilePathRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionIntake.ts` | resetSuggestionWriteback | `pendingSuggestionRef`, `recoveryEpochRef`, `setIsReviseLoading` | useSuggestionState.ts 的 useRef；useSuggestionState.ts 的 useState setter | 补进依赖数组 |
+| `useSuggestionIntake.ts` | recoverPendingSuggestion | `actionInFlightRef`, `mountedRef`, `pendingSuggestionRef`, `recoveryEpochRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionIntake.ts` | forgetSuggestionRecovery | `mountedRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionUndo.ts` | offerUndo | `actionInFlightRef`, `dropOpenFilePathRef`, `mountedRef`, `pendingSuggestionRef`, `recoveryEpochRef`, `suggestionOpsRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionWriteback.ts` | effect（SUGGESTION_RESULT_EVENT） | `assistantSessionIdRef`, `setIsReviseLoading` | useSuggestionState.ts 的 useRef；useSuggestionState.ts 的 useState setter | 补进依赖数组 |
+| `useSuggestionWriteback.ts` | effect（ACCEPT_CURRENT_FILE_SUGGESTION_EVENT） | `actionInFlightRef`, `pendingSuggestionRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useSuggestionWriteback.ts` | effect（REJECT_CURRENT_FILE_SUGGESTION_EVENT） | `actionInFlightRef`, `pendingSuggestionRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+| `useWholeSuggestionAccept.ts` | handleAcceptSuggestion | `actionInFlightRef`, `mountedRef`, `pendingSuggestionRef`, `suggestionOpsRef`, `truncationArmedIdRef` | useSuggestionState.ts 的 useRef | 补进依赖数组 |
+
+  - 补进去的名字一律接在原依赖数组末尾，原有依赖的顺序与内容不动。
+- 验证：
+  - 机械核对（脚本，临时目录）：与上一个提交逐文件按词法单元比（去掉抑制注释行），差异只允许是「在依赖数组收尾的 `]` 前插入逗号和本条白名单里的名字」。结果：14 个文件、35 处插入全部合规，0 处其他改动；抑制注释 36 → 1。另有 1 处是 prettier 加的实参尾逗号：`useReviewIssueMarkers.ts` 的 `applyIssueDecorations` 带参数，依赖数组从 `[]` 变成非空后，prettier 不再把它排成一行，改成多行调用，函数体整体多缩进 2 格（`git diff --ignore-all-space` 下只剩依赖数组那几行）。这是本步唯一的空白变化。
+  - `pnpm lint`：EXIT=0，0 error，只剩 2 条老 warning（`tests/independent-claim-history.test.ts`，没动过），编辑器目录 0 warning；prettier 通过。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，270 个文件，2756 passed。
+  - 引擎测试由 pre-push 钩子跑（本步没碰引擎）。
+- 未覆盖：同上一段；浏览器回归以 CI 为准。

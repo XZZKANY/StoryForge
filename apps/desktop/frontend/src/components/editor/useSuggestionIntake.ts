@@ -52,8 +52,7 @@ export function useSuggestionIntake(
     updatePendingSuggestion(null);
     setIsReviseLoading(false);
     // Navigation invalidates UI ownership, not an already authorized write transaction.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [updatePendingSuggestion]);
+  }, [updatePendingSuggestion, pendingSuggestionRef, recoveryEpochRef, setIsReviseLoading]);
 
   useEffect(() => {
     const onSuggestion = (event: Event) => {
@@ -200,7 +199,6 @@ export function useSuggestionIntake(
         });
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
     [
       enqueueWriteback,
       emitAuthorLoopResult,
@@ -211,6 +209,10 @@ export function useSuggestionIntake(
       projectPathRef,
       setSuggestionStatus,
       updatePendingSuggestion,
+      actionInFlightRef,
+      mountedRef,
+      pendingSuggestionRef,
+      recoveryEpochRef,
     ],
   );
 
@@ -241,8 +243,7 @@ export function useSuggestionIntake(
         return false;
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-    [enqueueWriteback, projectPathRef],
+    [enqueueWriteback, projectPathRef, mountedRef],
   );
 
   return {

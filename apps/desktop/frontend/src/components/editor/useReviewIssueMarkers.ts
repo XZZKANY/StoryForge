@@ -20,23 +20,25 @@ export function useReviewIssueMarkers({
   // 留存当前审稿 issue，供内容变化后按 evidence 重新校验、移除已改好的标记（E18）。
   const reviewIssuesRef = useRef<ReviewIssueMarker[]>([]);
 
-  const applyIssueDecorations = useCallback((issues: ReviewIssueMarker[]) => {
-    const editor = editorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model) return;
-    const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-    for (const issue of issues) {
-      const range = locateEvidence(model, issue.evidence);
-      if (!range) continue;
-      decorations.push({ range, options: issueDecorationOptions(issue) });
-    }
-    if (issueDecorationsRef.current) {
-      issueDecorationsRef.current.set(decorations);
-    } else {
-      issueDecorationsRef.current = editor.createDecorationsCollection(decorations);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, []);
+  const applyIssueDecorations = useCallback(
+    (issues: ReviewIssueMarker[]) => {
+      const editor = editorRef.current;
+      const model = editor?.getModel();
+      if (!editor || !model) return;
+      const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+      for (const issue of issues) {
+        const range = locateEvidence(model, issue.evidence);
+        if (!range) continue;
+        decorations.push({ range, options: issueDecorationOptions(issue) });
+      }
+      if (issueDecorationsRef.current) {
+        issueDecorationsRef.current.set(decorations);
+      } else {
+        issueDecorationsRef.current = editor.createDecorationsCollection(decorations);
+      }
+    },
+    [editorRef, issueDecorationsRef],
+  );
 
   // 审稿完成后把 issues 标进正文：gutter 圆点 + 词级下划线 + hover 显示问题与建议。
   useEffect(() => {
@@ -49,8 +51,7 @@ export function useReviewIssueMarkers({
     };
     window.addEventListener(REVIEW_ISSUES_EVENT, onIssues);
     return () => window.removeEventListener(REVIEW_ISSUES_EVENT, onIssues);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [applyIssueDecorations]);
+  }, [applyIssueDecorations, filePathRef]);
 
   // 切文件清留存 issue：避免内容变化重校验把旧文件的 issue 误标进新文件（decorations 由加载器清）。
   useEffect(() => {
@@ -72,6 +73,5 @@ export function useReviewIssueMarkers({
       if (timer) window.clearTimeout(timer);
       subscription.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖数组照拆分前原样；漏列的是上层传入、身份不变的 ref / setter
-  }, [editorReady, applyIssueDecorations]);
+  }, [editorReady, applyIssueDecorations, editorRef]);
 }
