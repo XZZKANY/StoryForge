@@ -5,7 +5,13 @@ import {
   buildAuthorEditPolicy,
   type AuthorEditPolicy,
 } from '../../kernel/authorEditPolicy';
-import { dumpJson, InputDomainError, isJsonObject, JsonFloat, parseJson } from '../../kernel/json';
+import {
+  dumpJson,
+  InputDomainError,
+  isJsonObject,
+  JsonFloat,
+  parseModelJson,
+} from '../../kernel/json';
 import {
   applyDeterministicPolish,
   POLISH_GATE_VERSION,
@@ -18,7 +24,7 @@ import {
   type PolishDecision,
   type PolishFacts,
 } from '../../kernel/polishing';
-import { PYTHON_WHITESPACE, pythonStrip } from '../../kernel/pythonText';
+import { pythonStrip } from '../../kernel/pythonText';
 import { envValue, type LlmSource } from '../../llm/config';
 import { ChatMessage, ProviderError, type ChatRequest, type TokenUsage } from '../../llm/contracts';
 import type { LlmProvider } from '../../llm/openaiCompatible';
@@ -264,11 +270,6 @@ function polishRequest(
   };
 }
 
-const JSON_FENCE = new RegExp(
-  `^${PYTHON_WHITESPACE}*\`\`\`(?:json)?${PYTHON_WHITESPACE}*([\\s\\S]*?)${PYTHON_WHITESPACE}*\`\`\`${PYTHON_WHITESPACE}*$`,
-  'iu',
-);
-
 /** Python 的 `item.get("index") != expected`：True == 1、2.0 == 2。 */
 function sameIndex(value: unknown, expected: number): boolean {
   if (typeof value === 'boolean') return Number(value) === expected;
@@ -281,12 +282,9 @@ function parsePolishedResponse(
   content: string,
   policy: AuthorEditPolicy,
 ): string {
-  let raw = pythonStrip(content);
-  const fenced = JSON_FENCE.exec(raw);
-  if (fenced !== null) raw = fenced[1];
   let payload: unknown;
   try {
-    payload = parseJson(raw, 'polish');
+    payload = parseModelJson(content, { source: 'polish', fence: 'blockPython' });
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
     throw new InvalidPolishModelResponseError('model response is not JSON');

@@ -5,7 +5,7 @@ import {
   escapeStrayQuotes,
   InputDomainError,
   isJsonObject,
-  parseJson,
+  parseModelJson,
   type JsonValue,
 } from '../kernel/json';
 import { codePoints, pythonStrip } from '../kernel/pythonText';
@@ -160,25 +160,20 @@ function chapterNumberAdvisories(content: string): Obj[] {
 
 const isPyInt = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
-const CHECK_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 
 function decode(raw: unknown): Obj {
   if (isJsonObject(raw as JsonValue)) return { ...(raw as Obj) };
   if (typeof raw !== 'string') throw new InvalidCheck('检查结果不是有限 JSON。');
   if (codePoints(raw).length > 256_000) throw new IncompleteCheck('检查结果超过字符预算。');
-  const text = pythonStrip(raw);
-  const fence = CHECK_FENCE.exec(text);
-  const body = fence ? fence[1] : text;
-  const parse = (json: string) => parseJson(json, 'chapter check', { uniqueKeys: true });
   let parsed: JsonValue;
   try {
-    try {
-      parsed = parse(body);
-    } catch (error) {
-      if (!(error instanceof InputDomainError)) throw error;
-      // 检查器引用了直引号写的对白却没转义；修过的回复照样走下面每一道校验，猜错只会解析失败。
-      parsed = parse(escapeStrayQuotes(body));
-    }
+    // 检查器引用了直引号写的对白却没转义；修过的回复照样走下面每一道校验，猜错只会解析失败。
+    parsed = parseModelJson(raw, {
+      source: 'chapter check',
+      fence: 'block',
+      uniqueKeys: true,
+      repair: escapeStrayQuotes,
+    });
   } catch (error) {
     if (error instanceof InputDomainError) throw new InvalidCheck(error.message);
     throw error;

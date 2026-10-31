@@ -4,12 +4,12 @@ import {
   dumpJson,
   InputDomainError,
   isJsonObject,
-  parseJson,
+  parseModelJson,
   type JsonObject,
   type JsonValue,
 } from './json';
 import type { LlmPort } from './llmPort';
-import { compactText, cpLen, pythonSplitlines, pythonStrip } from './pythonText';
+import { compactText, cpLen, pythonStrip } from './pythonText';
 import {
   characterAgentIssues,
   contextFiles,
@@ -128,27 +128,9 @@ export function reviewUserPrompt(
   ].join('\n');
 }
 
-export function stripCodeFence(text: string): string {
-  if (!text.startsWith('```')) return text;
-  let lines = pythonSplitlines(text);
-  if (lines.length && lines[0].startsWith('```')) lines = lines.slice(1);
-  if (lines.length && pythonStrip(lines[lines.length - 1]).startsWith('```'))
-    lines = lines.slice(0, -1);
-  return pythonStrip(lines.join('\n'));
-}
-
 /** 容忍模型把 JSON 数组裹进代码块或夹在解释文字里。 */
 export function loadsJsonArray(raw: string): JsonValue {
-  const text = stripCodeFence(pythonStrip(raw));
-  try {
-    return parseJson(text, 'model output');
-  } catch (error) {
-    if (!(error instanceof InputDomainError)) throw error;
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start === -1 || end === -1 || end <= start) throw error;
-    return parseJson(text.slice(start, end + 1), 'model output');
-  }
+  return parseModelJson(raw, { source: 'model output', fence: 'lines', locate: 'arraySpan' });
 }
 
 function normalizeIssue(key: string, item: JsonObject): ReviewIssue {

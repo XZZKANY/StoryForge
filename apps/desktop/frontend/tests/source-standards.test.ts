@@ -94,6 +94,18 @@ it('引擎只在 readPort.ts 里解码 UTF-8，别处不自己 new TextDecoder',
   expect(decoding).toEqual(['readPort.ts']);
 });
 
+// 剥 ``` 代码块的三种写法：正则字面量、模板串拼的 RegExp、按行比对围栏。提示词里示范输出格式的 ``` 不算。
+const FENCE_STRIPPING = /\/\^?```|(?:\\`){3}|startsWith\(\s*['"]```|['"]```(?:json)?['"]/i;
+
+it('引擎只在 kernel/json.ts 里剥模型回复外面的 ```json 代码块', () => {
+  const files = sourceFiles(ENGINE_SRC).filter((path) => !isTestSource(path));
+  expect(files.length).toBeGreaterThan(100);
+  const stripping = files
+    .filter((path) => FENCE_STRIPPING.test(readFileSync(path, 'utf8')))
+    .map((path) => relative(ENGINE_SRC, path).replace(/\\/g, '/'));
+  expect(stripping).toEqual(['kernel/json.ts']);
+});
+
 it('正文字数只在 project-core 实现一份，界面与引擎都从那里取', () => {
   const offenders = ['src', ENGINE_SRC]
     .flatMap(sourceFiles)

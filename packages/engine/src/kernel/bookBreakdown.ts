@@ -8,8 +8,10 @@ import {
   InputDomainError,
   isJsonObject,
   JsonFloat,
+  ModelJsonNotFound,
   parseJson,
   parseJsonBytes,
+  parseModelJson,
   pythonFloatRepr,
   pythonTruthy,
   type JsonValue,
@@ -468,34 +470,18 @@ export function renderBreakdownMarkdown(report: { [key: string]: unknown }): str
   return lines.join('\n');
 }
 
-function stripJsonFence(raw: string): string {
-  let text = pythonStrip(raw);
-  if (text.startsWith('```')) {
-    let lines = pythonSplitlines(text);
-    if (lines.length && lines[0].startsWith('```')) lines = lines.slice(1);
-    if (lines.length && pythonStrip(lines[lines.length - 1]).startsWith('```'))
-      lines = lines.slice(0, -1);
-    text = pythonStrip(lines.join('\n'));
-  }
-  return text;
-}
-
 export function parseModelAnalysis(
   raw: unknown,
   selected: readonly SelectedChapter[],
 ): Record<string, AnalysisField> {
   if (typeof raw !== 'string' || !pythonStrip(raw))
     throw new BookBreakdownError('模型分析返回为空。');
-  const text = stripJsonFence(raw);
   let parsed: JsonValue;
   try {
-    parsed = parseJson(text, 'model output');
+    parsed = parseModelJson(raw, { source: 'model output', fence: 'lines', locate: 'objectSpan' });
   } catch (error) {
-    if (!(error instanceof InputDomainError)) throw error;
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new BookBreakdownError('模型分析不是有效 JSON。');
-    parsed = parseJson(text.slice(start, end + 1), 'model output');
+    if (error instanceof ModelJsonNotFound) throw new BookBreakdownError('模型分析不是有效 JSON。');
+    throw error;
   }
   if (!isJsonObject(parsed)) throw new BookBreakdownError('模型分析顶层必须是 JSON 对象。');
   const refs = selected.map((item) => item.chapter_id);
