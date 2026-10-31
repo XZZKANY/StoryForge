@@ -16,8 +16,7 @@ import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
 import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
 import { parentDir } from '../lib/fs-path-ops';
-import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
-import { FilePlus, FolderPlus } from './icons/shell-icons';
+import { ChevronRight, FilePlus, FileText, Folder, FolderPlus } from './icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
 import { PanelError } from './shell/PanelError';
 import type { FileTreeActions } from './app/useFileTreeActions';
@@ -291,18 +290,16 @@ const TreeNodeItem = memo(function TreeNodeItem({
             <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
             <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-              <svg
-                className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path d="M6 4l4 4-4 4V4z" />
-              </svg>
+              <ChevronRight
+                size={14}
+                strokeWidth={1.7}
+                className={`transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
+              />
             </div>
             <span
               className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-foreground' : 'text-muted group-hover:text-foreground'}`}
             >
-              <FolderIcon className="h-3.5 w-3.5" />
+              <Folder size={13} strokeWidth={1.7} />
             </span>
 
             <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
@@ -386,8 +383,10 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-        <MarkdownFileIcon
-          className={`h-3.5 w-3.5 ${isActive ? 'text-accent' : 'text-muted opacity-70 group-hover:opacity-100'}`}
+        <FileText
+          size={13}
+          strokeWidth={1.7}
+          className={isActive ? 'text-accent' : 'text-muted opacity-70 group-hover:opacity-100'}
         />
       </div>
 

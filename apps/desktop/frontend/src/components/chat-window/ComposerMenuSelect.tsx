@@ -1,7 +1,7 @@
 import { FloatingSurface } from '../ui';
 import { Fragment, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from '../icons/shell-icons';
 
 export type ComposerMenuOption<T extends string> = {
   value: T;

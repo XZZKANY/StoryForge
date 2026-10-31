@@ -1,13 +1,14 @@
 /**
  * 壳子图标统一走 Lucide 矢量库（原型定调 stroke 1.5–1.75，取代旧的 Unicode/字形图标，
  * 免 Win11 彩色 emoji 化毁暗色质感）。P1 起各栏从此处按名引用，集中一处便于风格收敛。
+ * 别处不直接引 lucide-react（连类型也从这里拿），tests/ui-primitives.test.tsx 守着。
  *
  * 命名对照原型（StoryForge壳子原型-整端.html）：
  *   活动栏：故事=FileText / 搜索=Search / 会话=Sparkles(agent 紫) / 质检=Flag / 命令=Command / 设置=Settings
  *   顶栏：命令面板触发=Search / 窗控=Minus·Square·X
  *   中栏页签：版本=Clock / 面板=PanelRight
  *   右栏 composer：发送=ArrowUp / 挂载上下文=Plus
- *   树/会话：ChevronRight·ChevronDown / Folder·FolderOpen·File / 新建文件=FilePlus / 新建文件夹=FolderPlus / 新建会话=MessageSquarePlus / 分支=GitBranch
+ *   树/会话：ChevronRight·ChevronDown / Folder·FileText（文件树 13px、描边 1.7） / 新建文件=FilePlus / 新建文件夹=FolderPlus / 新建会话=MessageSquarePlus / 分支=GitBranch
  *   观测/补丁：勾选=Check
  *   对话头：上下文=Layers / 章节检查记录=ListChecks
  */
@@ -20,9 +21,11 @@ import {
   ChevronRight,
   Clock,
   Command,
+  Copy,
   FilePlus,
   FileText,
   Eye,
+  Folder,
   FolderOpen,
   FolderPlus,
   ImagePlus,
@@ -46,6 +49,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Shield,
   Sparkles,
   Square,
   Type,
@@ -62,9 +66,11 @@ export {
   ChevronRight,
   Clock,
   Command,
+  Copy,
   FilePlus,
   FileText,
   Eye,
+  Folder,
   FolderOpen,
   FolderPlus,
   ImagePlus,
@@ -88,6 +94,7 @@ export {
   RefreshCw,
   Search,
   Settings,
+  Shield,
   Sparkles,
   Square,
   Type,

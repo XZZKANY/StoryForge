@@ -1,4 +1,4 @@
-import { Shield } from 'lucide-react';
+import { Shield } from '../icons/shell-icons';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import {
   AGENT_PERMISSION_PROFILE_OPTIONS,

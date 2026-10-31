@@ -12,10 +12,9 @@ import {
   type SemanticKind,
 } from '../lib/project-context';
 import { invalidateFileSystemCache } from '../lib/tauri-fs';
-import { RefreshCw } from './icons/shell-icons';
+import { FileText, RefreshCw } from './icons/shell-icons';
 import { PanelError } from './shell/PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
-import { MarkdownFileIcon } from './StoryIcons';
 import type { FileTreeActions } from './app/useFileTreeActions';
 import { IconButton } from './ui';
 
@@ -359,7 +358,7 @@ function StoryGroup({
               onDoubleClick={() => onFileSelect(file.path)}
             >
               <span className={active ? 'text-accent-foreground' : 'text-muted'}>
-                <MarkdownFileIcon />
+                <FileText size={13} strokeWidth={1.7} />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
             </button>
