@@ -2,6 +2,7 @@
 //! 草稿不落盘；Key 不写日志、不回显，网络错误文本里出现的 Key 一律换成占位串。
 //! Key 留空时可以借用某套已存的 Key，但只许发往那套已存地址的同一来源，免得界面把密钥带去别处。
 use crate::engine_llm::{innermost, scrub_text, EngineLlmState};
+use crate::host_error::HostError;
 use crate::{llm_config, llm_config_store};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Url;
@@ -33,20 +34,6 @@ pub struct DraftProbeResponse {
     pub(crate) partial: bool,
 }
 
-/// `unauthorized`：Key 不对；`misconfigured`：填写有问题；`unreachable`：连不上或返回不对。
-#[derive(Debug, Serialize, PartialEq, Eq)]
-pub struct DraftProbeError {
-    pub(crate) kind: &'static str,
-    pub(crate) message: String,
-}
-
-fn failure(kind: &'static str, message: impl Into<String>) -> DraftProbeError {
-    DraftProbeError {
-        kind,
-        message: message.into(),
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Family {
     OpenAi,
@@ -68,10 +55,7 @@ fn http_url(text: &str) -> Option<Url> {
     (matches!(url.scheme(), "http" | "https") && url.host_str().is_some()).then_some(url)
 }
 
-fn draft_key(
-    config_path: &Path,
-    request: &DraftProbeRequest,
-) -> Result<Option<String>, DraftProbeError> {
+fn draft_key(config_path: &Path, request: &DraftProbeRequest) -> Result<Option<String>, HostError> {
     let typed = request.api_key.as_deref().map(str::trim);
     if let Some(key) = typed.filter(|key| !key.is_empty()) {
         return Ok(Some(key.to_string()));
@@ -80,13 +64,13 @@ fn draft_key(
         return Ok(None);
     };
     let stored = llm_config_store::read_revealed_profile(config_path, id)
-        .map_err(|error| failure("misconfigured", error.to_string()))?;
+        .map_err(|error| HostError::new("misconfigured", error.to_string()))?;
     let same_origin = match (http_url(&stored.base_url), http_url(&request.base_url)) {
         (Some(saved), Some(draft)) => saved.origin() == draft.origin(),
         _ => false,
     };
     if stored.api_key.is_some() && !same_origin {
-        return Err(failure(
+        return Err(HostError::new(
             "misconfigured",
             "改了服务地址就要重新贴一次 Key：已存的 Key 只会发往原来的地址。",
         ));
@@ -98,12 +82,12 @@ fn header(
     name: &str,
     value: &str,
     sensitive: bool,
-) -> Result<(HeaderName, HeaderValue), DraftProbeError> {
+) -> Result<(HeaderName, HeaderValue), HostError> {
     let name = HeaderName::from_bytes(name.as_bytes())
-        .map_err(|_| failure("misconfigured", "请求头名称无效。"))?;
+        .map_err(|_| HostError::new("misconfigured", "请求头名称无效。"))?;
     // The value may hold the key: never echo it in the error.
     let mut value = HeaderValue::from_str(value)
-        .map_err(|_| failure("misconfigured", "Key 里有不能用的字符，请重新复制。"))?;
+        .map_err(|_| HostError::new("misconfigured", "Key 里有不能用的字符，请重新复制。"))?;
     value.set_sensitive(sensitive);
     Ok((name, value))
 }
@@ -114,14 +98,18 @@ pub(crate) fn prepare(
     key: Option<&str>,
     auth_header: Option<&str>,
     app_version: &str,
-) -> Result<(Url, HeaderMap), DraftProbeError> {
-    let mut url = http_url(base_url)
-        .ok_or_else(|| failure("misconfigured", "服务地址要以 http:// 或 https:// 开头。"))?;
+) -> Result<(Url, HeaderMap), HostError> {
+    let mut url = http_url(base_url).ok_or_else(|| {
+        HostError::new("misconfigured", "服务地址要以 http:// 或 https:// 开头。")
+    })?;
     if !url.username().is_empty() || url.password().is_some() {
-        return Err(failure("misconfigured", "服务地址里不能带用户名或密码。"));
+        return Err(HostError::new(
+            "misconfigured",
+            "服务地址里不能带用户名或密码。",
+        ));
     }
     if key.is_some_and(|key| base_url.contains(key)) {
-        return Err(failure(
+        return Err(HostError::new(
             "misconfigured",
             "服务地址里不能带 Key，Key 请填在 Key 那一栏。",
         ));
@@ -161,8 +149,8 @@ pub(crate) fn decode(
     body: &[u8],
     family: Family,
     key: Option<&str>,
-) -> Result<DraftProbeResponse, DraftProbeError> {
-    let invalid = || failure("unreachable", NOT_A_MODEL_LIST);
+) -> Result<DraftProbeResponse, HostError> {
+    let invalid = || HostError::new("unreachable", NOT_A_MODEL_LIST);
     let data: Value = serde_json::from_slice(body).map_err(|_| invalid())?;
     let (list_key, id_key) = match family {
         Family::Gemini => ("models", "name"),
@@ -204,17 +192,17 @@ async fn fetch(
     url: Url,
     headers: HeaderMap,
     key: Option<&str>,
-) -> Result<Vec<u8>, DraftProbeError> {
+) -> Result<Vec<u8>, HostError> {
     let mut response = match client.get(url).headers(headers).send().await {
         Ok(response) => response,
         Err(error) if error.is_connect() => {
-            return Err(failure(
+            return Err(HostError::new(
                 "unreachable",
                 format!("连不上服务地址：{}", scrub_text(&innermost(&error), key)),
             ))
         }
         Err(_) => {
-            return Err(failure(
+            return Err(HostError::new(
                 "unreachable",
                 "请求没发出去或中途断开了，检查网络或服务地址。",
             ))
@@ -223,19 +211,22 @@ async fn fetch(
     // 不读出错响应的正文：有的服务会把收到的 Key 原样写进错误信息。
     let status = response.status().as_u16();
     if status == 401 || status == 403 {
-        return Err(failure(
+        return Err(HostError::new(
             "unauthorized",
             format!("Key 不对或没有权限（HTTP {status}）。"),
         ));
     }
     if status == 404 {
-        return Err(failure(
+        return Err(HostError::new(
             "unreachable",
             "这个地址下找不到模型列表（HTTP 404）：检查服务地址，兼容服务的地址通常以 /v1 结尾。",
         ));
     }
     if !(200..300).contains(&status) {
-        return Err(failure("unreachable", format!("服务返回 HTTP {status}。")));
+        return Err(HostError::new(
+            "unreachable",
+            format!("服务返回 HTTP {status}。"),
+        ));
     }
     let mut body = Vec::new();
     loop {
@@ -243,11 +234,11 @@ async fn fetch(
             Ok(Some(bytes)) => {
                 body.extend_from_slice(&bytes);
                 if body.len() > MAX_BODY_BYTES {
-                    return Err(failure("unreachable", "模型列表太大，读不完。"));
+                    return Err(HostError::new("unreachable", "模型列表太大，读不完。"));
                 }
             }
             Ok(None) => return Ok(body),
-            Err(_) => return Err(failure("unreachable", "读取模型列表时连接断开了。")),
+            Err(_) => return Err(HostError::new("unreachable", "读取模型列表时连接断开了。")),
         }
     }
 }
@@ -258,7 +249,7 @@ pub(crate) async fn run(
     request: DraftProbeRequest,
     app_version: &str,
     auth_header: Option<&str>,
-) -> Result<DraftProbeResponse, DraftProbeError> {
+) -> Result<DraftProbeResponse, HostError> {
     let key = draft_key(config_path, &request)?;
     let family = family(&request.provider);
     let (url, headers) = prepare(
@@ -270,7 +261,7 @@ pub(crate) async fn run(
     )?;
     let body = tokio::time::timeout(PROBE_TIMEOUT, fetch(client, url, headers, key.as_deref()))
         .await
-        .map_err(|_| failure("unreachable", "15 秒内没有响应，检查网络或服务地址。"))??;
+        .map_err(|_| HostError::new("unreachable", "15 秒内没有响应，检查网络或服务地址。"))??;
     decode(&body, family, key.as_deref())
 }
 
@@ -279,12 +270,12 @@ pub async fn probe_llm_draft(
     app: AppHandle,
     state: State<'_, EngineLlmState>,
     payload: DraftProbeRequest,
-) -> Result<DraftProbeResponse, DraftProbeError> {
+) -> Result<DraftProbeResponse, HostError> {
     let path = llm_config::config_path(&app)
-        .map_err(|error| failure("misconfigured", error.to_string()))?;
+        .map_err(|error| HostError::new("misconfigured", error.to_string()))?;
     let client = state
         .client()
-        .map_err(|_| failure("unreachable", "无法创建网络连接。"))?;
+        .map_err(|_| HostError::new("unreachable", "无法创建网络连接。"))?;
     let version = app.package_info().version.to_string();
     let auth_header = std::env::var("STORYFORGE_LLM_AUTH_HEADER").ok();
     run(&path, &client, payload, &version, auth_header.as_deref()).await
