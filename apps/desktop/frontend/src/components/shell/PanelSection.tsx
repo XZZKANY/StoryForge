@@ -1,9 +1,9 @@
 /**
- * 左栏视图里的可折叠分区。手稿与作品两个视图各有四五个分区，样式必须一致——
- * 折叠箭头、行高、右侧计数的位置在两栏之间对不齐，作者会读成「这是两个不同的东西」。
+ * 左栏视图里的可折叠分区。手稿、作品、观测镜三个视图各有四五个分区，样式必须一致——
+ * 折叠箭头、行高、右侧计数的位置在几栏之间对不齐，作者会读成「这是几个不同的东西」。
  *
- * testid 带视图前缀（`manuscript-section-skeleton` / `book-section-outline`），
- * 因此两个视图的分区在测试里仍各自可定位。
+ * testid 带视图前缀（`manuscript-section-skeleton` / `book-section-outline` / `obs-section-facts`），
+ * 因此各视图的分区在测试里仍各自可定位。
  */
 import { useState, type ReactNode } from 'react';
 

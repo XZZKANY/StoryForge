@@ -9,7 +9,7 @@ import type { KnowledgeInboxHandle } from '../app/useKnowledgeInbox';
 import { proposalToEdit } from '../app/useKnowledgeInbox';
 import { AppDialogHost, useAppDialog } from '../app/AppDialog';
 import { Check, Eye, Inbox, Pencil, RefreshCw, X } from '../icons/shell-icons';
-import { IconButton } from '../ui';
+import { IconButton, Spinner } from '../ui';
 import { LiveStatus } from './LiveStatus';
 import { PanelError } from './PanelError';
 
@@ -57,7 +57,7 @@ export function KnowledgeInboxView({ handle }: { handle: KnowledgeInboxHandle })
         <IconButton
           size="xs"
           label="刷新知识收件箱"
-          icon={<RefreshCw size={13} className={handle.loading ? 'animate-spin' : ''} />}
+          icon={<Spinner icon={RefreshCw} spinning={handle.loading} size={13} />}
           disabled={handle.loading}
           onClick={() => void handle.refresh()}
           data-testid="knowledge-inbox-refresh"
