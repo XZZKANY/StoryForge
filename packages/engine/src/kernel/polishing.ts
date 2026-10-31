@@ -8,7 +8,7 @@ import {
 import { pythonFixed } from './math';
 import { checkProseStaticQuality, type ProseConstraints } from './proseScan';
 import { DIALOGUE_PATTERN } from './punctuation';
-import { codePoints, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { codePoints, countOf, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { sequenceOpcodes } from './sequenceMatcher';
 
 export const POLISH_RULE_VERSION = 'polish-rules-v2';
@@ -110,7 +110,6 @@ export function splitlinesKeepends(text: string): string[] {
   return lines;
 }
 
-const countOf = (text: string, part: string) => text.split(part).length - 1;
 const isProtected = (segment: PolishSegment) => segment.kind !== 'body';
 
 export function polishableParts(document: PolishDocument): string[] {

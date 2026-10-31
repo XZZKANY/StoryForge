@@ -32,10 +32,10 @@ import {
   isObj,
   pythonStrValue,
   storyMemoryCount,
-  type Obj,
+  type PlainJsonObject,
 } from './contextValues';
 import { syntheticContextDelivery } from './llmPromptContext';
-import { compactText, cpLen, orderedUnique, pythonStrip } from './pythonText';
+import { compactText, cpLen, optionalString, orderedUnique, pythonStrip } from './pythonText';
 import {
   redactSensitive,
   redactSensitiveText,
@@ -124,7 +124,7 @@ function stringOrDefault(value: PlainJson | undefined, fallback: string): string
 export function reviewChannelSource(
   report: PlainJson | undefined,
   artifacts: readonly PlainJson[] | null,
-): Obj | null {
+): PlainJsonObject | null {
   if (isObj(report)) return report;
   for (const artifact of artifacts ?? []) {
     if (artifactKind(artifact) !== 'review_report') continue;
@@ -146,12 +146,12 @@ function clipped(value: PlainJson | undefined, secrets: SecretContext): boolean 
   return false;
 }
 
-function memoryChannel(bundle: Obj): PlainJson | undefined {
+function memoryChannel(bundle: PlainJsonObject): PlainJson | undefined {
   const key = ['story_memory', 'storyMemory', 'memory', 'memories'].find((k) => hasKey(bundle, k));
   return key === undefined ? undefined : bundle[key];
 }
 
-function chapterChannel(bundle: Obj): Obj | null {
+function chapterChannel(bundle: PlainJsonObject): PlainJsonObject | null {
   for (const key of [
     'chapter_context',
     'chapterContext',
@@ -166,12 +166,12 @@ function chapterChannel(bundle: Obj): Obj | null {
 }
 
 export function contextChannelRequests(
-  bundle: Obj | null,
-  report: Obj | null,
+  bundle: PlainJsonObject | null,
+  report: PlainJsonObject | null,
   secrets: SecretContext,
-): Obj {
+): PlainJsonObject {
   const source = bundle ?? {};
-  const result: Obj = {};
+  const result: PlainJsonObject = {};
   const memory = memoryChannel(source);
   let items: PlainJson[] | null = Array.isArray(memory) ? memory : null;
   if (isObj(memory)) {
@@ -197,7 +197,7 @@ export function contextChannelRequests(
   }
   const chapter = chapterChannel(source);
   if (chapter !== null) {
-    const supplied: Obj = {};
+    const supplied: PlainJsonObject = {};
     for (const key of CHAPTER_CONTEXT_KEYS) if (hasKey(chapter, key)) supplied[key] = chapter[key];
     result.chapter_context = {
       requested_count: Object.keys(supplied).length,
@@ -232,7 +232,7 @@ export function contextChannelRequests(
 
 // ---- context_provenance ----
 
-export function llmContextSnapshotTraceSummary(snapshot: Obj): Obj {
+export function llmContextSnapshotTraceSummary(snapshot: PlainJsonObject): PlainJsonObject {
   const contextFiles = get(snapshot, 'context_files');
   const items = Array.isArray(contextFiles) ? contextFiles : [];
   const chapterContext = get(snapshot, 'chapter_context');
@@ -240,7 +240,7 @@ export function llmContextSnapshotTraceSummary(snapshot: Obj): Obj {
   const includedSections = get(snapshot, 'included_sections');
   const warnings = get(snapshot, 'warnings');
   const selectedFile = get(snapshot, 'selected_file');
-  const pick = (item: Obj, key: string) => get(item, key) ?? null;
+  const pick = (item: PlainJsonObject, key: string) => get(item, key) ?? null;
   return {
     snapshot_id: get(snapshot, 'snapshot_id') ?? null,
     source_manifest: pythonTruthy(get(snapshot, 'source_manifest'))
@@ -254,7 +254,10 @@ export function llmContextSnapshotTraceSummary(snapshot: Obj): Obj {
       .map((item) => firstString(item, 'relative_path'))
       .filter((path): path is string => path !== null),
     knowledge_entries: items
-      .filter((item): item is Obj => isObj(item) && typeof get(item, 'knowledge_id') === 'string')
+      .filter(
+        (item): item is PlainJsonObject =>
+          isObj(item) && typeof get(item, 'knowledge_id') === 'string',
+      )
       .map((item) => ({
         knowledge_id: pick(item, 'knowledge_id'),
         relative_path: pick(item, 'relative_path'),
@@ -269,7 +272,7 @@ export function llmContextSnapshotTraceSummary(snapshot: Obj): Obj {
   };
 }
 
-function withSnapshotId(snapshot: Obj): Obj {
+function withSnapshotId(snapshot: PlainJsonObject): PlainJsonObject {
   const encoded = dumpJson(snapshot, {
     ensureAscii: false,
     sortKeys: true,
@@ -286,19 +289,17 @@ export type RunState = {
   current_step?: PlainJson;
 };
 
-function snapshotRunState(runState: RunState | null): Obj {
+function snapshotRunState(runState: RunState | null): PlainJsonObject {
   if (runState === null) return {};
   const publicId = pythonTruthy(runState.public_id ?? null)
     ? runState.public_id
     : (runState.run_id ?? null);
-  const result: Obj = {};
-  const stripped = (value: PlainJson | undefined) =>
-    typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
-  if (stripped(publicId) !== null) result.run_id = stripped(publicId);
-  if (stripped(runState.goal) !== null) result.goal = compactText(runState.goal, 2000);
-  if (stripped(runState.status) !== null) result.status = stripped(runState.status);
-  if (stripped(runState.current_step) !== null)
-    result.current_step = stripped(runState.current_step);
+  const result: PlainJsonObject = {};
+  if (optionalString(publicId) !== null) result.run_id = optionalString(publicId);
+  if (optionalString(runState.goal) !== null) result.goal = compactText(runState.goal, 2000);
+  if (optionalString(runState.status) !== null) result.status = optionalString(runState.status);
+  if (optionalString(runState.current_step) !== null)
+    result.current_step = optionalString(runState.current_step);
   return result;
 }
 
@@ -319,11 +320,11 @@ export type SnapshotInput = {
 };
 
 function contextFiles(
-  bundle: Obj | null,
+  bundle: PlainJsonObject | null,
   filePath: string,
   maxFiles: number,
   secrets: SecretContext,
-): [Obj[], string[], number] {
+): [PlainJsonObject[], string[], number] {
   if (bundle === null) return [[], [], 0];
   const files = get(bundle, 'files');
   if (files === undefined || files === null) return [[], [], 0];
@@ -331,7 +332,7 @@ function contextFiles(
     return [[], ['context_bundle.files ignored because it was not a list'], 0];
   const currentFile = firstString(bundle, 'current_file', 'currentFile');
   const selectedRefs = [filePath, currentFile ?? ''];
-  const result: Obj[] = [];
+  const result: PlainJsonObject[] = [];
   const warnings: string[] = [];
   let unsafeCount = 0;
   for (const item of files) {
@@ -360,7 +361,11 @@ function contextFiles(
       break;
     }
     const title = firstString(item, 'title', 'name');
-    const contextFile: Obj = { relative_path: relativePath, kind, title: title || relativePath };
+    const contextFile: PlainJsonObject = {
+      relative_path: relativePath,
+      kind,
+      title: title || relativePath,
+    };
     if (excerpt) {
       const redacted = redactSensitiveText(excerpt, secrets);
       if (redacted !== excerpt) warnings.push(`context_bundle file redacted: ${relativePath}`);
@@ -375,16 +380,16 @@ function contextFiles(
 }
 
 function contextFilesWithLoopReads(
-  bundle: Obj | null,
+  bundle: PlainJsonObject | null,
   filePath: string,
   extra: readonly PlainJson[] | null,
   { platform, secrets }: Options,
   maxFiles = MAX_CONTEXT_FILES,
-): [Obj[], string[], number] {
+): [PlainJsonObject[], string[], number] {
   const [files, warnings, unsafeCount] = contextFiles(bundle, filePath, maxFiles, secrets);
   if (extra === null) return [files, warnings, unsafeCount];
   // 循环读到的文件与请求上下文同走路径、脱敏、选中文件与预算检查，然后才做结构化准入。
-  const extraItems: Obj[] = [];
+  const extraItems: PlainJsonObject[] = [];
   for (const item of extra) {
     if (!isObj(item)) continue;
     const excerpt = get(item, 'excerpt');
@@ -422,8 +427,8 @@ function contextFilesWithLoopReads(
   return [files, warnings, unsafeCount + extraUnsafe];
 }
 
-function reviewIssueSummary(issue: Obj): Obj {
-  const result: Obj = {};
+function reviewIssueSummary(issue: PlainJsonObject): PlainJsonObject {
+  const result: PlainJsonObject = {};
   for (const key of ['id', 'category', 'severity', 'agent', 'code']) {
     const value = firstString(issue, key);
     if (value !== null) result[key] = value;
@@ -435,11 +440,11 @@ function reviewIssueSummary(issue: Obj): Obj {
   return result;
 }
 
-function reviewReportSummary(report: PlainJson | null): Obj | null {
+function reviewReportSummary(report: PlainJson | null): PlainJsonObject | null {
   if (!isObj(report)) return null;
   const issues = get(report, 'issues');
   const actions = get(report, 'suggested_actions');
-  const summary: Obj = {
+  const summary: PlainJsonObject = {
     kind: firstString(report, 'kind') ?? 'review_report',
     issue_count: Array.isArray(issues) ? issues.length : 0,
     issues: Array.isArray(issues)
@@ -463,8 +468,8 @@ function reviewReportSummary(report: PlainJson | null): Obj | null {
   return summary;
 }
 
-function memoryItemSummary(item: Obj): Obj {
-  const result: Obj = {};
+function memoryItemSummary(item: PlainJsonObject): PlainJsonObject {
+  const result: PlainJsonObject = {};
   const fields: [string, string[]][] = [
     ['memory_id', ['memory_id', 'memoryId', 'id']],
     ['kind', ['kind', 'category', 'type']],
@@ -488,7 +493,7 @@ function memoryItemSummary(item: Obj): Obj {
   return result;
 }
 
-function storyMemorySummary(bundle: Obj | null): Obj {
+function storyMemorySummary(bundle: PlainJsonObject | null): PlainJsonObject {
   const source = bundle === null ? undefined : memoryChannel(bundle);
   if (source === undefined || source === null) return { items: [] };
   let items: PlainJson | undefined = Array.isArray(source) ? source : undefined;
@@ -506,11 +511,11 @@ function storyMemorySummary(bundle: Obj | null): Obj {
   return { items: safe.filter((item) => Object.keys(item).length > 0) };
 }
 
-function chapterContextSummary(bundle: Obj | null): Obj {
+function chapterContextSummary(bundle: PlainJsonObject | null): PlainJsonObject {
   if (bundle === null) return {};
   const source = chapterChannel(bundle);
   if (source === null) return {};
-  const result: Obj = {};
+  const result: PlainJsonObject = {};
   for (const key of CHAPTER_CONTEXT_KEYS) {
     const safe = safeContextValue(get(source, key));
     if (safe !== undefined) result[key] = safe;
@@ -518,9 +523,9 @@ function chapterContextSummary(bundle: Obj | null): Obj {
   return result;
 }
 
-function projectSummary(bundle: Obj | null): Obj {
+function projectSummary(bundle: PlainJsonObject | null): PlainJsonObject {
   if (bundle === null) return {};
-  const result: Obj = {};
+  const result: PlainJsonObject = {};
   const projectRoot = firstString(bundle, 'project_root', 'projectRoot');
   const currentFile = firstString(bundle, 'current_file', 'currentFile');
   if (projectRoot !== null) result.project_root = projectRoot;
@@ -533,7 +538,7 @@ function projectSummary(bundle: Obj | null): Obj {
     if (isObj(counts)) {
       // Python 按 str(key) 的码点序挑出数（bool 是 int 子类），这个键序原样进 prompt；
       // 桌面端给的是 emptyCounts 的顺序，不排就和 Python 差一段。
-      const safeCounts: Obj = {};
+      const safeCounts: PlainJsonObject = {};
       const kept: string[] = [];
       for (const key of Object.keys(counts).sort(compareCodePoints)) {
         const value = get(counts, key);
@@ -551,11 +556,11 @@ function projectSummary(bundle: Obj | null): Obj {
 }
 
 function omittedSummary(
-  bundle: Obj | null,
+  bundle: PlainJsonObject | null,
   eventHistory: readonly PlainJson[] | null,
   artifacts: readonly PlainJson[] | null,
   unsafeFileCount: number,
-): Obj {
+): PlainJsonObject {
   return {
     raw_event_count: eventHistory === null ? 0 : eventHistory.length,
     unsafe_context_key_count:
@@ -571,11 +576,11 @@ function omittedSummary(
 }
 
 function includedSections(parts: {
-  project: Obj;
-  contextFiles: Obj[];
-  reviewReport: Obj | null;
-  storyMemory: Obj;
-  chapterContext: Obj;
+  project: PlainJsonObject;
+  contextFiles: PlainJsonObject[];
+  reviewReport: PlainJsonObject | null;
+  storyMemory: PlainJsonObject;
+  chapterContext: PlainJsonObject;
 }): string[] {
   const sections = ['run', 'selected_file'];
   if (Object.keys(parts.project).length) sections.push('project');
@@ -592,7 +597,7 @@ export async function buildLlmContextSnapshot(
   reader: ProjectReader,
   input: SnapshotInput & { runState?: RunState | null },
   options: Options,
-): Promise<Obj> {
+): Promise<PlainJsonObject> {
   const bundle = isObj(input.contextBundle) ? input.contextBundle : null;
   const [requested] = contextFilesWithLoopReads(
     bundle,
@@ -631,7 +636,7 @@ export function buildLlmContextSnapshotFromCollected(
   knowledge: CollectedProjectKnowledge,
   input: SnapshotInput & { runState: RunState | null },
   options: Options,
-): Obj {
+): PlainJsonObject {
   const { platform, secrets } = options;
   const extra = input.extraContextFiles ?? null;
   const artifacts = input.artifacts ?? null;
@@ -654,13 +659,14 @@ export function buildLlmContextSnapshotFromCollected(
     platform,
     secrets,
   });
-  const files = merged as Obj[];
+  const files = merged as PlainJsonObject[];
   warnings.push(...knowledgeWarnings);
   const reviewSource = reviewChannelSource(input.reviewReport, artifacts);
   const reviewReport = reviewReportSummary(
     reviewSource === null ? null : redactSensitive(reviewSource, secrets),
   );
-  const safeChannels = bundle === null ? null : (redactSensitive(bundle, secrets) as Obj);
+  const safeChannels =
+    bundle === null ? null : (redactSensitive(bundle, secrets) as PlainJsonObject);
   const storyMemory = storyMemorySummary(safeChannels);
   const chapterContext = chapterContextSummary(safeChannels);
   const project = projectSummary(bundle);
@@ -678,8 +684,8 @@ export function buildLlmContextSnapshotFromCollected(
     knowledge.ordinary,
     files as unknown as Parameters<typeof sourceDeliveryManifest>[1],
     { requested: requestedSources as ContextFileRequest[], platform, secrets },
-  ) as Obj[];
-  const contextBudget: Obj = {
+  ) as PlainJsonObject[];
+  const contextBudget: PlainJsonObject = {
     truncated:
       (bundle !== null &&
         Object.keys(bundle).length > 0 &&
@@ -688,7 +694,7 @@ export function buildLlmContextSnapshotFromCollected(
       files.some((item) => item.truncated === true) ||
       warnings.some((warning) => warning.includes('truncated by')),
   };
-  const snapshot: Obj = {
+  const snapshot: PlainJsonObject = {
     kind: 'llm_context_snapshot',
     version: SNAPSHOT_VERSION,
     intent: stringOrDefault(input.intent, 'unknown'),

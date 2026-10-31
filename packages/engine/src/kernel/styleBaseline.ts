@@ -3,7 +3,7 @@ import type { GenerationSourceCapture } from './generationSources';
 import { pythonFixed, pythonFloatSum } from './math';
 import { iterManuscriptFiles } from './previousChapter';
 import { ProjectTreeError } from './projectTree';
-import { cpLen, pythonStrip } from './pythonText';
+import { countOf, cpLen, pythonStrip } from './pythonText';
 
 // ---- 文风指纹：检查器与生成器共用的一套数学 ----
 
@@ -33,7 +33,6 @@ export type StyleFingerprint = {
 
 /** Python round(x, n)：对实际二进制值做半偶舍入。 */
 const pythonRound = (value: number, digits: number) => Number(pythonFixed(value, digits));
-const countOf = (text: string, part: string) => text.split(part).length - 1;
 
 export function splitSentences(content: string): string[] {
   const separators = '。！？!?\n\r';

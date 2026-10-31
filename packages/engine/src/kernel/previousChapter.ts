@@ -4,7 +4,7 @@ import { FsToolError } from './fsTools';
 import { normcase, type GenerationSourceCapture } from './generationSources';
 import { NON_MANUSCRIPT_DIRS, isManuscriptPath, orderManuscriptFiles } from './manuscript';
 import { MAX_READ_BYTES, ProjectTreeError, scanProjectFiles } from './projectTree';
-import { pythonStrip } from './pythonText';
+import { pythonStrip, stripNewlines } from './pythonText';
 
 /**
  * 上一章尾巴的取窗上限。比当前文件的上文窗口小：接笔只需要上一章怎么收的场，
@@ -40,8 +40,6 @@ export async function iterManuscriptFiles(
     platform,
   );
 }
-
-const stripNewlines = (text: string) => text.replace(/^\n+|\n+$/g, '');
 
 /** 取尾部 maxChars，并从段落边界起头——上文以半句开头会误导模型的语感判断。 */
 function tailOf(text: string, maxChars: number): string {

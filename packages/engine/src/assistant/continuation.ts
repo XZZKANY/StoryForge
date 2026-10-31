@@ -1,5 +1,5 @@
 import { craftPromptClause, sceneDisciplineClause } from '../kernel/craft';
-import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { PYTHON_WHITESPACE, pythonStrip, stripNewlines } from '../kernel/pythonText';
 import type { AssistantContextBundle } from '../kernel/writingContext';
 import { normalizeNewlines } from '../readPort';
 
@@ -26,7 +26,6 @@ const SENTENCE_ENDINGS = '。！？…”』」》!?';
 const LEADING_WS = new RegExp(`^${PYTHON_WHITESPACE}+`, 'u');
 const TRAILING_WS = new RegExp(`${PYTHON_WHITESPACE}+$`, 'u');
 const normalizedLines = (content: string) => normalizeNewlines(content).split('\n');
-const stripNewlines = (text: string) => text.replace(/^\n+|\n+$/g, '');
 const clampLine = (line: number, count: number) => Math.max(0, Math.min(Math.trunc(line), count));
 
 /**

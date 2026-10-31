@@ -158,7 +158,8 @@ function chapterNumberAdvisories(content: string): Obj[] {
   return found;
 }
 
-const isPyInt = (value: unknown): value is number =>
+// 布尔不算，与 json.ts 的 isPyInt 不同。
+const isIntNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
 
 function decode(raw: unknown): Obj {
@@ -202,7 +203,7 @@ function validateFinding(item: unknown, content: string, index: number): Obj {
     throw new InvalidCheck('未知规则或严重性。');
   if (typeof message !== 'string' || !pythonStrip(message) || codePoints(message).length > 2000)
     throw new InvalidCheck('问题描述无效。');
-  if (line !== null && (!isPyInt(line) || line < 1)) throw new InvalidCheck('引用行号无效。');
+  if (line !== null && (!isIntNumber(line) || line < 1)) throw new InvalidCheck('引用行号无效。');
   if (
     evidence !== null &&
     (typeof evidence !== 'string' || !pythonStrip(evidence) || codePoints(evidence).length > 4096)
@@ -323,7 +324,7 @@ export function buildCheck(
     if (providerFailed) throw new InvalidCheck('检查 provider 未返回结果。');
     const payload = decode(raw);
     if (
-      !isPyInt(payload.protocol_version) ||
+      !isIntNumber(payload.protocol_version) ||
       Object.entries(source).some(([key, value]) => payload[key] !== value)
     )
       throw new InvalidCheck('检查源版本或摘要不匹配，请重新检查当前正文和 brief。');

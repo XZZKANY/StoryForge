@@ -1,4 +1,4 @@
-import { codePoints, pythonStrip } from '../kernel/pythonText';
+import { codePoints, optionalString, pythonStrip, stripNewlines } from '../kernel/pythonText';
 
 /**
  * 作者当前视图：把「作者此刻正看着哪一段」解码成可注入循环的文本块。
@@ -25,11 +25,8 @@ export type AuthorView = {
 
 const cpSlice = (text: string, start: number, end?: number) =>
   codePoints(text).slice(start, end).join('');
-const text = (value: unknown): string | null =>
-  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
 const nonNegativeInt = (value: unknown): number =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
-const stripNewlines = (value: string) => value.replace(/^\n+|\n+$/g, '');
 
 export function authorViewFromPayload(args: Obj): AuthorView {
   const raw = args.author_view;
@@ -37,7 +34,7 @@ export function authorViewFromPayload(args: Obj): AuthorView {
     typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Obj) : {};
   const selection = view.selection_text;
   return {
-    file_path: text(view.file_path) ?? text(args.file_path),
+    file_path: optionalString(view.file_path) ?? optionalString(args.file_path),
     cursor_line: nonNegativeInt(view.cursor_line),
     cursor_column: nonNegativeInt(view.cursor_column),
     selection_text: typeof selection === 'string' ? cpSlice(selection, 0, SELECTION_MAX_CHARS) : '',

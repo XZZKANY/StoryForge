@@ -2,7 +2,7 @@ import type { ProjectReader } from '../readPort';
 import { FsToolError, readBoundedText, resolveProjectRoot, resolveScopedPath } from './fsTools';
 import { checkParagraphPatterns, type StaticProseIssue } from './paragraphPatterns';
 import { DIALOGUE_PATTERN } from './punctuation';
-import { codePoints, cpLen, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { codePoints, countOf, cpLen, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 
 const MAX_FILE_BYTES = 512_000;
 const CONTENT_CHAR_BUDGET = 24_000;
@@ -37,7 +37,6 @@ const KEY_TERM_SPLIT = new RegExp(`[，。、“”/${PYTHON_WHITESPACE.slice(1,
 
 const slice = (text: string, start: number, end?: number) =>
   codePoints(text).slice(start, end).join('');
-const countOf = (text: string, part: string) => text.split(part).length - 1;
 
 function issue(
   dimension: string,
