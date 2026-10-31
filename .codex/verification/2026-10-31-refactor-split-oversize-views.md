@@ -109,3 +109,14 @@
   - 三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话）本地未跑，以 CI（`Windows Verify` 的 `pnpm verify`）为准；浏览器冒烟覆盖命令面板与设置。
   - 没跑 Tauri 冒烟、真宿主探针、Rust 测试（本刀没动宿主与引擎接口）；没在装机版上点穿。
   - `chat-window/panels.tsx`（986 行）按约定不碰，等 #561 合了再拆。
+
+## 2026-10-31 追加：推之前 #569 已合，变基到 master 重跑
+
+- 改动：推之前再查，#569 已用合并提交并进 master（`2bb76f5f`），起点 `6b384fdb` 已是 master 的祖先。为了让 PR 直接叠在 master 上，把本刀的一个提交 `git rebase origin/master`，无冲突。master 这段时间多出的是 #568（引擎读文本解码与正文字数，`source-standards.test.ts` 末尾加了两条断言、`lib/text-metrics.ts` 改了几行），与本刀改的地方不重叠；六个被拆的原文件在 master 上没变。
+- 验证：
+  - 行集合比对改以 `origin/master` 上的原文件为准重跑：65 段，逐字 60、去空白后一致 5，输出与变基前逐行相同。
+  - `pnpm lint`：EXIT=0，0 error，仍是那 2 条老 warning。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，270 个文件，2759 passed（比变基前多的 2 条是 #568 加的）。
+  - `pnpm --filter @storyforge/engine test`：EXIT=0，111 个文件，14257 passed、2 skipped；`packages/` 本刀零改动。
+- 未覆盖：同上。
