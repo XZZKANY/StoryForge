@@ -52,7 +52,7 @@ import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
 import type { FileCursor } from '../lib/workspace-session';
 import { canCommitEditorSave, isRetainedEditorModel } from './app/editor-tabs-state';
 import { Folder } from './icons/shell-icons';
-import { Spinner } from './ui';
+import { Button, Spinner } from './ui';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。
@@ -120,14 +120,9 @@ export function EditorLoadStatus({
         </p>
         {loadError && <p className="mt-2 max-w-xl text-xs text-subtle">{loadError}</p>}
         {loadError && onRetry ? (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-3 h-8 rounded-md border border-border-strong px-3 text-xs text-foreground hover:bg-elevated"
-            data-testid="editor-load-retry"
-          >
+          <Button onClick={onRetry} className="mt-3" data-testid="editor-load-retry">
             重试读取
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>
@@ -1019,13 +1014,9 @@ export function Editor({
             <p className="mt-2 break-words text-2xs leading-relaxed text-subtle">
               {editorInitError}
             </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-3 h-8 rounded-md border border-border-strong px-3 text-xs text-foreground hover:bg-elevated"
-            >
+            <Button onClick={() => window.location.reload()} className="mt-3">
               重新载入界面
-            </button>
+            </Button>
           </div>
         </div>
       )}
