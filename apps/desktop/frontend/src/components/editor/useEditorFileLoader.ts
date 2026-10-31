@@ -105,10 +105,11 @@ export function useEditorFileLoader({
     const loadFile = async () => {
       try {
         // 文件尚不存在时按"新文件"空内容打开（Agent 起草补丁的目标文件在确认写回前不落盘）；
-        // pathExists 不可用（如浏览器 smoke mock 未提供）时回退旧行为，交给 readProjectFile 决定。
+        // 查不了（没打开作品、浏览器 smoke mock 未提供等）时回退旧行为，交给 readProjectFile 决定。
         let exists = true;
         try {
-          exists = await TauriFileSystem.pathExists(filePath);
+          const root = projectPathRef.current;
+          if (root) exists = await TauriFileSystem.projectPathExists(root, filePath);
         } catch {
           exists = true;
         }

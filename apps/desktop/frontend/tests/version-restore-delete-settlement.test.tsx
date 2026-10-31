@@ -368,9 +368,11 @@ it('completed delete from the old project cannot close a tab in the new project'
 it('target version is rechecked after the asynchronous existence query', async () => {
   const gate = await beginDeleting();
   const exists = defer<boolean>();
-  vi.spyOn(TauriFileSystem, 'pathExists').mockReturnValueOnce(exists.promise);
+  vi.spyOn(TauriFileSystem, 'projectPathExists').mockReturnValueOnce(exists.promise);
   await act(async () => gate.resolve());
-  await observe(() => expect(TauriFileSystem.pathExists).toHaveBeenCalledWith(FILE));
+  await observe(() =>
+    expect(TauriFileSystem.projectPathExists).toHaveBeenCalledWith(PROJECT, FILE),
+  );
   await act(async () => __getLastEditor()!.getModel()!.setValue('A核对期间新输入'));
   await act(async () => exists.resolve(false));
   await observe(() => expect(host.textContent).not.toContain('恢复中'));

@@ -86,7 +86,7 @@ vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot })
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: effects.write,
-    pathExists: (path: string) => effects.disk.has(path),
+    projectPathExists: (_project: string, path: string) => effects.disk.has(path),
     readProjectFile: (_project: string, path: string) =>
       path.includes('/pending-suggestions/') ? receiptFs.readFile(path) : effects.read(path),
     createWritebackAudit: (project: string, id: string, content: string) =>

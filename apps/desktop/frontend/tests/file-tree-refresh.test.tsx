@@ -31,7 +31,7 @@ let root: ReturnType<typeof createRoot>;
 let listDir: ReturnType<typeof vi.spyOn>;
 
 beforeEach(async () => {
-  listDir = vi.spyOn(TauriFileSystem, 'listDir').mockResolvedValue(TREE);
+  listDir = vi.spyOn(TauriFileSystem, 'listProjectDir').mockResolvedValue(TREE);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);

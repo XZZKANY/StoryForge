@@ -41,7 +41,7 @@ export function factsLedgerPathFor(projectPath: string): string {
 }
 
 async function readLedger(projectPath: string, path: string): Promise<string | null> {
-  return (await TauriFileSystem.pathExists(path))
+  return (await TauriFileSystem.projectPathExists(projectPath, path))
     ? await TauriFileSystem.readProjectFile(projectPath, path)
     : null;
 }

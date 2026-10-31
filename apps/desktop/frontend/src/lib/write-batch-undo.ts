@@ -49,7 +49,7 @@ async function invalidateCanonDerivedCaches(projectRoot: string): Promise<void> 
     const filePath = resolveProjectRelativePath(projectRoot, `.storyforge/canon/derived/${name}`);
     if (!filePath) continue;
     try {
-      if (await TauriFileSystem.pathExists(filePath))
+      if (await TauriFileSystem.projectPathExists(projectRoot, filePath))
         await TauriFileSystem.deletePath(projectRoot, filePath);
     } catch {
       // 见上：重扫会覆盖它。
@@ -57,9 +57,9 @@ async function invalidateCanonDerivedCaches(projectRoot: string): Promise<void> 
   }
 }
 
-async function stillThere(filePath: string): Promise<boolean> {
+async function stillThere(projectRoot: string, filePath: string): Promise<boolean> {
   try {
-    return await TauriFileSystem.pathExists(filePath);
+    return await TauriFileSystem.projectPathExists(projectRoot, filePath);
   } catch {
     return true;
   }
@@ -115,7 +115,7 @@ export async function undoWriteBatchFrom(input: {
       await deleteCreatedFile(projectRoot, filePath);
     } catch (error) {
       // 删的这一步报错了，文件却真没了：照实算删掉了。
-      if (!(await stillThere(filePath))) deleted.push(chapter.ordinal);
+      if (!(await stillThere(projectRoot, filePath))) deleted.push(chapter.ordinal);
       failure = `${label}没删成：${errorText(error)}`;
       break;
     }

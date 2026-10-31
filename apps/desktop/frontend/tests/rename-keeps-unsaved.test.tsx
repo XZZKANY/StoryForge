@@ -22,10 +22,10 @@ import { recordRenameLineage } from '../src/lib/versions';
 
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    pathExists: vi.fn(async () => false),
+    projectPathExists: vi.fn(async () => false),
     renamePath: vi.fn(async () => undefined),
     deletePath: vi.fn(async () => undefined),
-    listDir: vi.fn(async () => []),
+    listProjectDir: vi.fn(async () => []),
     readProjectFile: vi.fn(async () => ''),
   },
 }));
@@ -227,7 +227,7 @@ test('改名把版本记录带过去：文件记一对新旧路径，文件夹�
     assert.deepEqual(lineage.mock.calls[0]?.[1], [{ from: A, to: `${DIR}\\第003章 夜探.md` }]);
 
     const moved = `${PROJECT}\\正文（修订）`;
-    vi.mocked(TauriFileSystem.listDir).mockResolvedValueOnce([
+    vi.mocked(TauriFileSystem.listProjectDir).mockResolvedValueOnce([
       { name: '第003章.md', path: `${moved}\\第003章.md`, isDir: false },
       { name: '旧稿', path: `${moved}\\旧稿`, isDir: true },
     ] as never);

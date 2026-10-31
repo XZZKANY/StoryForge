@@ -8,12 +8,12 @@ import { bindReasoningEffortProject } from '../../lib/reasoning-effort';
 import { isTauriRuntime } from '../../lib/tauri-env';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 
-/** 过滤掉磁盘上已不存在的路径；校验出错时保守保留，避免误删有效项。 */
+/** 过滤掉磁盘上已不存在的作品文件夹；校验出错时保守保留，避免误删有效项。 */
 async function filterExistingPaths(paths: string[]): Promise<string[]> {
   const checked = await Promise.all(
     paths.map(async (path) => {
       try {
-        return (await TauriFileSystem.pathExists(path)) ? path : null;
+        return (await TauriFileSystem.projectFolderExists(path)) ? path : null;
       } catch {
         return path;
       }

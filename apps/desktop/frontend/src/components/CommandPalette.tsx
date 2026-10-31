@@ -189,7 +189,7 @@ export function CommandPalette({
     let cancelled = false;
     void (async () => {
       try {
-        const entries = await TauriFileSystem.listDir(projectPath, true);
+        const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
         const md = entries
           .filter(isOpenableProjectFileEntry)
           .sort((a, b) => a.path.localeCompare(b.path));

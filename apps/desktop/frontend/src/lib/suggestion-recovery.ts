@@ -45,7 +45,7 @@ async function readJournal(
   file: string,
 ): Promise<{ path: string; raw: string | null }> {
   const path = await journalPath(project, file);
-  const raw = (await TauriFileSystem.pathExists(path))
+  const raw = (await TauriFileSystem.projectPathExists(project, path))
     ? await TauriFileSystem.readProjectFile(project, path)
     : null;
   return { path, raw };
@@ -176,9 +176,9 @@ export async function listPendingNewFileTargets(project: string): Promise<string
   const directory = [project.replace(/[/\\]+$/, ''), '.storyforge', 'pending-suggestions'].join(
     separator,
   );
-  if (!(await TauriFileSystem.pathExists(directory))) return [];
+  if (!(await TauriFileSystem.projectPathExists(project, directory))) return [];
   const targets: string[] = [];
-  for (const entry of await TauriFileSystem.listDir(directory)) {
+  for (const entry of await TauriFileSystem.listProjectDir(project, directory)) {
     if (entry.isDir || !entry.name.endsWith('.json')) continue;
     try {
       const raw = await TauriFileSystem.readProjectFile(project, entry.path);
@@ -191,7 +191,7 @@ export async function listPendingNewFileTargets(project: string): Promise<string
       if (
         normalizePathForMatch(await journalPath(project, file)) !==
           normalizePathForMatch(entry.path) ||
-        (await TauriFileSystem.pathExists(file))
+        (await TauriFileSystem.projectPathExists(project, file))
       )
         continue;
       targets.push(file);
@@ -300,7 +300,8 @@ async function verifyJournalSettled(
     if (receipt.state !== 'applied' || !receipt.receiptPersisted)
       throw new Error('原写入结果尚未确定，已保留恢复记录；请先核对正文与版本');
     const path = receiptAuditPath(project, receipt.operationId);
-    if (!(await TauriFileSystem.pathExists(path))) throw new MissingSuggestionAudit();
+    if (!(await TauriFileSystem.projectPathExists(project, path)))
+      throw new MissingSuggestionAudit();
     await verifyReceiptAudit(project, path, receipt.operationId, semanticPayload);
   }
   return allApplied;
@@ -381,7 +382,7 @@ export async function recoverSuggestionOperations(
     if (receipt?.state !== 'applied' || !receipt.receiptPersisted)
       throw new Error('修订写入结果尚未确定，请核对正文与版本；不会自动重放旧决定');
     const auditPath = receiptAuditPath(project, receipt.operationId);
-    if (!(await TauriFileSystem.pathExists(auditPath))) {
+    if (!(await TauriFileSystem.projectPathExists(project, auditPath))) {
       if (!repairMissingAudit) throw new MissingSuggestionAudit();
       const record = readRevisionLoopPayload(project, original.filePath, semanticPayload);
       await repairMissingAudit({ ...record, operationId: receipt.operationId });
