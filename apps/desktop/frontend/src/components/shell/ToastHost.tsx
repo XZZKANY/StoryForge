@@ -290,7 +290,7 @@ export function ToastHost() {
           </div>
           {item.action && (
             <Button
-              size="mini"
+              size="compact"
               data-testid="toast-action"
               disabled={actionStates[item.id]?.status === 'loading'}
               onClick={() => void runAction(item)}

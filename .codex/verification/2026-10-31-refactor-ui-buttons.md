@@ -2,7 +2,7 @@
 
 - 改动（作者要求「同一件事只留一种做法」）：
   - `components/ui/Button.tsx` 加第三种 `PlainButton`（`ui/index.ts` 导出）：不带任何按钮外观，className 原样接在 `sf-plain-button` 后面；只统一默认 `type="button"`（显式 `type="submit"` 照传）、焦点环、禁用光标；forwardRef，其余 props 全透传。焦点环与 `.sf-button` 同一套——`.sf-button` 自己没写 focus-visible，走的是 `index.css` base 层的全局 `:focus-visible`（2px `--agent` 描边、offset 2px），`PlainButton` 也走它；`.sf-plain-button:disabled` 的光标对齐 `.sf-button:disabled` 的 `not-allowed`。
-  - 给 `Button` 加一个尺寸 `mini`：高 20px、左右 6px、字号 `--text-3xs`（10px）、行高 16px、图标与文字间距 4px。理由：观测镜条目旁的小动作（作废、不要、保留已记的、以本章为准、让 AI 查…）原来就是 10px 字、19–21px 高，最小的 `compact`（24px）会把密集列表撑高。按「先保高度」复核后共 9 处用它（Button 7、IconButton 2）。
+  - 给 `Button` 加一个尺寸 `mini`：高 20px、左右 6px、字号 `--text-3xs`（10px）、行高 16px、图标与文字间距 4px。理由：观测镜条目旁的小动作（作废、不要、保留已记的、以本章为准、让 AI 查…）原来就是 10px 字、19–21px 高，最小的 `compact`（24px）会把密集列表撑高。按「先保高度」复核后共 8 处用它（Button 6、IconButton 2）。
   - 给 `Button` 加一个变体 `agent-subtle`（追加提交，见文末）：透明底、`--agent` 40% 描边、紫字，悬停 10% 紫底仍是紫字。给原来「紫描边紫字、无底」的 AI 动作用，原来就是紫实底的仍用 `agent`。
   - `src/` 里禁碰文件以外的 147 处手写 `<button` 全部换掉，按目录分提交：
 
@@ -28,11 +28,11 @@
   - `components/editor/inline-chat-dom.ts` 在 Monaco 视图区里用 DOM API `createElement('button')` 造按钮，不是 JSX，不在本刀范围，守护只扫 `.tsx` 里的 JSX `<button`。
 
 - 映射口径（原 class → 新写法；追加提交后的最终版）：
-  - **尺寸先保高度**：原高度 = 显式 `h-*`，没有就按「行高 + 上下内边距 + 边框」算。行高按继承算：祖先有 `text-xs` 的是 16px，有 `leading-relaxed` 的是字号 × 1.625，都没有的是字号 × 1.5（`text-2xs` / `text-3xs` 自己不设行高）。取高度不低于「原高度 − 1px」的最小一档（1px 内算行高取整误差），所以可点区域不会变小。高度和字号冲突时保高度、字号跟着档走。
+  - **尺寸先保高度**：原高度 = 显式 `h-*`，没有就按「行高 + 上下内边距 + 边框」算。行高按继承算：祖先有 `text-xs` 的是 16px，有 `leading-relaxed` 的是字号 × 1.625，都没有的是字号 × 1.5（`text-2xs` / `text-3xs` 自己不设行高）。取高度不低于「原高度 − 1px」的最小一档（1px 内算行高取整误差），所以可点区域不会变小。高度和字号冲突时保高度、字号跟着档走。唯一例外是通知里的动作：原高 20px 按规则该用 `mini`，但那样字号 12 → 10px，在通知里太小，宁可高 4px，用 `compact`（24px、12px 字）。
 
   | 原高度 | 尺寸 | 用在 |
   | --- | --- | --- |
-  | 19–21px | `mini`（20） | 观测镜：作废、补录确认里的取消、保留已记的、以本章为准、不要、让 AI 查；通知里的动作（20px） |
+  | 19–21px | `mini`（20） | 观测镜：作废、补录确认里的取消、保留已记的、以本章为准、不要、让 AI 查（通知里的动作原高也是 20px，按例外用 `compact`） |
   | 22–25px | `compact`（24） | `h-6` 的：拆书「打开 Markdown」「查看 JSON」「放进 写法/」、复制 / 重新生成、作品总览上下文「重试」；10px 字带边框 22px 的：确定补录、补录…、并入、标为已回收；`py-1` 无边框 24px 的：版本「恢复」、分支「恢复到编辑器」、作品库页脚「设置」 |
   | 26–29px | `xs`（28） | `h-7` 的：知识收件箱七颗（编辑 / 审阅 / 拒绝 / 取消 / 关闭 / 保存修改 / 确认写进文件）、拆书「生成拆书报告」「取消」、面板错误与搜索的「重试」、标题栏两颗、决定里的提交；`py-1` 带边框 26px 的：章节索引「重试」、重新读取大纲 / 资料、版本「对比当前」、分支「从此开分支」「对比父版本」；「← 作品总览」（被页签栏撑到 32px，Button 一样被撑开） |
   | 32px | `sm` | 编辑器「重试读取」「重新载入界面」 |
@@ -57,8 +57,8 @@
 - 观感变化明显的点（最终版；第一版里的「紫描边变紫实底」「知识收件箱按钮 28 → 20px」「速记行变高」已在追加提交里修回）：
   - 错误框里的重试由红描边红字变成中性 secondary（重试不是危险操作）：作品总览「章节索引重试」「重新读取大纲」「重新读取资料」。
   - 知识收件箱「拒绝」由平时灰字、悬停才红，变成 danger 常显红描边红字。
-  - 通知里的动作（如「撤销」）由紫色加粗文字变成 secondary 描边按钮（通知动作不都是 AI 的事，紫色只给 AI）；按「先保高度」是 20px 的 mini，字号 12 → 10px。
-  - 保高度带来的字号变化：变大的——知识收件箱七颗、拆书三颗、复制 / 重新生成、确定补录 / 补录… / 并入 / 标为已回收 10 → 12px，分支图节点三个动作、作品总览几颗重试 11 → 12px，编辑器「重试读取」「重新载入界面」12 → 14px；变小的——只有通知动作 12 → 10px。
+  - 通知里的动作（如「撤销」）由紫色加粗文字变成 secondary 描边按钮（通知动作不都是 AI 的事，紫色只给 AI）；尺寸是「保高度」规则的唯一例外：用 `compact`（24px、12px 字），比原来高 4px，字号不变。
+  - 保高度带来的字号变化：变大的——知识收件箱七颗、拆书三颗、复制 / 重新生成、确定补录 / 补录… / 并入 / 标为已回收 10 → 12px，分支图节点三个动作、作品总览几颗重试 11 → 12px，编辑器「重试读取」「重新载入界面」12 → 14px；没有变小的。
   - 高度变高 1–4px 的（取不小于原高度的档）：确定补录 / 补录… / 并入 / 标为已回收 22 → 24px，`py-1` 带边框的几颗 26 → 28px。
   - 「继续写第 N 章」「AI 起草第 N 章」去掉了 `font-medium` 和 `interactive-press` 按压回弹（共享 Button 没有这两样）。
   - 标题栏「AI 面板」收起时文字由 foreground 变成 ghost 的 muted；带边框的小按钮都多了 surface 底色；原来 `rounded-sm` 的（观测镜、知识收件箱、通知里的）圆角 4 → 6px。
@@ -86,7 +86,7 @@
 - 豁免（守护测试里的 `BUTTON_EXEMPT`，等 #561 合了再收）：`chat-window/` 的 `panels.tsx`（现有 10 处）、`Composer.tsx`（4）、`ContextPanel.tsx`（3）、`ChatWindowView.tsx`（2）、`WriteBatchPanel.tsx`（0），以及 #561 新加的 `ChatSideRail.tsx`（它的分支上 1 处）、`ContextSummaryPanel.tsx`（3）、`ComposerDock.tsx`（0）——先列上，免得两个 PR 谁先合都把对方的 CI 打红。
 
 - 未覆盖：
-  - 没在真宿主或浏览器里看观感，上面的变化是按 class 与共享尺寸推出来的（原高度按继承行高手算），不是截图对照；尤其通知动作字号变小、错误框重试变中性，需要作者看一眼。
+  - 没在真宿主或浏览器里看观感，上面的变化是按 class 与共享尺寸推出来的（原高度按继承行高手算），不是截图对照；尤其通知动作变描边按钮、错误框重试变中性，需要作者看一眼。
   - IconButton 的 Tooltip 在两个边角没真机点过：通知里的关闭钮在有模态弹窗时悬停、菜单触发钮（编辑器润色 / 更多、模型套更多操作）在菜单开着时悬停——提示层会叠在最上，Esc 先关提示。
   - 本地未跑三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话），以 CI `Windows Verify` 的 `pnpm verify` 为准。
   - 未跑 Rust 测试与 Tauri 冒烟（本刀不动宿主）。
@@ -95,13 +95,13 @@
 
 - 改动（协调方审 #566 后要求；上文映射表、目录表、观感清单已同步成最终版）：
   1. 紫描边被换成紫实底：`Button` 加变体 `agent-subtle`（`ui/Button.tsx` 的 `ButtonVariant` 与 `index.css` 各加一处，写法照现有 `.sf-button[data-variant=...]`：透明底、`border-color: rgb(var(--agent) / 0.4)`、`color: rgb(var(--agent))`，悬停 `background: rgb(var(--agent) / 0.1)` 仍是紫字）。在本 PR 的 diff 里 grep 原来带 `border-agent` / `text-agent` 的按钮，被映射成 `agent` 实底的只有两处，都改用 `agent-subtle`：作品总览「AI 起草第 N 章」、观测镜检查器「让 AI 查」。原来就是紫实底的知识收件箱「确认写进文件」仍是 `agent`；通知动作原来是紫字无底，但当初映射成 secondary 不是 agent，按要求先不动；其余 3 处 `variant="agent"`（ChapterBriefCard、WriteBatchCard、WriteBatchResultCard）是本 PR 之前就有的。
-  2. 尺寸先保高度：规则改成上文「尺寸先保高度」，逐颗复核 46 处 Button（原高度按继承行高手算），改了 23 处：
+  2. 尺寸先保高度：规则改成上文「尺寸先保高度」，逐颗复核 46 处 Button（原高度按继承行高手算），改了 22 处：
      - `mini` → `xs`（原 `h-7`）：知识收件箱 编辑 / 审阅 / 拒绝 / 取消 / 关闭 / 保存修改 / 确认写进文件（7）。
      - `mini` → `compact`（原 `h-6`）：拆书「打开 Markdown」「查看 JSON」「放进 写法/」、复制、重新生成（5）。
      - `mini` → `compact`（10px 字带边框，原 22px）：确定补录、补录…、并入、标为已回收（4）。
      - `compact` → `xs`（`py-1` 带边框，原 26px）：章节索引「重试」、重新读取大纲、重新读取资料、版本「对比当前」、分支「从此开分支」「对比父版本」（6）。
-     - `compact` → `mini`（原 20px：通知容器 `text-xs` 行高 16 + `py-0.5`）：通知动作（1）。这是唯一字号变小的（12 → 10px）。规则写的是「保高度」，所以照做了；要是更想保字号，改回 `compact` 只是一行。
-     - 不用动的另外 23 处：观测镜 作废 / 取消 / 保留已记的 / 以本章为准 / 不要 / 让 AI 查（19–21px，mini）；其余 `h-6`、`h-7`、`h-8`、`h-9` 和 `py-1` 无边框 24px 的本来就按高度对上了。纯图标钮的方框尺寸原来就和 `h-*` / `w-*` 一致，不用改。
+     - 通知动作（原 20px：通知容器 `text-xs` 行高 16 + `py-0.5`）：一度按规则改成 `mini`，复核后协调方定为规则的唯一例外，仍用 `compact`——`mini` 会让字号 12 → 10px，通知里太小，宁可高 4px。所以实际改动是 22 处。
+     - 不用动的另外 24 处（含上面的通知动作）：观测镜 作废 / 取消 / 保留已记的 / 以本章为准 / 不要 / 让 AI 查（19–21px，mini）；其余 `h-6`、`h-7`、`h-8`、`h-9` 和 `py-1` 无边框 24px 的本来就按高度对上了。纯图标钮的方框尺寸原来就和 `h-*` / `w-*` 一致，不用改。
   3. 速记行的改 / 删：从 IconButton（20px 方钮 + 外包 span）改回 PlainButton，原 className（`mt-[2px] … opacity-40 … group-hover:opacity-100`）、`aria-label`、原生 `title` 原样，`data-testid="book-note-edit"` 还在。和菜单里的图标动作同一口径。
   - `tests/ui-primitives.test.tsx` 加一条：`ButtonVariant` 的 6 个变体、除默认 `sm` 外的 5 个尺寸，在 `index.css` 里都有 `.sf-button[data-…='…'] {` 这条基础规则。
 
@@ -114,3 +114,9 @@
   - 行尾：`index.css` 仍是纯 CRLF（1275 行），其余改过的文件仍是纯 LF；本记录 LF。
 
 - 未覆盖：同上文——没截图看观感；本地未跑三个浏览器回归，以 CI 为准；未跑 Rust 测试与 Tauri 冒烟。
+
+## 2026-10-31 追加：通知动作保字号（「保高度」规则的唯一例外）
+
+- 改动：`shell/ToastHost.tsx` 的通知动作改回 `size="compact"`（24px、12px 字）。按「保高度」它该是 20px 的 `mini`，但那样字号 12 → 10px，在通知里太小，宁可高 4px。上文映射口径、观感清单与追加说明已同步注明这是唯一例外；`mini` 现在 8 处在用。
+- 验证：`pnpm lint` EXIT=0（2 条既有 warning，prettier 通过）；`npm --prefix apps/desktop/frontend run test -- tests/toast.test.tsx tests/ui-primitives.test.tsx` EXIT=0，2 个文件 32 passed。推送时 pre-push 钩子另跑前端全套与引擎。
+- 未覆盖：同上文。
