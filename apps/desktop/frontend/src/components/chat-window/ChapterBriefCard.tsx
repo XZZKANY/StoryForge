@@ -1,4 +1,4 @@
-import { Button, Field, Input, Textarea } from '../ui';
+import { Button, Field, Input, PlainButton, Textarea } from '../ui';
 
 import { useState, type ReactNode } from 'react';
 
@@ -185,15 +185,14 @@ export function ChapterBriefCard({
         </div>
       ))}
       {hidden.length > 0 && (
-        <button
-          type="button"
+        <PlainButton
           className="mt-2 block text-left text-xs text-subtle transition-colors hover:text-foreground disabled:cursor-default"
           onClick={() => setShowAll(true)}
           disabled={busy}
           data-testid="chapter-brief-more"
         >
           + 补充{hidden.map((key) => OPTIONAL_LABELS[key]).join('、')}（可选）
-        </button>
+        </PlainButton>
       )}
       {busy && (
         // 起草、检查、必要时修一次要一两分钟：写明在干什么、跑了多久，停下用输入框右下角的停止键。

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Button, PlainButton } from '../ui';
 
 export type DecisionChoice = {
   label: string;
@@ -174,30 +175,28 @@ export function DecisionChoices({
                     className="sf-input min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted"
                     data-testid={needsText.inputTestid}
                   />
-                  <button
-                    type="button"
+                  <Button
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
                       submitText(choice);
                     }}
                     disabled={!text.trim()}
-                    className="h-7 flex-shrink-0 rounded-md border border-border px-2.5 text-xs text-foreground transition-colors hover:bg-elevated disabled:opacity-50"
+                    size="xs"
                     data-testid={needsText.submitTestid}
                   >
                     {needsText.submitLabel}
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
           }
           return (
-            <button
+            <PlainButton
               key={choice.label}
               ref={(element) => {
                 optionRefs.current[index] = element;
               }}
-              type="button"
               tabIndex={isActive ? 0 : -1}
               onFocus={() => setActive(index)}
               onMouseEnter={() => setActive(index)}
@@ -207,7 +206,7 @@ export function DecisionChoices({
               data-active={isActive ? 'true' : 'false'}
             >
               {marker}
-            </button>
+            </PlainButton>
           );
         })}
       </div>

@@ -3,6 +3,7 @@
  * 最后一条回复还能「重新生成」——把它前面作者那句话再发一次。
  */
 import { Copy, RefreshCw } from '../icons/shell-icons';
+import { Button } from '../ui';
 
 import { emitToast } from '../../lib/toast';
 
@@ -22,9 +23,6 @@ async function writeClipboard(text: string): Promise<void> {
   if (!copied) throw new Error('剪贴板不可用');
 }
 
-const actionClass =
-  'inline-flex h-6 items-center gap-1 rounded-sm px-1.5 text-3xs text-subtle transition-colors hover:bg-elevated hover:text-foreground';
-
 export function MessageActions({
   content,
   onRegenerate,
@@ -38,9 +36,10 @@ export function MessageActions({
 }) {
   return (
     <div className={`mt-1 flex items-center gap-1 ${className}`} data-testid="message-actions">
-      <button
-        type="button"
-        className={actionClass}
+      <Button
+        variant="ghost"
+        size="mini"
+        leadingIcon={<Copy size={12} strokeWidth={1.7} />}
         onClick={() =>
           void writeClipboard(content).then(
             () => emitToast(copiedToast),
@@ -52,20 +51,19 @@ export function MessageActions({
         }
         data-testid="message-copy"
       >
-        <Copy size={12} strokeWidth={1.7} />
         复制
-      </button>
+      </Button>
       {onRegenerate && (
-        <button
-          type="button"
-          className={actionClass}
+        <Button
+          variant="ghost"
+          size="mini"
+          leadingIcon={<RefreshCw size={12} strokeWidth={1.7} />}
           onClick={onRegenerate}
           data-testid="message-regenerate"
           title="把上面那句话再发一次，让 AI 重新回答"
         >
-          <RefreshCw size={12} strokeWidth={1.7} />
           重新生成
-        </button>
+        </Button>
       )}
     </div>
   );
