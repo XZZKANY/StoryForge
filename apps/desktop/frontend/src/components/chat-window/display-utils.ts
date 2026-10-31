@@ -1,35 +1,50 @@
-import {
-  semanticKindLabel,
-  type ContextBundle,
-  type ContextBundleFile,
-} from '../../lib/project-context';
+import type { ContextBundle } from '../../lib/project-context';
 import type { AgentRun } from './types';
 
-/** 参考资料没送全的原因；单份文件只送摘录不算。旧数据只记了 truncated 时不编数字。 */
-export function contextCoverageWarnings(budget: ContextBundle['budget']): string[] {
+export type ContextCoverageWarning = {
+  /** 挂在参考资料那一行上的短话。 */
+  text: string;
+  /** 展开后说清楚的一句。 */
+  detail: string;
+  /** 份数满了挤掉几份是常态，不亮警告色；读不出才是要作者管的事。 */
+  tone: 'note' | 'warning';
+};
+
+/** 参考资料没带全的原因；单份文件只带摘录不算。旧数据只记了 truncated 时不编数字。 */
+export function contextCoverageWarnings(budget: ContextBundle['budget']): ContextCoverageWarning[] {
   const overflow = budget.overflowCount ?? 0;
   const unreadable = budget.unreadableCount ?? 0;
-  const warnings = [
-    ...(overflow > 0 ? [`超出席位 ${overflow}`] : []),
-    ...(unreadable > 0 ? [`读取失败 ${unreadable}`] : []),
+  const warnings: ContextCoverageWarning[] = [
+    ...(overflow > 0
+      ? [
+          {
+            text: `${overflow} 份没带上`,
+            detail: `另有 ${overflow} 份没带上：每轮最多带 ${budget.maxFiles} 份，想带上哪份就点「添加」固定它。`,
+            tone: 'note' as const,
+          },
+        ]
+      : []),
+    ...(unreadable > 0
+      ? [
+          {
+            text: `${unreadable} 份读不出`,
+            detail: `${unreadable} 份读不出或是空的，没带上。`,
+            tone: 'warning' as const,
+          },
+        ]
+      : []),
   ];
-  if (warnings.length === 0 && budget.truncated) return ['已截断（原因未记录）'];
+  if (warnings.length === 0 && budget.truncated)
+    return [{ text: '没带全', detail: '有资料没带全，原因没记下。', tone: 'note' }];
   return warnings;
 }
 
+/** 展开参考资料那一行时的第一句：这一轮带了几份、多少字。 */
 export function contextBudgetText(bundle: ContextBundle | null): string {
   if (!bundle) return '上下文尚未生成';
-  const kinds = Object.entries(bundle.summary.counts)
-    .filter(([, count]) => count > 0)
-    .slice(0, 4)
-    .map(([kind, count]) => `${semanticKindLabel(kind as ContextBundleFile['kind'])}${count}`)
-    .join('、');
-  const budget = bundle.budget;
-  const warnings = contextCoverageWarnings(budget)
-    .map((warning) => `；${warning}`)
-    .join('');
-  const pinned = budget.pinnedFileCount ? `；pin ${budget.pinnedFileCount}` : '';
-  return `上下文 ${budget.fileCount}/${budget.maxFiles} 文件，${budget.charCount} 字符${pinned}${warnings}${kinds ? `；作品里：${kinds}` : ''}`;
+  const { fileCount, charCount, pinnedFileCount } = bundle.budget;
+  const pinned = pinnedFileCount ? `，其中固定 ${pinnedFileCount} 份` : '';
+  return `这一轮带了 ${fileCount} 份参考资料，共 ${charCount} 字${pinned}。`;
 }
 
 export function runStatusText(run: AgentRun | null): string | null {

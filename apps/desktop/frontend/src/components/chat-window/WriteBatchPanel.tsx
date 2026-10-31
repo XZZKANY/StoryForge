@@ -89,7 +89,7 @@ export function WriteBatchPanel({
   );
 }
 
-/** 批量写章进行中：输入框上方一条，和运行状态条同一个位置、同一套样式。 */
+/** 批量写章进行中：贴在输入框顶边的一行（ComposerBox 的 dock）。 */
 export function WriteBatchProgressBar({
   progress,
   onStop,
@@ -105,29 +105,32 @@ export function WriteBatchProgressBar({
     progress.used !== null
       ? `· 已用 ${progress.used}${progress.cap !== null ? ` / 上限 ${progress.cap}` : ''}`
       : '';
+  const text = `${head}${usage}`.trim();
   return (
-    <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="write-batch-progress">
-      <div
-        className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2`}
+    <div className="flex min-h-8 items-center gap-2 px-3 py-0.5" data-testid="write-batch-progress">
+      <span
+        aria-hidden="true"
+        className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-agent"
+      />
+      {/* 窄栏放不下时只截后面的用量，「第几章、第几 / 共几」总看得全。 */}
+      <span
+        role="status"
+        className="flex min-w-0 flex-1 items-baseline text-xs text-muted"
+        title={text}
+        data-testid="write-batch-progress-text"
       >
-        <span
-          role="status"
-          className="min-w-0 flex-1 text-xs font-medium text-muted"
-          data-testid="write-batch-progress-text"
-        >
-          {`${head}${usage}`.trim()}
-        </span>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="interactive-press text-xs font-medium transition-colors"
-          onClick={onStop}
-          disabled={progress.stopping}
-          data-testid="write-batch-stop"
-        >
-          {progress.stopping ? '正在停…' : '停止'}
-        </Button>
-      </div>
+        <span className="flex-shrink-0">{usage ? head : head.trim()}</span>
+        {usage && <span className="min-w-0 truncate text-subtle">{usage}</span>}
+      </span>
+      <Button
+        size="compact"
+        variant="ghost"
+        onClick={onStop}
+        disabled={progress.stopping}
+        data-testid="write-batch-stop"
+      >
+        {progress.stopping ? '正在停…' : '停止'}
+      </Button>
     </div>
   );
 }

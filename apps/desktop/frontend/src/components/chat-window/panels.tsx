@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from '../icons/shell-icons';
 import type { LayoutMode } from '../shell/useShellState';
+import { basename } from '../app/helpers';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { DecisionChoices } from './DecisionChoices';
@@ -703,18 +704,20 @@ export function ContextSummaryPanel({
     .filter((file) => file.relativePath !== currentFileLabel)
     .slice(0, 24);
   const detailsOpen = !compact || expanded || contextPickerOpen;
+  const bundleFiles = lastContextBundle?.files ?? [];
 
+  // 贴在输入框顶边的一行（ComposerBox 的 dock）：收起时只一行字；展开或选资料时标题行不动，下面整块一起滚。
   return (
     <section
-      className="mx-auto mb-2 mt-2 max-h-[40%] w-[calc(100%-1.5rem)] max-w-[800px] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
+      className="flex max-h-[40vh] min-h-0 flex-col"
       data-testid="context-summary"
       data-compact={compact ? 'true' : 'false'}
       data-expanded={detailsOpen ? 'true' : 'false'}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex min-h-8 flex-shrink-0 items-center gap-2 px-3 py-0.5">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-muted transition-colors hover:text-foreground"
           onClick={() => {
             if (contextPickerOpen) onAddContext();
             else setExpanded((value) => !value);
@@ -723,164 +726,198 @@ export function ContextSummaryPanel({
           aria-expanded={detailsOpen}
         >
           <span
+            aria-hidden="true"
             className={`flex-shrink-0 text-3xs text-subtle transition-transform ${detailsOpen ? '' : '-rotate-90'}`}
           >
             ▾
           </span>
-          <span className="min-w-0 flex-1 truncate text-xs text-subtle">
-            参考上下文
+          <span className="min-w-0 truncate">
+            参考资料
+            {lastContextBundle ? ` · ${lastContextBundle.budget.fileCount} 份` : ''}
             {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
           </span>
-          {coverageWarnings.map((warning) => (
-            <span
-              key={warning}
-              className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
-              data-testid="context-truncated-badge"
-            >
-              {warning}
-            </span>
-          ))}
+          {coverageWarnings.map((warning) =>
+            warning.tone === 'warning' ? (
+              <span
+                key={warning.text}
+                className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
+                data-testid="context-truncated-badge"
+              >
+                {warning.text}
+              </span>
+            ) : (
+              <span
+                key={warning.text}
+                className="flex-shrink-0 text-subtle before:mr-1.5 before:content-['·']"
+                data-testid="context-truncated-badge"
+              >
+                {warning.text}
+              </span>
+            ),
+          )}
         </button>
-        <button
-          type="button"
-          className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
+        <Button
+          size="compact"
+          variant="ghost"
           onClick={onAddContext}
           data-testid="context-picker-toggle"
         >
-          {contextPickerOpen ? '完成' : '添加上下文'}
-        </button>
+          {contextPickerOpen ? '完成' : '添加'}
+        </Button>
       </div>
 
-      {detailsOpen && (
-        <>
-          {lastContextBundle && (
-            <div className="mt-2 text-xs text-subtle">
-              <div>{contextBudgetText(lastContextBundle)}</div>
-              {lastContextBundle.files.length > 0 && (
-                <div className="mt-1">本轮参考资料（发送前选入，工具另读的不在此列）</div>
-              )}
-              {lastContextBundle.files.length > 0 && (
-                <ul className="mt-1 space-y-0.5" aria-label="本轮参考资料（发送前选入）">
-                  {lastContextBundle.files.map((file) => (
-                    <li key={file.path} className="break-words">
-                      {file.relativePath}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {explicitContextPaths.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="pinned-context-list">
-              {explicitContextPaths.map((path) => (
-                <button
-                  key={path}
-                  type="button"
-                  className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground transition-colors hover:bg-accent/90"
-                  title={path}
-                  aria-label={`取消固定参考：${path}`}
-                  onClick={() => onTogglePinnedContext(path)}
-                >
-                  已固定 {path}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {missingContextPaths.length > 0 && (
-        <div
-          className="mt-2 break-words text-xs text-warning"
-          data-testid="missing-context-warning"
-        >
-          未读到：{missingContextPaths.join('、')}
-        </div>
-      )}
-      {errorBannerVisible && (
-        <div
-          className="mt-2 flex items-center gap-2 text-xs text-warning"
-          data-testid="context-candidates-error"
-        >
-          <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
-            作品上下文索引失败
-          </span>
-          <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
-            onClick={handleRetryCandidates}
-            data-testid="context-candidates-retry"
-          >
-            重试
-          </button>
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
-            onClick={() => setDismissedError(contextCandidatesError)}
-            data-testid="context-candidates-error-dismiss"
-          >
-            关闭
-          </button>
-        </div>
-      )}
-      {contextPickerOpen && (
-        <div
-          className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pt-2"
-          data-testid="context-picker"
-        >
-          {contextCandidatesLoading ? (
-            <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
-              正在读取作品上下文…
-            </div>
-          ) : contextCandidatesError ? (
-            errorBannerVisible ? null : (
-              <div
-                className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
-                data-testid="context-candidates-picker-error"
-              >
-                <span className="min-w-0 flex-1 break-words">
-                  作品上下文索引失败：{contextCandidatesError}
-                </span>
-                <button
-                  type="button"
-                  className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
-                  onClick={handleRetryCandidates}
-                  data-testid="context-candidates-picker-retry"
-                >
-                  重试
-                </button>
+      <div className="min-h-0 overflow-y-auto">
+        {detailsOpen && (lastContextBundle || explicitContextPaths.length > 0) && (
+          <div className="space-y-2 px-3 pb-2 text-xs text-subtle">
+            {lastContextBundle && (
+              <div className="space-y-1.5">
+                <div>{contextBudgetText(lastContextBundle)}</div>
+                {bundleFiles.length > 0 && (
+                  <ul className="flex flex-wrap gap-1" aria-label="这一轮带上的参考资料">
+                    {bundleFiles.map((file) => (
+                      <li
+                        key={file.path}
+                        className="max-w-full truncate rounded-sm bg-background px-1.5 leading-5 text-muted"
+                        title={file.relativePath}
+                      >
+                        {basename(file.relativePath).replace(/\.md$/i, '')}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {coverageWarnings.map((warning) => (
+                  <div
+                    key={warning.text}
+                    className={warning.tone === 'warning' ? 'text-warning' : undefined}
+                  >
+                    {warning.detail}
+                  </div>
+                ))}
+                {bundleFiles.length > 0 && (
+                  <div className="text-3xs">
+                    发送前选好的才算在这里，AI 回答时自己翻的文件不算。
+                  </div>
+                )}
               </div>
-            )
-          ) : visibleCandidates.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-subtle">
-              当前作品还没有可选的 Markdown 上下文。
-            </div>
-          ) : (
-            visibleCandidates.map((file) => {
-              const pinned =
-                explicitContextPaths.includes(file.relativePath) ||
-                explicitContextPaths.includes(file.path);
-              return (
-                <button
-                  key={file.path}
-                  type="button"
-                  className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
-                  onClick={() => onTogglePinnedContext(file.relativePath)}
-                  data-testid="context-candidate"
-                  data-context-path={file.relativePath}
-                  title={file.relativePath}
+            )}
+            {explicitContextPaths.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1" data-testid="pinned-context-list">
+                <span>固定的：</span>
+                {explicitContextPaths.map((path) => (
+                  <button
+                    key={path}
+                    type="button"
+                    className="inline-flex max-w-full items-center gap-1 rounded-sm bg-background px-1.5 leading-5 text-muted transition-colors hover:text-foreground"
+                    title={`${path} · 点击取消固定`}
+                    aria-label={`取消固定参考：${path}`}
+                    onClick={() => onTogglePinnedContext(path)}
+                  >
+                    <span className="truncate">{path}</span>
+                    <span aria-hidden="true" className="text-subtle">
+                      ✕
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {missingContextPaths.length > 0 && (
+          <div
+            className="break-words px-3 pb-2 text-xs text-warning"
+            data-testid="missing-context-warning"
+          >
+            未读到：{missingContextPaths.join('、')}
+          </div>
+        )}
+        {errorBannerVisible && (
+          <div
+            className="flex items-center gap-2 px-3 pb-2 text-xs text-warning"
+            data-testid="context-candidates-error"
+          >
+            <span className="min-w-0 flex-1 break-words">
+              作品上下文索引失败：{contextCandidatesError}
+            </span>
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={handleRetryCandidates}
+              data-testid="context-candidates-retry"
+            >
+              重试
+            </Button>
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={() => setDismissedError(contextCandidatesError)}
+              data-testid="context-candidates-error-dismiss"
+            >
+              关闭
+            </Button>
+          </div>
+        )}
+        {contextPickerOpen && (
+          <div
+            className="grid grid-cols-1 gap-0.5 border-t border-border/60 px-1.5 py-1.5"
+            data-testid="context-picker"
+          >
+            {contextCandidatesLoading ? (
+              <div
+                className="px-2 py-1 text-xs text-subtle"
+                data-testid="context-candidates-loading"
+              >
+                正在读取作品上下文…
+              </div>
+            ) : contextCandidatesError ? (
+              errorBannerVisible ? null : (
+                <div
+                  className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
+                  data-testid="context-candidates-picker-error"
                 >
-                  <span className="w-14 flex-shrink-0 whitespace-nowrap text-subtle">
-                    {semanticKindLabel(file.kind)}
+                  <span className="min-w-0 flex-1 break-words">
+                    作品上下文索引失败：{contextCandidatesError}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
-                  <span className="flex-shrink-0 text-subtle">{pinned ? '已固定' : '固定'}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    onClick={handleRetryCandidates}
+                    data-testid="context-candidates-picker-retry"
+                  >
+                    重试
+                  </Button>
+                </div>
+              )
+            ) : visibleCandidates.length === 0 ? (
+              <div className="px-2 py-1 text-xs text-subtle">
+                当前作品还没有可选的 Markdown 上下文。
+              </div>
+            ) : (
+              visibleCandidates.map((file) => {
+                const pinned =
+                  explicitContextPaths.includes(file.relativePath) ||
+                  explicitContextPaths.includes(file.path);
+                return (
+                  <button
+                    key={file.path}
+                    type="button"
+                    className={`flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-background'}`}
+                    onClick={() => onTogglePinnedContext(file.relativePath)}
+                    data-testid="context-candidate"
+                    data-context-path={file.relativePath}
+                    title={file.relativePath}
+                  >
+                    <span className="w-14 flex-shrink-0 whitespace-nowrap text-subtle">
+                      {semanticKindLabel(file.kind)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
+                    <span className="flex-shrink-0 text-subtle">{pinned ? '已固定' : '固定'}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

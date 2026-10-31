@@ -293,33 +293,35 @@ export function ChatWindowView({
         />
       )}
 
-      {writeBatchScheduler?.phase.kind === 'running' && (
-        <WriteBatchProgressBar
-          progress={writeBatchScheduler.phase.progress}
-          onStop={writeBatchScheduler.stop}
-        />
-      )}
-
-      <ContextSummaryPanel
-        compact
-        currentFileLabel={state.contextRef}
-        explicitContextPaths={state.explicitContextPaths}
-        contextCandidates={state.contextCandidates}
-        contextCandidatesLoading={state.contextCandidatesLoading}
-        contextCandidatesError={state.contextCandidatesError}
-        contextPickerOpen={state.contextPickerOpen}
-        lastContextBundle={state.lastContextBundle}
-        missingContextPaths={state.missingContextPaths}
-        onAddContext={() => {
-          addExplicitContext();
-          // 显式关闭会移除面板按钮，回到原 Composer，不能把焦点丢给 body。
-          if (state.contextPickerOpen) inputRef.current?.focus();
-        }}
-        onTogglePinnedContext={togglePinnedContext}
-        onRetryContextCandidates={retryContextCandidates}
-      />
-
       <ComposerBox
+        dock={
+          <>
+            {writeBatchScheduler?.phase.kind === 'running' && (
+              <WriteBatchProgressBar
+                progress={writeBatchScheduler.phase.progress}
+                onStop={writeBatchScheduler.stop}
+              />
+            )}
+            <ContextSummaryPanel
+              compact
+              currentFileLabel={state.contextRef}
+              explicitContextPaths={state.explicitContextPaths}
+              contextCandidates={state.contextCandidates}
+              contextCandidatesLoading={state.contextCandidatesLoading}
+              contextCandidatesError={state.contextCandidatesError}
+              contextPickerOpen={state.contextPickerOpen}
+              lastContextBundle={state.lastContextBundle}
+              missingContextPaths={state.missingContextPaths}
+              onAddContext={() => {
+                addExplicitContext();
+                // 显式关闭会移除面板按钮，回到原 Composer，不能把焦点丢给 body。
+                if (state.contextPickerOpen) inputRef.current?.focus();
+              }}
+              onTogglePinnedContext={togglePinnedContext}
+              onRetryContextCandidates={retryContextCandidates}
+            />
+          </>
+        }
         key={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
         inputRef={inputRef}
         value={state.input}
