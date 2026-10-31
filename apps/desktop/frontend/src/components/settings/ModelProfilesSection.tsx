@@ -1,5 +1,5 @@
 import { useContext, useRef, useState } from 'react';
-import { Button, Field, FloatingSurface, Select } from '../ui';
+import { Button, Field, FloatingSurface, IconButton, PlainButton, Select } from '../ui';
 import { Check, MoreHorizontal, Plus } from '../icons/shell-icons';
 import {
   describeProviderHealth,
@@ -117,8 +117,7 @@ export function ModelProfilesSection({
             onClearKey={() => void clearKey(profile)}
           />
         ))}
-        <button
-          type="button"
+        <PlainButton
           onClick={() =>
             void leaveDraft().then((leave) => {
               if (leave) model.startNew();
@@ -130,7 +129,7 @@ export function ModelProfilesSection({
         >
           <Plus size={14} strokeWidth={1.7} aria-hidden="true" />
           新建一套
-        </button>
+        </PlainButton>
       </div>
       {profiles.length === 0 && model.loadState === 'idle' && !model.draft && (
         <p className="px-4 pb-3 text-xs text-subtle">
@@ -210,8 +209,7 @@ function ProfileCard({
       data-testid="model-profile-card"
       data-profile-id={profile.id}
     >
-      <button
-        type="button"
+      <PlainButton
         onClick={active ? undefined : onActivate}
         disabled={disabled}
         aria-current={active ? 'true' : undefined}
@@ -240,20 +238,20 @@ function ProfileCard({
             {status.text}
           </span>
         )}
-      </button>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={`「${title}」的更多操作`}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        disabled={disabled}
-        onClick={() => setMenuOpen((open) => !open)}
-        className="absolute right-1 top-1.5 flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-foreground"
-        data-testid="model-profile-menu"
-      >
-        <MoreHorizontal size={15} strokeWidth={1.7} aria-hidden="true" />
-      </button>
+      </PlainButton>
+      <span className="absolute right-1 top-1.5 flex">
+        <IconButton
+          ref={triggerRef}
+          size="compact"
+          label={`「${title}」的更多操作`}
+          icon={<MoreHorizontal size={15} strokeWidth={1.7} />}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          disabled={disabled}
+          onClick={() => setMenuOpen((open) => !open)}
+          data-testid="model-profile-menu"
+        />
+      </span>
       {menuOpen && (
         <FloatingSurface
           role="menu"
@@ -287,15 +285,14 @@ function MenuRow({
   onClick: () => void;
 }) {
   return (
-    <button
+    <PlainButton
       role="menuitem"
-      type="button"
       disabled={disabled}
       className="flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
       onClick={onClick}
     >
       {label}
-    </button>
+    </PlainButton>
   );
 }
 

@@ -13,7 +13,7 @@ import { BranchCanvas } from '../BranchCanvas';
 import { Clock, X } from '../icons/shell-icons';
 import { versionLabel } from '../../lib/version-label';
 import { LiveStatus } from '../shell/LiveStatus';
-import { IconButton } from '../ui';
+import { Button, IconButton, PlainButton } from '../ui';
 
 export function formatTimestamp(ms: number): string {
   const d = new Date(ms);
@@ -197,16 +197,15 @@ export function VersionHistory({
         <span className="text-sm font-semibold">版本记录</span>
         <div className="ml-auto flex items-center gap-1" data-testid="version-view-toggle">
           {(['list', 'graph'] as const).map((value) => (
-            <button
+            <PlainButton
               key={value}
-              type="button"
               aria-pressed={viewMode === value}
               className={`rounded-md px-2 py-1 text-xs transition-colors ${viewMode === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
               onClick={() => setViewMode(value)}
               data-testid={`version-view-${value}`}
             >
               {value === 'list' ? '列表' : '分支图'}
-            </button>
+            </PlainButton>
           ))}
         </div>
         <IconButton
@@ -255,9 +254,8 @@ export function VersionHistory({
             data-testid="version-source-filter"
           >
             {(['all', 'Editor', 'Agent'] as const).map((value) => (
-              <button
+              <PlainButton
                 key={value}
-                type="button"
                 aria-pressed={sourceFilter === value}
                 title={value === 'Agent' ? 'AI 操作产生的快照' : undefined}
                 className={`rounded-md px-2 py-1 text-xs transition-colors ${sourceFilter === value ? 'bg-elevated text-foreground' : 'text-muted hover:bg-elevated'}`}
@@ -265,7 +263,7 @@ export function VersionHistory({
                 data-testid={`version-filter-${value}`}
               >
                 {value === 'all' ? '全部' : value === 'Editor' ? '手动' : 'AI'}
-              </button>
+              </PlainButton>
             ))}
           </div>
           <div className="flex-1 overflow-y-auto p-2">
@@ -334,11 +332,11 @@ export function VersionHistory({
                       </span>
                       <div className="flex flex-shrink-0 items-center gap-1.5">
                         {getCurrentContent && (
-                          <button
+                          <Button
                             disabled={!!v.unavailableReason || previewLoadingPath !== null}
                             onClick={() => void togglePreview(v)}
                             title="与编辑器当前内容对比"
-                            className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
+                            size="xs"
                             data-testid="version-preview-toggle"
                           >
                             {previewLoadingPath === v.path
@@ -346,16 +344,17 @@ export function VersionHistory({
                               : preview?.path === v.path
                                 ? '收起'
                                 : '对比当前'}
-                          </button>
+                          </Button>
                         )}
-                        <button
+                        <Button
                           disabled={busyPath !== null || !!v.unavailableReason}
                           aria-busy={busyPath === v.path || undefined}
                           onClick={() => void restore(v)}
-                          className="interactive-press rounded-md bg-accent px-2.5 py-1 text-xs text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+                          variant="primary"
+                          size="compact"
                         >
                           {busyPath === v.path ? '恢复中…' : v.created ? '恢复为不存在' : '恢复'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                     <div

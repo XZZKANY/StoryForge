@@ -1,4 +1,4 @@
-import { FloatingSurface } from '../ui';
+import { FloatingSurface, PlainButton } from '../ui';
 import { Fragment, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Check, ChevronDown } from '../icons/shell-icons';
@@ -180,9 +180,8 @@ export function ComposerMenuSelect<T extends string>({
           closeMenu();
       }}
     >
-      <button
+      <PlainButton
         ref={triggerRef}
-        type="button"
         onClick={() => (menuOpen ? closeMenu() : openMenu())}
         disabled={effectiveDisabled}
         title={busy && busyTitle ? busyTitle : triggerTitle}
@@ -201,7 +200,7 @@ export function ComposerMenuSelect<T extends string>({
           className={`flex-shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
           aria-hidden="true"
         />
-      </button>
+      </PlainButton>
       {menuOpen && (
         <FloatingSurface
           triggerRef={triggerRef}
@@ -218,12 +217,11 @@ export function ComposerMenuSelect<T extends string>({
             const items = section.items.map(({ option, index }) => {
               const isSelected = option.value === selected;
               return (
-                <button
+                <PlainButton
                   key={option.value}
                   ref={(element) => {
                     optionRefs.current[index] = element;
                   }}
-                  type="button"
                   role="option"
                   aria-selected={isSelected}
                   aria-disabled={pending || undefined}
@@ -251,7 +249,7 @@ export function ComposerMenuSelect<T extends string>({
                   >
                     {isSelected && <Check size={14} strokeWidth={1.7} />}
                   </span>
-                </button>
+                </PlainButton>
               );
             });
             return section.group ? (

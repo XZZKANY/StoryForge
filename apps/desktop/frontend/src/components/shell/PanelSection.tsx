@@ -8,6 +8,7 @@
 import { useState, type ReactNode } from 'react';
 
 import { ChevronDown, ChevronRight } from '../icons/shell-icons';
+import { PlainButton } from '../ui';
 
 export function PanelSection({
   title,
@@ -29,8 +30,7 @@ export function PanelSection({
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <div className="mt-2 first:mt-0" data-testid={`${prefix}-section-${testid}`}>
-      <button
-        type="button"
+      <PlainButton
         className="flex h-8 w-full items-center gap-1 px-2 text-left text-2xs font-medium text-muted hover:bg-elevated hover:text-foreground"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
@@ -39,7 +39,7 @@ export function PanelSection({
         <Chevron size={12} strokeWidth={1.7} className="flex-shrink-0 text-subtle" />
         <span className="min-w-0 flex-1 truncate">{title}</span>
         {meta && <span className="flex-shrink-0 font-mono text-3xs text-subtle">{meta}</span>}
-      </button>
+      </PlainButton>
       {open && <div className="pb-2">{children}</div>}
     </div>
   );

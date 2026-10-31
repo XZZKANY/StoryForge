@@ -9,6 +9,7 @@ import type { BranchGraph, GraphNode } from '../lib/branches';
 import { buildPatchHunks } from '../lib/patch-hunks';
 import { versionLabel } from '../lib/version-label';
 import type { VersionState } from '../lib/versions';
+import { Button, PlainButton } from './ui';
 
 type BranchCanvasProps = {
   graph: BranchGraph;
@@ -60,9 +61,8 @@ export function BranchCanvas({
         {graph.branches.map((branch) => {
           const active = branch.id === activeBranchId;
           return (
-            <button
+            <PlainButton
               key={branch.id}
-              type="button"
               onClick={() => onSelectBranch(branch.id)}
               className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
                 active ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'
@@ -77,7 +77,7 @@ export function BranchCanvas({
                 style={{ backgroundColor: branch.color }}
               />
               <span className="max-w-[10rem] truncate">{branch.label}</span>
-            </button>
+            </PlainButton>
           );
         })}
       </div>
@@ -160,8 +160,7 @@ function BranchNodeRow({
       data-node-id={node.id}
       data-branch-id={node.branchId}
     >
-      <button
-        type="button"
+      <PlainButton
         onClick={onSelect}
         className="flex w-full items-center gap-2 text-left"
         style={{ paddingLeft: `${(laneCount > 1 ? node.lane : 0) * 14}px` }}
@@ -177,37 +176,31 @@ function BranchNodeRow({
           </span>
           <span className="block truncate text-2xs text-muted">{versionLabel(node)}</span>
         </span>
-      </button>
+      </PlainButton>
 
       {selected && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-1">
-          <button
-            type="button"
+          <Button
             onClick={onCheckout}
             disabled={!!node.version.unavailableReason}
-            className="rounded-md bg-accent px-2 py-1 text-2xs text-accent-foreground hover:opacity-90"
+            variant="primary"
+            size="compact"
             data-testid="branch-node-checkout"
           >
             恢复到编辑器
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             onClick={onBranchFrom}
             disabled={!!node.version.unavailableReason}
-            className="rounded-md border border-border px-2 py-1 text-2xs text-foreground hover:bg-elevated"
+            size="xs"
             data-testid="branch-node-fork"
           >
             从此开分支
-          </button>
+          </Button>
           {parent && (
-            <button
-              type="button"
-              onClick={compareWithParent}
-              className="rounded-md border border-border px-2 py-1 text-2xs text-muted hover:bg-elevated"
-              data-testid="branch-node-compare"
-            >
+            <Button onClick={compareWithParent} size="xs" data-testid="branch-node-compare">
               对比父版本
-            </button>
+            </Button>
           )}
           {node.version.unavailableReason && (
             <span className="text-2xs text-error">{node.version.unavailableReason}</span>

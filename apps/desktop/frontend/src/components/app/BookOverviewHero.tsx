@@ -5,6 +5,7 @@ import type { BookProfileHandle } from './useBookProfile';
 import type { BookOverviewChaptersHandle } from './useBookOverviewChapters';
 import { stalePromiseDetail, type ChapterHandoff } from '../../lib/chapter-handoff';
 import { ArrowUp, BookOpen, ChevronRight, Sparkles } from '../icons/shell-icons';
+import { Button, PlainButton } from '../ui';
 
 /**
  * 载入中的骨架屏：镜像 hero 两卡（封面+简介 / 写作进度）的形状，
@@ -113,8 +114,7 @@ export function BookOverviewHero({
               data-testid="book-overview-cover"
             />
           ) : (
-            <button
-              type="button"
+            <PlainButton
               onClick={onEditProfile}
               disabled={!onEditProfile || Boolean(profile.profileError)}
               className="group flex h-full w-full flex-col items-center justify-center gap-2 px-2 text-center text-subtle transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-agent disabled:cursor-default"
@@ -128,7 +128,7 @@ export function BookOverviewHero({
                   {onEditProfile ? '点击添加' : '可在作品资料中添加'}
                 </span>
               )}
-            </button>
+            </PlainButton>
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -138,15 +138,15 @@ export function BookOverviewHero({
               className="rounded-lg border border-error/40 bg-error/5 p-3 text-xs text-error"
             >
               <p className="break-words">作品资料读取失败：{profile.profileError}</p>
-              <button
-                type="button"
+              <Button
                 onClick={onRefresh}
                 disabled={profile.refreshing}
-                className="mt-2 rounded-md border border-error/40 px-2 py-1 hover:bg-error/10 disabled:opacity-50"
+                size="xs"
+                className="mt-2"
                 data-testid="book-overview-retry-profile"
               >
                 重新读取资料
-              </button>
+              </Button>
             </div>
           ) : (
             <>
@@ -215,8 +215,9 @@ export function BookOverviewHero({
               </figure>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="md"
                 onClick={() => {
                   if (currentPath) onContinueWriting(currentPath);
                   else if (onDiscussBook) onDiscussBook();
@@ -225,29 +226,30 @@ export function BookOverviewHero({
                     chapterListRef.current?.focus();
                   }
                 }}
-                className="interactive-press inline-flex h-9 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+                leadingIcon={
+                  currentChapter || !onDiscussBook ? (
+                    <ArrowUp size={16} strokeWidth={1.8} />
+                  ) : undefined
+                }
+                trailingIcon={<ChevronRight size={15} strokeWidth={1.8} />}
                 data-testid="book-overview-continue"
               >
-                {currentChapter || !onDiscussBook ? (
-                  <ArrowUp size={16} strokeWidth={1.8} aria-hidden="true" />
-                ) : null}
                 {currentChapter
                   ? `继续写第 ${currentChapter.ordinal} 章`
                   : onDiscussBook
                     ? '和 AI 聊聊这本书'
                     : '选择章节开始'}
-                <ChevronRight size={15} strokeWidth={1.8} aria-hidden="true" />
-              </button>
+              </Button>
               {onDraftNextChapter ? (
-                <button
-                  type="button"
+                <Button
+                  variant="agent-subtle"
+                  size="md"
                   onClick={onDraftNextChapter}
-                  className="interactive-press inline-flex h-9 items-center gap-2 rounded-md border border-agent/40 px-4 text-sm text-agent transition-colors hover:bg-agent/10"
+                  leadingIcon={<Sparkles size={15} strokeWidth={1.8} />}
                   data-testid="book-overview-hero-draft-next"
                 >
-                  <Sparkles size={15} strokeWidth={1.8} aria-hidden="true" />
                   {nextChapterOrdinal ? `AI 起草第 ${nextChapterOrdinal} 章` : 'AI 起草下一章'}
-                </button>
+                </Button>
               ) : null}
             </div>
             {showHandoff ? null : currentChapter ? (

@@ -6,8 +6,14 @@ export type {
   SelectProps,
   InputShellProps,
 } from './FormControls';
-export { Button, IconButton } from './Button';
-export type { ButtonProps, IconButtonProps, ButtonSize, ButtonVariant } from './Button';
+export { Button, IconButton, PlainButton } from './Button';
+export type {
+  ButtonProps,
+  IconButtonProps,
+  PlainButtonProps,
+  ButtonSize,
+  ButtonVariant,
+} from './Button';
 export { DialogSurface, ModalDialog } from './Dialog';
 export type { DialogSurfaceProps, ModalDialogProps } from './Dialog';
 export { FloatingSurface } from './FloatingSurface';

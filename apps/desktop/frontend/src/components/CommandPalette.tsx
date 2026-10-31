@@ -15,7 +15,7 @@ import type { FileTreeActions } from './app/useFileTreeActions';
 import { Command as CommandIcon, FileText } from './icons/shell-icons';
 import { VIEW_ENTRIES } from './shell/ActivityBar';
 import type { SidePanelView } from './shell/useShellState';
-import { Button, ModalDialog, Spinner } from './ui';
+import { Button, ModalDialog, PlainButton, Spinner } from './ui';
 
 export type PaletteMode = 'files' | 'commands';
 
@@ -510,7 +510,7 @@ export function CommandPalette({
           </div>
         ) : mode === 'files' ? (
           fileItems.map((item, index) => (
-            <button
+            <PlainButton
               key={item.path}
               id={`palette-option-${index}`}
               role="option"
@@ -529,11 +529,11 @@ export function CommandPalette({
             >
               <FileText size={14} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
               <HighlightedLabel label={item.label} positions={item.positions} />
-            </button>
+            </PlainButton>
           ))
         ) : (
           commandItems.map((item, index) => (
-            <button
+            <PlainButton
               key={item.id}
               id={`palette-option-${index}`}
               role="option"
@@ -563,7 +563,7 @@ export function CommandPalette({
               ) : item.hint ? (
                 <span className="flex-shrink-0 text-3xs text-subtle">{item.hint}</span>
               ) : null}
-            </button>
+            </PlainButton>
           ))
         )}
       </div>

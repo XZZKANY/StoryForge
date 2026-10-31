@@ -2,6 +2,7 @@ import { WRITE_BATCH_COMMAND_NAME } from '@storyforge/project-core';
 
 import { WRITE_BATCH_MENU_HINT, type SlashMenu } from './slash-menu';
 import type { ConversationSkillsView } from './useConversationSkills';
+import { PlainButton } from '../ui';
 
 export const SKILL_COMMAND_MENU_ID = 'composer-skill-commands';
 
@@ -47,9 +48,8 @@ export function SkillCommandMenu({
           aria-label="指令"
           className={skillsShown ? 'mb-1 border-b border-border pb-1' : undefined}
         >
-          <button
+          <PlainButton
             id={`${SKILL_COMMAND_MENU_ID}-command`}
-            type="button"
             role="option"
             aria-selected={activeIndex === 0}
             tabIndex={-1}
@@ -65,7 +65,7 @@ export function SkillCommandMenu({
             <span className="mt-0.5 block max-w-full text-2xs leading-snug text-subtle">
               {WRITE_BATCH_MENU_HINT}
             </span>
-          </button>
+          </PlainButton>
         </div>
       )}
       {skillsShown && (
@@ -90,10 +90,9 @@ export function SkillCommandMenu({
             className="max-h-60 overflow-y-auto"
           >
             {items.map(({ skill, conflict, pick }, index) => (
-              <button
+              <PlainButton
                 key={`${skill.plugin ?? ''}:${skill.path}`}
                 id={`${SKILL_COMMAND_MENU_ID}-${index}`}
-                type="button"
                 role="option"
                 aria-selected={pick !== null && pick === activeIndex}
                 aria-disabled={conflict || undefined}
@@ -118,7 +117,7 @@ export function SkillCommandMenu({
                       ? `插件「${skill.plugin}」 · ${skill.when}`
                       : skill.when}
                 </span>
-              </button>
+              </PlainButton>
             ))}
           </div>
         )

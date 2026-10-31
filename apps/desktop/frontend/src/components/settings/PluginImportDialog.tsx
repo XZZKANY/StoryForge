@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 
-import { Button, ModalDialog } from '../ui';
+import { Button, ModalDialog, PlainButton } from '../ui';
 import { ChevronDown, ChevronRight } from '../icons/shell-icons';
 import type { PluginDescription, PluginEntry, PluginManifest } from '../../lib/api/plugins';
 import type { SkippedPluginFile } from '../../lib/plugin-library';
@@ -53,8 +53,7 @@ function EntryRow({ label, hint, body }: { label: string; hint: string | null; b
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <li>
-      <button
-        type="button"
+      <PlainButton
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs transition-colors hover:bg-elevated"
@@ -68,7 +67,7 @@ function EntryRow({ label, hint, body }: { label: string; hint: string | null; b
         />
         <span className="flex-shrink-0 text-foreground">{label}</span>
         {hint && <span className="min-w-0 truncate text-subtle">— {hint}</span>}
-      </button>
+      </PlainButton>
       {open && (
         <div
           className="mt-1 max-h-60 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border px-2.5 py-1.5 text-xs text-muted"
@@ -140,8 +139,7 @@ function SkippedFiles({ skipped }: { skipped: readonly SkippedPluginFile[] }) {
   if (!skipped.length) return null;
   return (
     <section className="space-y-1">
-      <button
-        type="button"
+      <PlainButton
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         className="flex items-center gap-1 rounded-sm text-xs font-medium text-foreground hover:text-foreground"
@@ -149,7 +147,7 @@ function SkippedFiles({ skipped }: { skipped: readonly SkippedPluginFile[] }) {
       >
         <Chevron size={12} strokeWidth={1.7} className="text-subtle" aria-hidden="true" />
         跳过的文件（{skipped.length}）
-      </button>
+      </PlainButton>
       {open && (
         <ul className="space-y-0.5 pl-4" data-testid="plugin-import-skipped">
           {skipped.map((file) => (

@@ -16,7 +16,7 @@ import { FileText, RefreshCw } from './icons/shell-icons';
 import { PanelError } from './shell/PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
 import type { FileTreeActions } from './app/useFileTreeActions';
-import { IconButton } from './ui';
+import { IconButton, PlainButton } from './ui';
 
 type StoryNavigatorProps = {
   projectPath: string | null;
@@ -219,8 +219,7 @@ function NavigatorTabButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <PlainButton
       role="tab"
       aria-selected={active}
       className={`h-5 rounded-sm px-2 text-2xs font-medium transition-colors ${
@@ -229,7 +228,7 @@ function NavigatorTabButton({
       onClick={onClick}
     >
       {label}
-    </button>
+    </PlainButton>
   );
 }
 
@@ -341,9 +340,8 @@ function StoryGroup({
           const active = file.path === currentFile;
           const preview = !active && file.path === previewFile;
           return (
-            <button
+            <PlainButton
               key={file.path}
-              type="button"
               title={file.relativePath}
               className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left transition-colors ${
                 active
@@ -361,7 +359,7 @@ function StoryGroup({
                 <FileText size={13} strokeWidth={1.7} />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
-            </button>
+            </PlainButton>
           );
         })}
       </div>

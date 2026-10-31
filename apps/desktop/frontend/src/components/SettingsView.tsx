@@ -1,4 +1,12 @@
-import { Field, type FieldControlProps, ModalDialog, Button, Input, Select } from './ui';
+import {
+  Field,
+  type FieldControlProps,
+  ModalDialog,
+  Button,
+  Input,
+  PlainButton,
+  Select,
+} from './ui';
 import { AppDialogHost, useAppDialog } from './app/AppDialog';
 
 import {
@@ -482,9 +490,8 @@ function ToggleRow({
   return (
     <RowShell title={title} description={description} controlId={controlId}>
       {(control) => (
-        <button
+        <PlainButton
           {...control}
-          type="button"
           aria-pressed={checked}
           onClick={() => onChange(!checked)}
           className={`relative h-[22px] w-[38px] rounded-full transition-colors ${
@@ -496,7 +503,7 @@ function ToggleRow({
               checked ? 'translate-x-[18px] bg-accent-foreground' : 'translate-x-0.5 bg-foreground'
             }`}
           />
-        </button>
+        </PlainButton>
       )}
     </RowShell>
   );

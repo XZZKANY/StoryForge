@@ -160,7 +160,8 @@ test('外观对齐：主操作走强调色（作者可在外观里换），紫�
     const restore = [...rootEl.querySelectorAll('button')].find((button) =>
       button.textContent?.includes('恢复'),
     );
-    assert.ok(restore?.classList.contains('bg-accent'));
+    // 共享 Button 的 primary 就是强调色（.sf-button[data-variant='primary']）。
+    assert.equal(restore?.dataset.variant, 'primary');
     // 关闭按钮用 shell-icons 矢量图标（svg 由图标库渲染，不再是手写 path）。
     const close = rootEl.querySelector('button[aria-label="关闭版本历史"]');
     assert.ok(close?.querySelector('svg'), '关闭按钮应渲染 shell-icons 图标');

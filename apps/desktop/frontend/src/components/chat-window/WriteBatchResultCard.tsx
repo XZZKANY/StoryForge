@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
-import { Button } from '../ui';
+import { Button, PlainButton } from '../ui';
 
 import type { WriteBatchResult } from './useWriteBatchScheduler';
 import {
@@ -221,14 +221,13 @@ export function WriteBatchResultCard({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-1 text-xs text-foreground">
                     {row.openable ? (
-                      <button
-                        type="button"
+                      <PlainButton
                         className="text-left font-medium hover:underline"
                         onClick={() => open(row)}
                         data-testid="write-batch-row-open"
                       >
                         {row.name}
-                      </button>
+                      </PlainButton>
                     ) : (
                       <span className="font-medium" data-testid="write-batch-row-name">
                         {row.name}

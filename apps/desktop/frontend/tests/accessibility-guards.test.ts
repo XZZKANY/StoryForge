@@ -71,14 +71,21 @@ function isIconOnly(children: string): boolean {
   return !/[一-龥A-Za-z0-9<{!]/.test(withoutIcons);
 }
 
-/** 收集每个 `<button>` 的「开标签源码 + 子节点源码」。 */
+/**
+ * 收集每个按钮的「开标签源码 + 子节点源码」：手写 `<button>`，以及 ui 的 `Button` / `PlainButton`
+ * （壳子面板的按钮都换成了它们，只扫 `<button` 护栏就空转了）。IconButton 的 label 由类型必填，不在此列。
+ */
 function buttons(source: string): Array<{ tag: string; children: string }> {
   const result: Array<{ tag: string; children: string }> = [];
-  const openRe = /<button\b/g;
+  const openRe = /<(button|Button|PlainButton)\b/g;
   let m: RegExpExecArray | null;
   while ((m = openRe.exec(source))) {
     const openEnd = openingTagEnd(source, m.index);
-    const closeIdx = source.indexOf('</button>', openEnd);
+    if (source[openEnd - 1] === '/') {
+      result.push({ tag: source.slice(m.index, openEnd + 1), children: '' });
+      continue;
+    }
+    const closeIdx = source.indexOf(`</${m[1]}>`, openEnd);
     const childrenEnd = closeIdx === -1 ? source.length : closeIdx;
     result.push({
       tag: source.slice(m.index, openEnd + 1),

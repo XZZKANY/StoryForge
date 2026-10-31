@@ -1,4 +1,4 @@
-import { FloatingSurface } from '../ui';
+import { FloatingSurface, IconButton, PlainButton } from '../ui';
 /**
  * 侧面板：宽度可拖（右缘把手，双击复位），全左栏共享一份，存成占窗口宽的比例
  * （换算见 lib/workspace-layout.ts；旧像素 / 按视图设置加载时迁移）。
@@ -171,7 +171,7 @@ function ExplorerView({
         className="relative flex h-shell-row flex-shrink-0 items-center gap-1 px-2 pr-1.5"
         data-testid="side-panel-header"
       >
-        <button
+        <PlainButton
           ref={menuTriggerRef}
           className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-xs font-semibold hover:bg-elevated"
           onClick={() => setMenuOpen((open) => !open)}
@@ -182,28 +182,24 @@ function ExplorerView({
         >
           <span className="min-w-0 flex-1 truncate text-left">{titleOf(activeProject)}</span>
           <ChevronDown size={13} strokeWidth={1.6} className="text-subtle" />
-        </button>
+        </PlainButton>
         {fileActions && (
-          <button
-            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            aria-label={newFileLabel}
-            title={newFileLabel}
+          <IconButton
+            size="xs"
+            label={newFileLabel}
+            icon={<FilePlus size={14} strokeWidth={1.6} />}
             onClick={() => void fileActions.onNewFile(newFileDir)}
             data-testid="side-new-file"
-          >
-            <FilePlus size={14} strokeWidth={1.6} />
-          </button>
+          />
         )}
         {fileActions && (
-          <button
-            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            aria-label="在作品根目录新建文件夹"
-            title="在作品根目录新建文件夹"
+          <IconButton
+            size="xs"
+            label="在作品根目录新建文件夹"
+            icon={<FolderPlus size={14} strokeWidth={1.6} />}
             onClick={() => void fileActions.onNewFolder(activeProject)}
             data-testid="side-new-folder"
-          >
-            <FolderPlus size={14} strokeWidth={1.6} />
-          </button>
+          />
         )}
         {menuOpen && (
           <>
@@ -223,7 +219,7 @@ function ExplorerView({
                       : 'text-muted hover:text-foreground'
                   }`}
                 >
-                  <button
+                  <PlainButton
                     role="menuitem"
                     className="flex min-w-0 flex-1 items-center px-2 text-left"
                     onClick={() => {
@@ -236,9 +232,9 @@ function ExplorerView({
                       {project === activeProject ? '✓ ' : ''}
                       {titleOf(project)}
                     </span>
-                  </button>
+                  </PlainButton>
                   {project !== activeProject && (
-                    <button
+                    <PlainButton
                       role="menuitem"
                       className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-sm text-subtle opacity-40 hover:bg-surface hover:text-foreground hover:opacity-100 focus-visible:bg-surface focus-visible:opacity-100 group-hover:opacity-100"
                       onClick={(e) => {
@@ -249,12 +245,12 @@ function ExplorerView({
                       aria-label={`从最近打开移除 ${titleOf(project)}`}
                     >
                       <X size={13} strokeWidth={1.6} />
-                    </button>
+                    </PlainButton>
                   )}
                 </div>
               ))}
               <div className="my-1 mx-1.5 h-px bg-border" />
-              <button
+              <PlainButton
                 role="menuitem"
                 className="flex h-[var(--sf-row-height)] w-full items-center gap-2 rounded-sm px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
                 onClick={() => {
@@ -264,7 +260,7 @@ function ExplorerView({
               >
                 <FolderOpen size={14} strokeWidth={1.6} />
                 打开本地作品…
-              </button>
+              </PlainButton>
             </FloatingSurface>
           </>
         )}

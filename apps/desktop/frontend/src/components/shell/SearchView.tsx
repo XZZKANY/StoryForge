@@ -9,11 +9,11 @@ import type { useProjectSearch } from '../app/useProjectSearch';
 import { SEARCH_MIN_QUERY, type SearchHit } from '../../lib/project-search';
 import { ChevronDown, ChevronRight, X } from '../icons/shell-icons';
 import { LiveStatus } from './LiveStatus';
+import { Button, IconButton, PlainButton } from '../ui';
 
 function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
   return (
-    <button
-      type="button"
+    <PlainButton
       onClick={onSelect}
       data-testid="search-hit"
       className="flex w-full items-baseline gap-2 rounded-sm px-2 py-1 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
@@ -29,7 +29,7 @@ function HitRow({ hit, onSelect }: { hit: SearchHit; onSelect: () => void }) {
         </mark>
         {hit.text.slice(hit.end)}
       </span>
-    </button>
+    </PlainButton>
   );
 }
 
@@ -110,16 +110,16 @@ export function SearchView({
             className="sf-input h-8 w-full rounded-md border border-border bg-surface pl-2.5 pr-7 text-sm text-foreground placeholder:text-subtle disabled:opacity-50"
           />
           {search.query && (
-            <button
-              type="button"
-              onClick={() => search.setQuery('')}
-              aria-label="清空搜索"
-              title="清空"
-              data-testid="search-clear"
-              className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
-            >
-              <X size={11} strokeWidth={2} aria-hidden="true" />
-            </button>
+            <span className="absolute right-1.5 top-1/2 flex -translate-y-1/2">
+              <IconButton
+                size="mini"
+                label="清空搜索"
+                tooltip="清空"
+                icon={<X size={11} strokeWidth={2} />}
+                onClick={() => search.setQuery('')}
+                data-testid="search-clear"
+              />
+            </span>
           )}
         </div>
       </div>
@@ -137,13 +137,9 @@ export function SearchView({
           <div className="px-3 py-4" role="alert" data-testid="search-error">
             <p className="text-xs text-error">搜索失败</p>
             <p className="mt-1 text-2xs leading-relaxed text-subtle">{search.error}</p>
-            <button
-              type="button"
-              onClick={search.rerun}
-              className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
-            >
+            <Button onClick={search.rerun} size="xs" className="mt-2">
               重试
-            </button>
+            </Button>
           </div>
         ) : trimmed.length < SEARCH_MIN_QUERY ? (
           <p className="px-3 py-4 text-2xs leading-relaxed text-subtle">
@@ -159,13 +155,9 @@ export function SearchView({
                 <p className="text-2xs leading-relaxed text-subtle">
                   有 {search.skippedFiles} 个文件读不出来，没能在里面搜，结果可能不全。
                 </p>
-                <button
-                  type="button"
-                  onClick={search.rerun}
-                  className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
-                >
+                <Button onClick={search.rerun} size="xs" className="mt-2">
                   重试
-                </button>
+                </Button>
               </div>
             )}
           </>
@@ -181,8 +173,7 @@ export function SearchView({
               const isCollapsed = collapsed.has(file.path);
               return (
                 <div key={file.path} className="px-1">
-                  <button
-                    type="button"
+                  <PlainButton
                     onClick={() => toggle(file.path)}
                     className="flex w-full items-center gap-1 rounded-sm px-2 py-1 text-left text-xs text-foreground transition-colors hover:bg-elevated"
                     title={file.path}
@@ -197,7 +188,7 @@ export function SearchView({
                       {file.hits.length}
                       {file.truncated ? '+' : ''}
                     </span>
-                  </button>
+                  </PlainButton>
                   {!isCollapsed &&
                     file.hits.map((hit, index) => (
                       <HitRow

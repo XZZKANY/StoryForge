@@ -7,7 +7,7 @@ import { useState, type RefObject } from 'react';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
 import { Pencil, Plus, Search, X } from '../icons/shell-icons';
-import { FloatingSurface } from '../ui';
+import { FloatingSurface, PlainButton } from '../ui';
 import { sessionDisplayTitle } from './useSessionManagement';
 
 const actionClass =
@@ -105,9 +105,8 @@ export function SessionMenu({
               key={session.id}
               className="group flex items-center gap-0.5 rounded-sm hover:bg-elevated"
             >
-              <button
+              <PlainButton
                 role="menuitem"
-                type="button"
                 className={`flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs ${
                   active ? 'text-foreground' : 'text-muted hover:text-foreground'
                 }`}
@@ -125,10 +124,9 @@ export function SessionMenu({
                 <span className="flex-shrink-0 text-3xs text-subtle">
                   {formatStoredTimeShort(session.updated_at)}
                 </span>
-              </button>
+              </PlainButton>
               {onRenameSession && (
-                <button
-                  type="button"
+                <PlainButton
                   className={actionClass}
                   aria-label={`改名：${title}`}
                   title="改名"
@@ -136,11 +134,10 @@ export function SessionMenu({
                   data-testid="session-rename"
                 >
                   <Pencil size={12} strokeWidth={1.7} />
-                </button>
+                </PlainButton>
               )}
               {onRemoveSession && (
-                <button
-                  type="button"
+                <PlainButton
                   className={actionClass}
                   aria-label={`从列表移除：${title}`}
                   title="从列表移除（记录仍保留在本机）"
@@ -148,7 +145,7 @@ export function SessionMenu({
                   data-testid="session-remove"
                 >
                   <X size={12} strokeWidth={1.7} />
-                </button>
+                </PlainButton>
               )}
             </div>
           );
@@ -157,9 +154,8 @@ export function SessionMenu({
       {onNewSession && (
         <>
           <div className="mx-1.5 my-1 h-px bg-border" />
-          <button
+          <PlainButton
             role="menuitem"
-            type="button"
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
             onClick={() => {
               onDismiss();
@@ -168,7 +164,7 @@ export function SessionMenu({
           >
             <Plus size={13} strokeWidth={1.7} />
             新建会话
-          </button>
+          </PlainButton>
         </>
       )}
     </FloatingSurface>

@@ -19,6 +19,7 @@ import { parentDir } from '../lib/fs-path-ops';
 import { ChevronRight, FilePlus, FileText, Folder, FolderPlus } from './icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
 import { PanelError } from './shell/PanelError';
+import { IconButton, PlainButton } from './ui';
 import type { FileTreeActions } from './app/useFileTreeActions';
 
 type ContextTarget = { path: string; isDir: boolean };
@@ -282,7 +283,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
           data-testid="tree-folder-row"
           data-folder-path={node.path}
         >
-          <button
+          <PlainButton
             onClick={handleToggle}
             className="flex h-full min-w-0 flex-1 items-center text-left"
             aria-expanded={isOpen}
@@ -305,14 +306,15 @@ const TreeNodeItem = memo(function TreeNodeItem({
             <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
               {node.name}
             </span>
-          </button>
+          </PlainButton>
 
           {onNodeNewEntry && (
             <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-              <button
-                className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
-                title={`在「${node.name}」下新建文件`}
-                aria-label={`在 ${node.name} 下新建文件`}
+              <IconButton
+                size="compact"
+                label={`在 ${node.name} 下新建文件`}
+                tooltip={`在「${node.name}」下新建文件`}
+                icon={<FilePlus size={13} strokeWidth={1.6} />}
                 data-testid="tree-folder-new-file"
                 onClick={(event) => {
                   event.stopPropagation();
@@ -320,22 +322,19 @@ const TreeNodeItem = memo(function TreeNodeItem({
                   setIsOpen(true);
                   onNodeNewEntry('file', node.path);
                 }}
-              >
-                <FilePlus size={13} strokeWidth={1.6} />
-              </button>
-              <button
-                className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
-                title={`在「${node.name}」下新建文件夹`}
-                aria-label={`在 ${node.name} 下新建文件夹`}
+              />
+              <IconButton
+                size="compact"
+                label={`在 ${node.name} 下新建文件夹`}
+                tooltip={`在「${node.name}」下新建文件夹`}
+                icon={<FolderPlus size={13} strokeWidth={1.6} />}
                 data-testid="tree-folder-new-folder"
                 onClick={(event) => {
                   event.stopPropagation();
                   setIsOpen(true);
                   onNodeNewEntry('folder', node.path);
                 }}
-              >
-                <FolderPlus size={13} strokeWidth={1.6} />
-              </button>
+              />
             </span>
           )}
         </div>
@@ -361,7 +360,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   }
 
   return (
-    <button
+    <PlainButton
       onClick={handleSelect}
       onDoubleClick={handlePin}
       onContextMenu={(event) => onNodeContextMenu?.(event, { path: node.path, isDir: false })}
@@ -393,6 +392,6 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
         {node.name}
       </span>
-    </button>
+    </PlainButton>
   );
 });

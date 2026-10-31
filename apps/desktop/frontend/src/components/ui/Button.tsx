@@ -2,8 +2,8 @@ import { Spinner } from './Spinner';
 import { Tooltip } from './Tooltip';
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 
-export type ButtonSize = 'compact' | 'xs' | 'sm' | 'md' | 'lg';
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'agent';
+export type ButtonSize = 'mini' | 'compact' | 'xs' | 'sm' | 'md' | 'lg';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'agent' | 'agent-subtle';
 export type ButtonProps = ComponentPropsWithoutRef<'button'> & {
   size?: ButtonSize;
   variant?: ButtonVariant;
@@ -84,5 +84,22 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
     <Tooltip content={tooltip ?? label} className={className}>
       {(description) => render(description['aria-describedby'])}
     </Tooltip>
+  );
+});
+
+// 列表行、卡片、页签、树节点、文字链接各有自己的布局，不该长成按钮样子：
+// 外观全由调用方的 className 定，这里只统一默认 type、焦点环与禁用光标（见 index.css 的 .sf-plain-button）。
+export type PlainButtonProps = ComponentPropsWithoutRef<'button'>;
+export const PlainButton = forwardRef<HTMLButtonElement, PlainButtonProps>(function PlainButton(
+  { type = 'button', className, ...props },
+  ref,
+) {
+  return (
+    <button
+      {...props}
+      ref={ref}
+      type={type}
+      className={className ? `sf-plain-button ${className}` : 'sf-plain-button'}
+    />
   );
 });

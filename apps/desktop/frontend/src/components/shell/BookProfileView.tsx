@@ -33,7 +33,7 @@ import {
   RefreshCw,
   X,
 } from '../icons/shell-icons';
-import { IconButton, Spinner } from '../ui';
+import { Button, IconButton, PlainButton, Spinner } from '../ui';
 import { PanelSection } from './PanelSection';
 import { LiveStatus } from './LiveStatus';
 
@@ -272,8 +272,7 @@ export function BookProfileView({
           </p>
         ) : null}
         <div className="flex gap-2.5 p-3">
-          <button
-            type="button"
+          <PlainButton
             disabled={handle.loading}
             className="group relative h-24 w-[72px] flex-shrink-0 overflow-hidden rounded-sm border border-border bg-panel transition-colors hover:border-muted disabled:opacity-60"
             title={profile.cover ? '更换封面' : '添加封面'}
@@ -298,7 +297,7 @@ export function BookProfileView({
                 <span className="text-3xs">封面</span>
               </span>
             )}
-          </button>
+          </PlainButton>
 
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <input
@@ -318,15 +317,14 @@ export function BookProfileView({
                   data-testid="book-tag"
                 >
                   {tag}
-                  <button
-                    type="button"
+                  <PlainButton
                     className="text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
                     title={`移除题材 ${tag}`}
                     aria-label={`移除题材 ${tag}`}
                     onClick={() => commit({ tags: profile.tags.filter((item) => item !== tag) })}
                   >
                     <X size={10} strokeWidth={2} />
-                  </button>
+                  </PlainButton>
                 </span>
               ))}
               {profile.tags.length < 8 && (
@@ -435,27 +433,25 @@ export function BookProfileView({
               没有就拆这本书自己的正文。拆完会多出几份写法 skill，点「放进 写法/」才落进作品。
             </p>
             <div className="mt-2 flex gap-1.5">
-              <button
-                type="button"
+              <Button
+                size="xs"
                 onClick={onRunBreakdown}
                 disabled={handle.loading || breakdownRunning}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border-strong px-2.5 text-2xs text-foreground hover:bg-elevated disabled:opacity-50"
+                leadingIcon={<BookOpen size={12} strokeWidth={1.7} />}
                 data-testid="book-breakdown-run"
               >
-                <BookOpen size={12} strokeWidth={1.7} aria-hidden="true" />
                 {breakdownRunning ? '生成中…' : '生成拆书报告'}
-              </button>
+              </Button>
               {breakdownRunning && (
-                <button
-                  type="button"
+                <Button
+                  size="xs"
                   onClick={onCancelBreakdown}
                   disabled={breakdownCancelling}
-                  className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-2xs text-muted hover:bg-elevated disabled:opacity-50"
+                  leadingIcon={<X size={12} strokeWidth={1.7} />}
                   data-testid="book-breakdown-cancel"
                 >
-                  <X size={12} strokeWidth={1.7} aria-hidden="true" />
                   {breakdownCancelling ? '取消中…' : '取消'}
-                </button>
+                </Button>
               )}
             </div>
             {breakdown && (
@@ -484,24 +480,22 @@ export function BookProfileView({
                   ))}
                 </ul>
                 <div className="mt-2 flex gap-1.5">
-                  <button
-                    type="button"
-                    className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-3xs text-foreground hover:bg-elevated"
+                  <Button
+                    size="compact"
                     onClick={() => onOpenBreakdown('markdown')}
+                    leadingIcon={<FileText size={11} strokeWidth={1.7} />}
                     data-testid="book-breakdown-open"
                   >
-                    <FileText size={11} strokeWidth={1.7} aria-hidden="true" />
                     打开 Markdown
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-3xs text-foreground hover:bg-elevated"
+                  </Button>
+                  <Button
+                    size="compact"
                     onClick={() => onOpenBreakdown('json')}
+                    leadingIcon={<BookOpen size={11} strokeWidth={1.7} />}
                     data-testid="book-breakdown-open-json"
                   >
-                    <BookOpen size={11} strokeWidth={1.7} aria-hidden="true" />
                     查看 JSON
-                  </button>
+                  </Button>
                 </div>
                 {breakdown.writing_skills && (
                   <div
@@ -513,14 +507,14 @@ export function BookProfileView({
                         <div>
                           拆出的写法 skill：{(breakdown.writing_skills.names ?? []).join('、')}
                         </div>
-                        <button
-                          type="button"
-                          className="mt-1 inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-3xs text-foreground hover:bg-elevated"
+                        <Button
+                          size="compact"
+                          className="mt-1"
                           onClick={onAdoptBreakdownSkills}
                           data-testid="book-breakdown-adopt-skills"
                         >
                           放进 写法/
-                        </button>
+                        </Button>
                       </>
                     ) : (
                       <div>
@@ -556,19 +550,17 @@ export function BookProfileView({
             <div data-testid="book-outline-list">
               {outlineGroups.map((group) => (
                 <div key={group.relativePath} className="pb-1">
-                  <button
-                    type="button"
+                  <PlainButton
                     className="flex h-6 w-full items-center px-3 text-left text-3xs text-subtle hover:text-foreground"
                     onClick={() => onOpenOutline(group.path, 0)}
                     title={group.relativePath}
                   >
                     <span className="min-w-0 truncate">{group.relativePath}</span>
-                  </button>
+                  </PlainButton>
                   <ul>
                     {group.items.map((item) => (
                       <li key={`${item.relativePath}:${item.line}`}>
-                        <button
-                          type="button"
+                        <PlainButton
                           className="flex h-6 w-full items-center text-left text-2xs text-muted hover:bg-elevated hover:text-foreground"
                           style={{ paddingLeft: `${12 + (item.level - 1) * 10}px` }}
                           onClick={() => onOpenOutline(item.path, item.line)}
@@ -576,7 +568,7 @@ export function BookProfileView({
                           data-testid="book-outline-row"
                         >
                           <span className="min-w-0 truncate pr-2">{item.text}</span>
-                        </button>
+                        </PlainButton>
                       </li>
                     ))}
                   </ul>
@@ -654,8 +646,7 @@ export function BookProfileView({
                       data-testid="book-note-edit-input"
                     />
                   ) : (
-                    <button
-                      type="button"
+                    <PlainButton
                       className="flex min-w-0 flex-1 items-start gap-1.5 text-left"
                       title={note.done ? '标记为未完成' : '标记为已完成'}
                       aria-label={note.done ? '标记为未完成' : '标记为已完成'}
@@ -676,10 +667,9 @@ export function BookProfileView({
                       >
                         {note.text}
                       </span>
-                    </button>
+                    </PlainButton>
                   )}
-                  <button
-                    type="button"
+                  <PlainButton
                     className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
                     title="改这条"
                     aria-label={`改速记 ${note.text}`}
@@ -689,16 +679,15 @@ export function BookProfileView({
                     data-testid="book-note-edit"
                   >
                     <Pencil size={11} strokeWidth={2} />
-                  </button>
-                  <button
-                    type="button"
+                  </PlainButton>
+                  <PlainButton
                     className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
                     title="删除这条"
                     aria-label={`删除速记 ${note.text}`}
                     onClick={() => void handle.removeNote(note)}
                   >
                     <X size={11} strokeWidth={2} />
-                  </button>
+                  </PlainButton>
                 </li>
               ))}
             </ul>

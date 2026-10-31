@@ -158,13 +158,13 @@ test('顶部「新建文件」建在正在写的那章旁边，不再落到作�
     '末世吞噬（切换作品）',
   );
   const button = container.querySelector<HTMLButtonElement>('[data-testid="side-new-file"]')!;
-  assert.equal(button.title, '在「正文」里新建文件');
+  assert.equal(button.getAttribute('aria-label'), '在「正文」里新建文件');
   act(() => button.click());
   assert.deepEqual(onNewFile.mock.calls[0], [DIR]);
 
   render(null);
   const rootButton = container.querySelector<HTMLButtonElement>('[data-testid="side-new-file"]')!;
-  assert.equal(rootButton.title, '在作品根目录新建文件');
+  assert.equal(rootButton.getAttribute('aria-label'), '在作品根目录新建文件');
   act(() => rootButton.click());
   assert.deepEqual(onNewFile.mock.calls[1], [PROJECT]);
   act(() => root.unmount());
