@@ -1,8 +1,6 @@
 import {
   MAX_PROMPT_CONTEXT_FILES,
   MAX_STORY_MEMORY_ITEMS,
-  cpLen,
-  cpSlice,
   firstString,
   get,
   getOr,
@@ -14,7 +12,7 @@ import {
 } from './contextValues';
 import { dumpJson, pythonTruthy } from './json';
 import { PROMPT_EXCERPT_TEXT_LIMIT } from './ordinaryContext';
-import { pythonSplitlines } from './pythonText';
+import { cpLen, cpSlice, pythonSplitlines } from './pythonText';
 import { redactSensitiveText, type PlainJson, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 

@@ -2,16 +2,13 @@ import { canonDelta, type CanonDeltaInput } from '../../kernel/canonDelta';
 import { hooksDelta } from '../../kernel/canonHooksDelta';
 import { buildCanonProjection } from '../../kernel/canonService';
 import { FsToolError } from '../../kernel/fsTools';
-import { pythonStrip } from '../../kernel/pythonText';
+import { isObj, type Obj } from '../../kernel/json';
+import { cpLen, pythonStrip } from '../../kernel/pythonText';
 import { optionalString } from '../runPayloads';
 import type { ToolHandler, ToolResult } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { requiredString } from './runtimeArguments';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
 const has = (payload: Obj, key: string) => Object.prototype.hasOwnProperty.call(payload, key);
 
 const completed = (output: Obj, trace: ToolResult['trace']): ToolResult => ({

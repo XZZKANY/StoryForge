@@ -1,6 +1,6 @@
 import { CLICHE_PHRASES } from './craft';
 import { compareCodePoints } from './json';
-import { compactText, pythonStrip } from './pythonText';
+import { compactText, cpLen, pythonStrip } from './pythonText';
 
 /** 「缺席即问题」的探测词表剔掉软禁用套话：否则一段全是套话的文字能靠「忽然」骗过冲突检查。 */
 const absenceMarkers = (...markers: string[]) =>
@@ -104,11 +104,10 @@ const issue = (
   message,
   evidence,
 });
-const length = (text: string) => Array.from(text).length;
 
 export function plotAgentIssues(content: string, paragraphs: readonly string[]): ReviewIssue[] {
   const issues: ReviewIssue[] = [];
-  if (length(pythonStrip(content)) < 240)
+  if (cpLen(pythonStrip(content)) < 240)
     issues.push(
       issue(
         'plot',
@@ -161,7 +160,7 @@ export function characterAgentIssues(content: string, bundle: Bundle): ReviewIss
       ),
     );
   if (
-    length(pythonStrip(content)) >= 240 &&
+    cpLen(pythonStrip(content)) >= 240 &&
     !MOTIVATION_MARKERS.some((marker) => content.includes(marker))
   )
     issues.push(
@@ -191,7 +190,7 @@ export function proseAgentIssues(content: string, paragraphs: readonly string[])
         `检测到：${telling.join(', ')}`,
       ),
     );
-  const long = paragraphs.filter((paragraph) => length(paragraph) > 280);
+  const long = paragraphs.filter((paragraph) => cpLen(paragraph) > 280);
   if (long.length)
     issues.push(
       issue(

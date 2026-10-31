@@ -8,7 +8,7 @@ import {
   pythonTruthy,
   type JsonValue,
 } from '../kernel/json';
-import { pythonSplitlines, pythonStrip } from '../kernel/pythonText';
+import { codePoints, pythonSplitlines, pythonStrip } from '../kernel/pythonText';
 import { envValue, providerFamily, type LlmSource } from '../llm/config';
 import { RunInterrupted } from '../llm/control';
 import { pythonStrRepr } from '../llm/pythonRepr';
@@ -90,8 +90,6 @@ export function pythonInt(value: unknown): number {
   );
 }
 
-const points = (text: string) => Array.from(text);
-
 /** 从模型响应里取 JSON：纯 JSON、代码块包裹、夹在说明文字里的第一个数组。 */
 function decodeSemanticJudgeContent(rawContent: string): unknown {
   const stripped = pythonStrip(rawContent);
@@ -163,7 +161,7 @@ function locateMatchedSpan(
   matchedText: string,
   hintStart: number,
 ): [number, number] | null {
-  const needle = points(pythonStrip(matchedText));
+  const needle = codePoints(pythonStrip(matchedText));
   if (!needle.length) return null;
   let best: [number, number] | null = null;
   for (let index = 0; index + needle.length <= content.length; index++) {
@@ -176,7 +174,7 @@ function locateMatchedSpan(
 
 /** 模型条目规整成内部问题，越界位置一律夹回正文范围。 */
 function issueFromLlmItem(item: Obj, content: string): DetectedIssue {
-  const chars = points(content);
+  const chars = codePoints(content);
   const has = (key: string) => Object.prototype.hasOwnProperty.call(item, key);
   let spanStart = Math.max(
     0,

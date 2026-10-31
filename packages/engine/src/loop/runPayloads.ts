@@ -1,5 +1,5 @@
-import { cloneJson, type JsonValue } from '../kernel/json';
-import { pythonStrip } from '../kernel/pythonText';
+import { cloneJson, isObj, type JsonValue, type Obj } from '../kernel/json';
+import { cpLen, orderedUnique, pythonStrip, stringArgList } from '../kernel/pythonText';
 import { AgentOrchestrationError } from '../kernel/reviseDelivery';
 import {
   getAgentRole,
@@ -8,10 +8,6 @@ import {
 } from '../kernel/roleCatalog';
 import { authorViewFromPayload, authorViewSummary } from './authorView';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
 /** Python 的 int 包含 bool；非整数的 number 视为 float。 */
 const isPyInt = (value: unknown): value is number | boolean =>
   typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
@@ -35,13 +31,6 @@ const REVIEWER_ROLES = [
 
 export const optionalString = (value: unknown): string | null =>
   typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
-export const stringArgList = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === 'string' && Boolean(pythonStrip(item)))
-        .map(pythonStrip)
-    : [];
-export const orderedUnique = (values: readonly string[]): string[] => [...new Set(values)];
 
 export function isConfirmWritebackRequest(userMessage: string): boolean {
   const text = pythonStrip(userMessage).toLowerCase();

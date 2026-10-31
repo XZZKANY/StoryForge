@@ -1,3 +1,4 @@
+import { isObj, type Obj } from '../kernel/json';
 import { pythonStrip } from '../kernel/pythonText';
 import {
   AgentRuntimeUserMessageError,
@@ -8,10 +9,6 @@ import { controlAckFrame, framesForEvent, type ControlAckFrame } from './frames'
 import { normalizePermissionProfile, PermissionProfileError } from './permission';
 import { handleAgentControlMessage } from './runControlChannel';
 import { CONTROL_MESSAGE_TYPES } from './runPayloads';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * 宿主在执行之前就拒掉的请求（Python 路由的 HTTP 4xx）。detail 为 null 时前端照 Python 422 的处理

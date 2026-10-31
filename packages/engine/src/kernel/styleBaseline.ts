@@ -3,7 +3,7 @@ import type { GenerationSourceCapture } from './generationSources';
 import { pythonFixed, pythonFloatSum } from './math';
 import { iterManuscriptFiles } from './previousChapter';
 import { ProjectTreeError } from './projectTree';
-import { pythonStrip } from './pythonText';
+import { cpLen, pythonStrip } from './pythonText';
 
 // ---- 文风指纹：检查器与生成器共用的一套数学 ----
 
@@ -33,7 +33,6 @@ export type StyleFingerprint = {
 
 /** Python round(x, n)：对实际二进制值做半偶舍入。 */
 const pythonRound = (value: number, digits: number) => Number(pythonFixed(value, digits));
-const length = (text: string) => Array.from(text).length;
 const countOf = (text: string, part: string) => text.split(part).length - 1;
 
 export function splitSentences(content: string): string[] {
@@ -63,7 +62,7 @@ export function markerCount(content: string, markers: readonly string[]): number
 export function styleFingerprint(content: string): StyleFingerprint {
   const sentences = splitSentences(content);
   const count = sentences.length;
-  const totalChars = sentences.reduce((sum, sentence) => sum + length(sentence), 0) || 1;
+  const totalChars = sentences.reduce((sum, sentence) => sum + cpLen(sentence), 0) || 1;
   const denominator = Math.max(count, 1);
   return {
     average_sentence_length: pythonRound(totalChars / denominator, 3),
@@ -73,7 +72,7 @@ export function styleFingerprint(content: string): StyleFingerprint {
     ),
     restraint_density: pythonRound(markerCount(content, STYLE_RESTRAINT_MARKERS) / denominator, 3),
     dialogue_ratio: pythonRound(
-      (countOf(content, '「') + countOf(content, '」')) / Math.max(length(content), 1),
+      (countOf(content, '「') + countOf(content, '」')) / Math.max(cpLen(content), 1),
       3,
     ),
     sentence_count: count,
@@ -141,7 +140,7 @@ async function readChunk(
   const text = pythonStrip(
     new TextDecoder('utf-8', { ignoreBOM: true }).decode(raw).replace(/\r\n?/g, '\n'),
   );
-  const short = length(text) < MIN_CHUNK_CHARS;
+  const short = cpLen(text) < MIN_CHUNK_CHARS;
   await capture?.observe('style_sample', path, {
     raw,
     text,
@@ -191,7 +190,7 @@ export async function buildStyleBaseline(
     }
     const text = await readChunk(reader, root, path, capture);
     if (text === null) continue;
-    totalChars += length(text);
+    totalChars += cpLen(text);
     if (totalChars > MAX_TOTAL_CHARS) {
       capture?.omit('style_sample', path, 'aggregate_character_budget');
       break;

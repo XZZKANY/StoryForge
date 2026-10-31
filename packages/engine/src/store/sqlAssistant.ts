@@ -5,6 +5,8 @@ import {
   type StoredToolCall,
   type ToolCallPatch,
 } from '../assistant/service';
+import { isObj, type Obj } from '../kernel/json';
+import { cpLen } from '../kernel/pythonText';
 import {
   redactSensitive,
   redactSensitiveText,
@@ -13,11 +15,6 @@ import {
 } from '../kernel/redaction';
 import type { MessageRow, ToolCallRow } from '../loop/conversationHistory';
 import { decodeJsonColumn, encodeJsonColumn, SerialQueue, type Db, type SqlRow } from './db';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const length = (text: string) => Array.from(text).length;
 
 /** 请求体不合格（Python 路由在服务之前就回 422 的那些）。 */
 export class AssistantStoreValidationError extends Error {
@@ -56,9 +53,7 @@ function onlyKeys(value: Obj, allowed: readonly string[], where: string) {
 }
 
 const text = (value: unknown, field: string, min: number, max: number): string =>
-  typeof value === 'string' && length(value) >= min && length(value) <= max
-    ? value
-    : invalid(field);
+  typeof value === 'string' && cpLen(value) >= min && cpLen(value) <= max ? value : invalid(field);
 const optionalText = (value: unknown, field: string, max: number): string | null =>
   value === undefined || value === null ? null : text(value, field, 0, max);
 

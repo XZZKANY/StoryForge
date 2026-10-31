@@ -1,12 +1,9 @@
 import { assertSessionProjectMatches, type AssistantSessionRef } from '../assistant/service';
+import { isObj, type Obj } from '../kernel/json';
 import { redactSensitive, type PlainJson, type SecretContext } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
 import type { ArtifactRecord, RunStore } from '../store/runs';
 import { checkSource } from './chapterCheckProtocol';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** 请求体不合格（Python 路由在服务之前就回 422 的那些）。 */
 export class ChapterCheckHistoryRequestError extends Error {

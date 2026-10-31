@@ -8,7 +8,7 @@ import {
 import { pythonFixed } from './math';
 import { checkProseStaticQuality, type ProseConstraints } from './proseScan';
 import { DIALOGUE_PATTERN } from './punctuation';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { codePoints, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { sequenceOpcodes } from './sequenceMatcher';
 
 export const POLISH_RULE_VERSION = 'polish-rules-v2';
@@ -111,7 +111,6 @@ export function splitlinesKeepends(text: string): string[] {
 }
 
 const countOf = (text: string, part: string) => text.split(part).length - 1;
-const points = (text: string) => Array.from(text);
 const isProtected = (segment: PolishSegment) => segment.kind !== 'body';
 
 export function polishableParts(document: PolishDocument): string[] {
@@ -254,7 +253,7 @@ export function applyDeterministicPolish(
 
 const bodyText = (document: PolishDocument) => polishableParts(document).join('');
 const visibleBodyChars = (document: PolishDocument) =>
-  points(bodyText(document).replace(WHITESPACE_RUNS, '')).length;
+  codePoints(bodyText(document).replace(WHITESPACE_RUNS, '')).length;
 
 function protectedSignature(document: PolishDocument): string {
   return JSON.stringify(
@@ -322,7 +321,7 @@ function issuesRegressed(
 function repeatedSentenceStarters(text: string): number {
   const starters = new Map<string, number>();
   for (const raw of text.split(SENTENCE_SPLIT)) {
-    const sentence = points(pythonStrip(raw));
+    const sentence = codePoints(pythonStrip(raw));
     if (sentence.length < 2) continue;
     const starter = sentence.slice(0, 2).join('');
     starters.set(starter, (starters.get(starter) ?? 0) + 1);
@@ -364,15 +363,15 @@ export function entitySpellingChanges(
   const after = splitlinesKeepends(candidate);
   for (const [tag, left, right, start, end] of sequenceOpcodes(before, after)) {
     if (tag !== 'replace') continue;
-    const old = points(before.slice(left, right).join(''));
-    const next = points(after.slice(start, end).join(''));
+    const old = codePoints(before.slice(left, right).join(''));
+    const next = codePoints(after.slice(start, end).join(''));
     if (old.length + next.length > 4000) continue; // 长改写或歧义改写只算信号，不算拼写证据。
     const oldText = old.join('');
     const newText = next.join('');
     for (const [operation, a, b, x, y] of sequenceOpcodes(old, next)) {
       if (operation !== 'replace' || b - a !== 1 || y - x !== 1) continue;
       for (const entity of entities) {
-        const name = points(entity);
+        const name = codePoints(entity);
         for (const occurrence of codePointOccurrences(old, name)) {
           if (!(occurrence <= a && a < occurrence + name.length)) continue;
           const offset = a - occurrence;
@@ -400,7 +399,7 @@ function transferEvents(prose: string, entities: readonly unknown[]): Set<string
   );
   if (names.length < 2) return new Set();
   const actors = [...new Set(names)]
-    .sort((a, b) => points(b).length - points(a).length)
+    .sort((a, b) => codePoints(b).length - codePoints(a).length)
     .map(escapeRegExp)
     .join('|');
   const pattern = new RegExp(

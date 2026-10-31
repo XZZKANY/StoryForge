@@ -1,4 +1,4 @@
-import { pythonFloatRepr } from '../kernel/json';
+import { isObj, pythonFloatRepr, type Obj } from '../kernel/json';
 import { pythonStrip } from '../kernel/pythonText';
 import {
   redactSensitive,
@@ -138,11 +138,8 @@ export type RunEventView = {
   readonly sequence: number;
 };
 
-type Obj = { [key: string]: unknown };
 const objectOf = (value: unknown): Obj =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Obj) : {};
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const isInt = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
 

@@ -1,4 +1,5 @@
 import { normcase } from '../../kernel/generationSources';
+import { isObj, type Obj } from '../../kernel/json';
 import { buildLlmContextSnapshot } from '../../kernel/llmContext';
 import type { PlainJson, SecretContext } from '../../kernel/redaction';
 import { verifyReviewSource } from '../../kernel/reviseDelivery';
@@ -16,10 +17,6 @@ import {
 import type { ProjectReader } from '../../readPort';
 import { currentConversationReview } from '../reviewSources';
 import type { ToolExecutionContext } from './execution';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export type PatchContextDeps = {
   readonly reader: ProjectReader;

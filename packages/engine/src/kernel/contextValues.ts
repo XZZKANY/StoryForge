@@ -49,9 +49,6 @@ export const get = (source: Obj, key: string): PlainJson | undefined =>
 /** Python 的 `d.get(key, fallback)`：键在就返回原值（哪怕是 null）。 */
 export const getOr = (source: Obj, key: string, fallback: PlainJson): PlainJson =>
   hasKey(source, key) ? source[key] : fallback;
-/** Python `len(str)` 按码点计。 */
-export const cpLen = (text: string) => Array.from(text).length;
-export const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 /** context_values.first_string：首个非空白字符串字段（去首尾空白）。 */
 export function firstString(source: Obj, ...keys: string[]): string | null {

@@ -1,9 +1,10 @@
 import type { ProjectReader } from '../readPort';
-import { cpLen, isObj, get, type Obj } from './contextValues';
+import { isObj, get, type Obj } from './contextValues';
 import { GenerationSourceCapture, normcase, selectionSha256 } from './generationSources';
 import { dumpJson } from './json';
 import { buildLlmContextSnapshot } from './llmContext';
 import { llmContextSnapshotToPromptContextBundle } from './llmPromptContext';
+import { cpLen } from './pythonText';
 import { redactSensitive, type PlainJson, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 

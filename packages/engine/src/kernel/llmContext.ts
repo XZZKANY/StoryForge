@@ -26,7 +26,6 @@ import {
   SNAPSHOT_VERSION,
   artifactKind,
   artifactPayload,
-  cpLen,
   firstString,
   get,
   hasKey,
@@ -36,7 +35,7 @@ import {
   type Obj,
 } from './contextValues';
 import { syntheticContextDelivery } from './llmPromptContext';
-import { compactText, pythonStrip } from './pythonText';
+import { compactText, cpLen, orderedUnique, pythonStrip } from './pythonText';
 import {
   redactSensitive,
   redactSensitiveText,
@@ -105,10 +104,6 @@ function normalizedRelativeContextPath(path: string | null): string | null {
     parts.push(part);
   }
   return parts.join('/') || null;
-}
-
-function orderedUnique(values: readonly string[]): string[] {
-  return [...new Set(values)];
 }
 
 function stringList(values: readonly PlainJson[] | null | undefined): string[] {

@@ -1,4 +1,5 @@
-import { dumpJson, JsonFloat, type JsonObject } from '../kernel/json';
+import { dumpJson, isObj, JsonFloat, type JsonObject, type Obj } from '../kernel/json';
+import { cpLen } from '../kernel/pythonText';
 import {
   isSensitiveKey,
   REDACTED,
@@ -13,10 +14,6 @@ import { withSecrets } from '../llm/payload';
 import { hostInfo, urlsplit } from '../llm/protocol';
 import type { RunStore } from '../store/runs';
 import { AgentOrchestrationError } from './runPayloads';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export const REQUEST_EVIDENCE_KIND = 'model_request_evidence';
 export const REQUEST_EVIDENCE_VERSION = 1;
@@ -46,7 +43,6 @@ const encoded = (value: unknown) =>
   dumpJson(value, { sortKeys: true, ensureAscii: false, separators: [',', ':'] });
 const digest = (value: unknown) => sha256Hex(encoded(value));
 const utf8Length = (text: string) => new TextEncoder().encode(text).length;
-const cpLen = (text: string) => Array.from(text).length;
 
 /** 只认配置源里的凭据字段（Python 的 *_API_KEY / *_AUTH_TOKEN）。 */
 const credentialValues = (source: LlmSource) =>

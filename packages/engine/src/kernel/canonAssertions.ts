@@ -1,6 +1,6 @@
 import { FsToolError } from './fsTools';
 import { isJsonObject, type JsonObject, type JsonValue } from './json';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { cpSlice, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 
 const ASSERTION_LABELS: Readonly<Record<string, string>> = {
   author_setting: '作者设定',
@@ -41,7 +41,6 @@ const own = (entry: JsonObject, key: string) =>
   Object.prototype.hasOwnProperty.call(entry, key) ? entry[key] : undefined;
 const splitWords = (text: string) =>
   text.split(new RegExp(`${PYTHON_WHITESPACE}+`, 'u')).filter(Boolean);
-const slicePoints = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 /** 原样保留已给出的字段，不替历史声明补造来源。 */
 export function assertionMetadata(entry: JsonObject): JsonObject {
@@ -119,7 +118,7 @@ export function renderAssertionMetadata(entry: JsonObject): string {
   const refs = sources.slice(0, 2).map((source) => {
     const path = own(source, 'path');
     let location =
-      typeof path === 'string' ? slicePoints(splitWords(path).join(' '), 160) : '位置未提供';
+      typeof path === 'string' ? cpSlice(splitWords(path).join(' '), 160) : '位置未提供';
     const start = own(source, 'start_line');
     const end = own(source, 'end_line');
     if (isInt(start)) {
@@ -127,7 +126,7 @@ export function renderAssertionMetadata(entry: JsonObject): string {
       if (isInt(end) && end !== start) location += `–${end}`;
     }
     const quote = splitWords(own(source, 'quote') as string).join(' ');
-    const snippet = slicePoints(quote, 120) + (Array.from(quote).length > 120 ? '…' : '');
+    const snippet = cpSlice(quote, 120) + (Array.from(quote).length > 120 ? '…' : '');
     return `${location}「${snippet}」`;
   });
   const omitted = sources.length > 2 ? `；另 ${sources.length - 2} 条依据未展开` : '';

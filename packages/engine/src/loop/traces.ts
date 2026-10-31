@@ -1,6 +1,4 @@
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+import { isObj, type Obj } from '../kernel/json';
 
 /** 流式响应与事件里的轻量工具调用轨迹。 */
 export type AgentToolTrace = {

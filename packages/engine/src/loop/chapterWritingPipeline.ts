@@ -1,4 +1,5 @@
 import { nativeProjectPath } from '../kernel/fsTools';
+import { isObj, type Obj } from '../kernel/json';
 import { redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
@@ -33,9 +34,6 @@ import {
   type AgentToolTrace,
 } from './traces';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 type PendingRow = { readonly id: number; readonly kind: string; readonly payload: Obj };
 
 const roles = (args: Obj) => ({ roleHints: roleHints(args), roleMentions: roleMentions(args) });

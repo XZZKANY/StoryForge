@@ -1,11 +1,9 @@
 import { AUTHOR_INSTRUCTIONS_PATH } from '../../kernel/fsTools';
+import { isObj, type Obj } from '../../kernel/json';
 import { syntheticContextSelectedValues } from '../../kernel/llmPromptContext';
 import { pythonStrip } from '../../kernel/pythonText';
 import type { SecretContext } from '../../kernel/redaction';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const text = (value: unknown): string | null =>
   typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
 

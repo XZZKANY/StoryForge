@@ -5,7 +5,7 @@ import { chapterOrdinals } from './canonRebuild';
 import { FsToolError, readBoundedText, resolveProjectRoot, resolveScopedPath } from './fsTools';
 import { compareCodePoints, isJsonObject, pythonStr } from './json';
 import type { LlmPort } from './llmPort';
-import { compactText, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { compactText, cpLen, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { loadsJsonArray } from './reviewReasoning';
 
 const TRAILING_WHITESPACE = new RegExp(`${PYTHON_WHITESPACE}+$`, 'u');
@@ -32,8 +32,6 @@ export const CROSS_CHAPTER_SYSTEM_PROMPT =
   '已死亡或已离场角色再次出场、前文埋下的伏笔后文未回收。' +
   '不要报单章内的文风/节奏问题。每条冲突必须给出涉及的章节和各自的原文片段为证。' +
   '只输出 JSON 数组,不要解释,不要 Markdown,不要代码块标记。';
-
-const length = (text: string) => Array.from(text).length;
 
 function truncate(value: string, limit: number): string {
   const text = Array.from(pythonStrip(value));
@@ -123,8 +121,8 @@ export async function orderedChapters(
       path: target,
       chapter: ordinals.get(target) ?? null,
       content: text,
-      chars: length(text),
-      truncated: length(pythonStrip(text)) > PER_CHAPTER_CHAR_BUDGET,
+      chars: cpLen(text),
+      truncated: cpLen(pythonStrip(text)) > PER_CHAPTER_CHAR_BUDGET,
     });
   }
   // 非正文文件（大纲 / 设定）没有章序，排在正文之后，而不是当作第 0 章插到最前。

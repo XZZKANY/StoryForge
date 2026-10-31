@@ -1,4 +1,6 @@
+import { isObj, type Obj } from '../kernel/json';
 import { KNOWLEDGE_PROPOSAL_ARTIFACT_KIND } from '../kernel/knowledgeProposals';
+import { codePoints } from '../kernel/pythonText';
 import { redactSensitive, redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import type { SecretContext } from '../kernel/redaction';
 import type { ProjectReader } from '../readPort';
@@ -31,16 +33,12 @@ import {
   RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
 } from './traces';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const objectOf = (value: unknown): Obj => (isObj(value) ? value : {});
 /** Python `isinstance(value, int)`：布尔也算。 */
 const pyInt = (value: unknown): value is number | boolean =>
   typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
 const nonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value !== '';
-const points = (text: string) => Array.from(text);
 
 /** 列表与快照里看不见的系统 artifact（Python `HIDDEN_SYSTEM_ARTIFACT_KINDS`）。 */
 const HIDDEN_SYSTEM_ARTIFACT_KINDS = new Set([
@@ -210,7 +208,7 @@ function artifactSummary(artifact: ArtifactRecord): Obj {
   if (Object.keys(contextOutput).length) {
     if (nonEmptyString(contextOutput.file_path)) summary.file_path = contextOutput.file_path;
     if (typeof contextOutput.content === 'string')
-      summary.content_chars = points(contextOutput.content).length;
+      summary.content_chars = codePoints(contextOutput.content).length;
   }
   return summary;
 }
@@ -296,7 +294,7 @@ function latestRuntimeFailure(event: RunEventRecord | null, latestMarker: Obj | 
     manual_restart_required: true,
     resume_strategy: 'manual_restart_required',
   };
-  if (event.message) summary.message = points(event.message).slice(0, 500).join('');
+  if (event.message) summary.message = codePoints(event.message).slice(0, 500).join('');
   if (latestMarker !== null) summary.latest_execution_marker = markerReference(latestMarker);
   return summary;
 }

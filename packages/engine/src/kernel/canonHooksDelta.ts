@@ -2,7 +2,7 @@ import type { ProjectReader } from '../readPort';
 import { readHooks } from './canonFiles';
 import { FsToolError } from './fsTools';
 import { isJsonObject, type JsonObject, type JsonValue } from './json';
-import { pythonStrip } from './pythonText';
+import { cpLen, pythonStrip } from './pythonText';
 
 // 叙事承诺信号：低精度高召回，用于提示而非判决。Python 的 `.` 不含换行但含 \r、U+2028/2029。
 const NARRATIVE_PROMISE_PATTERNS: [RegExp, string][] = [
@@ -18,7 +18,6 @@ const NARRATIVE_PROMISE_PATTERNS: [RegExp, string][] = [
   [/(?:不知道的是|殊不知|无人知晓|没有人知道|只有[^\n]*知道)/gu, 'hidden_info'],
 ];
 
-const codePointLength = (text: string) => Array.from(text).length;
 const isCjk = (char: string) => char >= '一' && char <= '鿿';
 
 function findPatternMatches(text: string): JsonObject[] {
@@ -26,11 +25,11 @@ function findPatternMatches(text: string): JsonObject[] {
   for (const [pattern, category] of NARRATIVE_PROMISE_PATTERNS) {
     for (const match of text.matchAll(pattern)) {
       const matched = pythonStrip(match[0]);
-      if (codePointLength(matched) < 4) continue;
+      if (cpLen(matched) < 4) continue;
       matches.push({
         evidence: Array.from(matched).slice(0, 80).join(''),
         category,
-        position: codePointLength(text.slice(0, match.index)),
+        position: cpLen(text.slice(0, match.index)),
       });
     }
   }
