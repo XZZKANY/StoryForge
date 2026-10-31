@@ -112,3 +112,13 @@ DOM 与样式完全不变的：外观「主题」「字体」两个下拉行、�
 - 设置搜索过滤还有四处手写 `useContext(SettingsSearchContext).trim().toLowerCase()`：`AboutRows.tsx` 的 `UpdateNotes`、`SettingsView.tsx` 的 `ProviderRuntimeEnvNotice`（这两处与 `useSettingsRowVisible` 同义）、`ModelProfilesSection.tsx` 与 `PluginsSection.tsx`（按整组关键词串命中，还要用 query 决定 `<details>` 是否展开）。不是设置行外壳，本刀没动。
 - 菜单分隔线 `mx-1.5 my-1 h-px bg-border` 写了五处（`EditorTabMenus` 两处、`SidePanel`、`SessionMenu`、`ContextMenu`），只有 `ContextMenu` 带 `role="separator"`。不是菜单项，本刀没收。
 - 模型卡片菜单的「删除」没标危险色，右键菜单里的删除是危险色；本刀照原样保留。
+
+## 2026-10-31 追加：推之前 #572 已合，变基到 master 重跑
+
+- 改动：推之前再查，#572 已用合并提交并进 master（`4debf508`），之后还合了 #571（对话发送前不再自动带摘录）与 #573（引擎工具参数）。把本刀的一个提交 `git rebase origin/master`（`1832793f`），无冲突。master 这段时间改的前端文件（`useRunAuthorAgent.ts`、`lib/project/context-bundle.ts`、`source-standards.test.ts` 等）与本刀改的地方不重叠。
+- 验证：
+  - `pnpm lint`：EXIT=0，0 error，仍是那 2 条老 warning；prettier 全部通过。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，271 个文件，2768 passed（master 新增 2 条 + 本刀 7 条）。三条守护在新的 master 代码上照样零豁免通过（只豁免 #561 的 `ContextPanel.tsx`）。
+  - `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14267 passed、2 skipped；`packages/` 本刀零改动。
+- 未覆盖：同上。
