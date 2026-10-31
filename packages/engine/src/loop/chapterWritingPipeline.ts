@@ -18,6 +18,7 @@ import {
   CHAPTER_WRITE_INTENT,
   confirmBrief,
   earliestChapterChars,
+  positiveInt,
   resolveTarget,
 } from './chapterWritingContracts';
 import type { FixedPipelineHost, FixedPipelineRequest } from './fixedPipelines';
@@ -80,11 +81,11 @@ function completedPlan(
   return [
     ...(authorConfirmed
       ? [
-          planStep('chapter.brief', '作者已确认 Chapter Brief。', 'completed'),
-          planStep('chapter.brief.confirm', 'Chapter Brief 已确认。', 'completed'),
+          planStep('chapter.brief', '作者已确认章纲。', 'completed'),
+          planStep('chapter.brief.confirm', '章纲已确认。', 'completed'),
         ]
-      : [planStep('chapter.brief', '已生成 Chapter Brief。', 'completed')]),
-    planStep('chapter.draft', '已按 brief 起草正文。', 'completed'),
+      : [planStep('chapter.brief', '已生成章纲。', 'completed')]),
+    planStep('chapter.draft', '已按章纲起草正文。', 'completed'),
     planStep('chapter.check', checkDetail, checkStatus),
     planStep('chapter.patch', '未发现正文硬问题时生成修订。', patchStatus),
   ];
@@ -94,6 +95,14 @@ const checkerFailureDetail = (executionStatus: unknown) =>
   executionStatus === 'incomplete'
     ? '章节检查未完整执行：结果超过协议预算，不能据此判断正文通过。'
     : '章节检查执行失败：未取得有效、来源与证据可核实的完整结果。';
+
+/** 检查通过后的结果说明。最后写没写进文件引擎不知道（界面另补一句），不用作者点的只说按权限直接写进。 */
+function passedSummary(relative: string, ordinal: unknown, requiresConfirmation: boolean) {
+  const chapter = positiveInt(ordinal) !== null ? `第 ${ordinal} 章的草稿` : '章节草稿';
+  return requiresConfirmation
+    ? `${chapter}通过了章纲检查，生成了 ${relative} 的修订，请看过对比再决定是否接受。`
+    : `${chapter}通过了章纲检查，修订按这部作品的权限直接写进 ${relative}。`;
+}
 
 export function isChapterResume(
   run: FixedPipelineRequest['run'],
@@ -186,11 +195,11 @@ export async function startChapterWriting(
   const started = response({
     plan: [
       planStep('chapter.brief', '整理章节目标与可信上下文。', 'running'),
-      planStep('chapter.draft', '按 brief 起草正文。', 'pending'),
+      planStep('chapter.draft', '按章纲起草正文。', 'pending'),
       planStep('chapter.check', '检查并在必要时定向修复一次。', 'pending'),
       planStep('chapter.patch', '生成待审阅 proposed patch。', 'pending'),
     ],
-    agentResult: { summary: '正在整理 Chapter Brief。', requires_user_confirmation: false },
+    agentResult: { summary: '正在整理章纲。', requires_user_confirmation: false },
     toolTrace: [],
   });
   run = await host.sink.recordPlan(run, started);
@@ -242,8 +251,8 @@ export async function startChapterWriting(
   const summary = `${BRIEF_READY_PREFIX}${brief.goal || relative}。`;
   const briefed = response({
     plan: [
-      planStep('chapter.brief', '已生成 Chapter Brief。', 'completed'),
-      planStep('chapter.draft', '按 brief 起草正文。', 'pending'),
+      planStep('chapter.brief', '已生成章纲。', 'completed'),
+      planStep('chapter.draft', '按章纲起草正文。', 'pending'),
       planStep('chapter.check', '检查并在必要时定向修复一次。', 'pending'),
       planStep('chapter.patch', '检查通过后生成 proposed patch。', 'pending'),
     ],
@@ -305,9 +314,9 @@ export async function resumeChapterWriting(
     host.platform,
   );
   if (relative !== payload.target_relative)
-    throw new AgentOrchestrationError('目标章节在 brief 确认期间发生变化，请重新生成 brief。');
+    throw new AgentOrchestrationError('目标章节在章纲确认期间发生变化，请重新生成章纲。');
   if (!isObj(payload.llm_prompt_context_bundle))
-    throw new AgentOrchestrationError('Chapter Brief 缺少可信上下文快照，请重新生成。');
+    throw new AgentOrchestrationError('章纲缺少可信上下文快照，请重新生成。');
   await assertChapterSources(deps, root, target, payload.source_guard);
   return draftFromBrief(host, request, {
     run,
@@ -489,7 +498,7 @@ async function draftFromBrief(
   const summary = unchecked
     ? '章节检查重查一次后仍未取得可用结果，这章正文未经检查。' +
       `已生成 ${relative} 的待审阅修订，请通读后再决定是否接受。`
-    : `章节草稿已通过 brief 检查，生成 ${relative} 的待审阅修订。` +
+    : passedSummary(relative, confirmed.chapter_ordinal, requiresConfirmation) +
       programAdvisoryNote(finalCheck);
   return response({
     plan: unchecked

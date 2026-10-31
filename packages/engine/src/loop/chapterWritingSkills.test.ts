@@ -5,7 +5,7 @@ import { agentRunReplay } from './agentRunReplay.test-support';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 照预言机场景的 JSON 形状改
 const { replay } = agentRunReplay(golden);
-const DRIFT = 'Chapter Brief 的来源在确认期间已变化，请重新生成 Brief 后再确认。';
+const DRIFT = '章纲的来源在确认期间已变化，请重新生成章纲后再确认。';
 const SKILLS = {
   '写法/01-开篇.md': '---\n名字：开篇第一章\n什么时候用：写第 1 章\n---\n第一句对白在 110 字左右。',
   '写法/02-章末.md': '---\n名字：章末钩子\n什么时候用：每章结尾\n---\n停在一个没解决的具体问题上。',

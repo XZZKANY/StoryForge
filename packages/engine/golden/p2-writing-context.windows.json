@@ -253,7 +253,7 @@
       "args_json": "{\"name\": \"receipt-stale\", \"raw\": {\"project_root\": \".\", \"current_file\": \"正文/第002章.md\", \"files\": [{\"path\": \"人物/林舟.md\", \"relative_path\": \"人物/林舟.md\", \"kind\": \"character\", \"title\": \"林舟\", \"excerpt\": \"林舟会游泳。\"}], \"summary\": {\"a\": 1}}, \"context_receipt\": {\"prompt_files_sha256\": \"stale\"}}",
       "error": {
         "type": "ConflictError",
-        "message": "Chapter Brief 的资料投影已变化，请重新生成。"
+        "message": "章纲的资料投影已变化，请重新生成。"
       }
     },
     {

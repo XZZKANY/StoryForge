@@ -43,7 +43,7 @@ function descriptor(file: string, before = '') {
       id: 'chapter-writing-1',
       filePath: file,
       title: '第003章.md',
-      summary: '章节草稿已通过 brief 检查',
+      summary: '章节草稿通过了章纲检查',
       before,
       after: '# 第3章\n\n周梨去问老读者。',
       note: '',
