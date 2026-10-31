@@ -6,6 +6,7 @@ import {
   STARTER_PLUGIN_NAME,
 } from '@storyforge/project-core';
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
+import { documentDirectory } from '../tauri-env';
 import { TauriFileSystem } from '../tauri-fs';
 import { normalizeRoot } from './path';
 import type { StoryProjectInitializationPlan } from './types';
@@ -149,8 +150,7 @@ async function resolveFreeChildPath(parentPath: string, name: string): Promise<s
 export async function createNewBookProject(
   prompt: string,
 ): Promise<{ projectPath: string; seedFilePath: string }> {
-  const { documentDir } = await import('@tauri-apps/api/path');
-  const docs = normalizeRoot(await documentDir());
+  const docs = normalizeRoot(await documentDirectory());
   const separator = docs.includes('\\') ? '\\' : '/';
   const booksRoot = `${docs}${separator}StoryForge`;
   await TauriFileSystem.createDir(docs, booksRoot, true);

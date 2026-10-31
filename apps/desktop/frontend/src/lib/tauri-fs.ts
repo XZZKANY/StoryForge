@@ -3,6 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import type { DialogFilter } from '@tauri-apps/plugin-dialog';
 import type { FileEntry } from '@storyforge/project-core';
 import { assertTauriRuntime } from './tauri-env';
 import {
@@ -379,4 +380,18 @@ export class TauriFileSystem {
     assertTauriRuntime('TauriFileSystem.projectFolderExists');
     return await invoke<boolean>('project_folder_exists', { path });
   }
+}
+
+/** 系统对话框里选一个文件夹；作者取消返回 null。 */
+export async function pickDirectory(title: string): Promise<string | null> {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({ directory: true, multiple: false, title });
+  return typeof selected === 'string' ? selected : null;
+}
+
+/** 系统对话框里选一个文件；作者取消返回 null。 */
+export async function pickFile(title: string, filters: DialogFilter[]): Promise<string | null> {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({ multiple: false, directory: false, filters, title });
+  return typeof selected === 'string' ? selected : null;
 }

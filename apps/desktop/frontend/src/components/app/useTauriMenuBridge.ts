@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { isTauriRuntime } from '../../lib/tauri-env';
+import { isTauriRuntime, loadHostEventListen, type HostEventListen } from '../../lib/tauri-env';
 
 /**
  * Tauri 事件通道就绪探针 + 冒烟复位钩子。
@@ -30,9 +30,9 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     const unlistenFns: Array<() => void> = [];
 
     const registerMenuListeners = async () => {
-      let listen: typeof import('@tauri-apps/api/event').listen;
+      let listen: HostEventListen;
       try {
-        ({ listen } = await import('@tauri-apps/api/event'));
+        listen = await loadHostEventListen();
       } catch (error) {
         setTauriMenuError(
           error instanceof Error ? error.message : 'Failed to import Tauri event API',
