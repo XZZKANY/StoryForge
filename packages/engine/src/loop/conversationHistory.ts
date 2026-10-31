@@ -11,6 +11,7 @@ import {
   compareCodePoints,
   type JsonObject,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
 import { cpLen, pythonStrip } from '../kernel/pythonText';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
@@ -89,7 +90,6 @@ const TOOL_INTERNAL_KEYS = new Set(['generation_sources']);
 /** 对话 AI 交给 file.create 的写作指令：成稿已在文件里，指令原文每章上万字节、每轮重送，只留指纹。 */
 const FILE_CREATE_INTERNAL_KEYS = new Set([...TOOL_INTERNAL_KEYS, 'instruction']);
 
-type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' &&
   value !== null &&

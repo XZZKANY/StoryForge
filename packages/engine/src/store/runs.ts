@@ -1,12 +1,10 @@
-import { cloneJson, type JsonValue } from '../kernel/json';
+import { cloneJson, type JsonValue, type Obj } from '../kernel/json';
 
 /**
  * Agent run 的存储端口：runs / run_events / artifacts / subagent_runs 四张表的行。
  * P4 前只有内存实现（窗口生命周期内有效）；P4 换成 sqlite，接口不变。
  * id 全局自增、事件 sequence 按 run 自增，与 Python 库一致（帧与证据里都看得到这两个数）。
  */
-
-export type Obj = { [key: string]: unknown };
 
 export type RunRecord = {
   readonly id: number;

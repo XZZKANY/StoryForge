@@ -1,3 +1,4 @@
+import type { Obj } from '../kernel/json';
 import type { LlmSource } from './config';
 import {
   ProviderError,
@@ -8,8 +9,6 @@ import {
   type StreamEvent,
 } from './contracts';
 import type { LlmProvider } from './openaiCompatible';
-
-type Obj = { [key: string]: unknown };
 
 /** 一次模型派发的本地证据：开始时落库，结束（或进度）时更新。 */
 export interface ModelAttempt {

@@ -1,8 +1,7 @@
-import { dumpJson, JsonFloat } from '../kernel/json';
+import { dumpJson, JsonFloat, type Obj } from '../kernel/json';
 import { codePoints } from '../kernel/pythonText';
 import { loopPatchToolSpecs } from './tools/catalog';
 
-type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' &&
   value !== null &&

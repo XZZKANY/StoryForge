@@ -11,6 +11,7 @@ import {
   isJsonObject,
   JsonFloat,
   parseModelJson,
+  type Obj,
 } from '../../kernel/json';
 import {
   applyDeterministicPolish,
@@ -29,8 +30,6 @@ import { envValue, type LlmSource } from '../../llm/config';
 import { ChatMessage, ProviderError, type ChatRequest, type TokenUsage } from '../../llm/contracts';
 import type { LlmProvider } from '../../llm/openaiCompatible';
 import { LlmError } from '../../llm/payload';
-
-type Obj = { [key: string]: unknown };
 
 /** 专用润色模型槽位不完整，且作者没有授权本次借用主模型。 */
 export class PolishLlmNotConfiguredError extends Error {

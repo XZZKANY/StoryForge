@@ -9,7 +9,13 @@ import {
   type FactConflict,
 } from '../kernel/factLedger';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
-import { InputDomainError, isJsonObject, type JsonObject, type JsonValue } from '../kernel/json';
+import {
+  InputDomainError,
+  isJsonObject,
+  type JsonObject,
+  type JsonValue,
+  type Obj,
+} from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
@@ -19,8 +25,6 @@ import {
   CHAPTER_BRIEF_ARTIFACT_KIND,
   CHAPTER_CHECK_ARTIFACT_KIND,
 } from './chapterWritingContracts';
-
-type Obj = { [key: string]: unknown };
 
 export type FactRecordDeps = {
   readonly reader: ProjectReader;
