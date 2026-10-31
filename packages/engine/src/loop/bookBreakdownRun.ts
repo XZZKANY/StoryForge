@@ -1,4 +1,4 @@
-import type { Obj } from '../kernel/contextValues';
+import type { PlainJsonObject } from '../kernel/contextValues';
 import {
   completeAgentRun,
   createOrResumeAgentRun,
@@ -14,7 +14,7 @@ export async function recordBookBreakdownRun(
   services: RunServices,
   report: { readonly [key: string]: unknown },
 ): Promise<{ run_id: string; artifact_id: number }> {
-  const output = report as Obj;
+  const output = report as PlainJsonObject;
   const analysisId = String(output.analysis_id);
   const run = await createOrResumeAgentRun(services, {
     publicId: `breakdown-${analysisId}`,

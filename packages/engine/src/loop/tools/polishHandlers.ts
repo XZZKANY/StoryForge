@@ -10,11 +10,17 @@ import {
   resolveProjectRoot,
 } from '../../kernel/fsTools';
 import { isObj, type Obj } from '../../kernel/json';
-import { cpLen, orderedUnique, pythonStrip, stringArgList } from '../../kernel/pythonText';
+import {
+  cpLen,
+  optionalString,
+  orderedUnique,
+  pythonStrip,
+  stringArgList,
+} from '../../kernel/pythonText';
 import { ProjectReadError } from '../../readPort';
 import { PatchProposal } from '../chatLoopTypes';
 import { patchRequiresConfirmation } from '../permission';
-import { AgentOrchestrationError, optionalString } from '../runPayloads';
+import { AgentOrchestrationError } from '../runPayloads';
 import type { ToolHandler } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { prepareRuntimeWritingContext } from './patchContext';

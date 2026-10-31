@@ -15,10 +15,10 @@ import {
   projectKnowledgeRead,
   projectKnowledgeSearch,
 } from '../../kernel/projectKnowledgeFiles';
-import { cpLen, PYTHON_WHITESPACE } from '../../kernel/pythonText';
+import { cpLen, optionalString, PYTHON_WHITESPACE } from '../../kernel/pythonText';
 import type { PlainJson } from '../../kernel/redaction';
 import { reviewContextSummary } from '../../kernel/reviewSkills';
-import { detectIntent, optionalString, roleHints, roleMentions } from '../runPayloads';
+import { detectIntent, roleHints, roleMentions } from '../runPayloads';
 import type { ToolExecutionContext, ToolHandler, ToolResult } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { fsIntArg, requiredString } from './runtimeArguments';

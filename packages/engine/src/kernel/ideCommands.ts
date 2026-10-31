@@ -16,7 +16,7 @@ import { buildCanonProjection } from './canonService';
 import { FsToolError } from './fsTools';
 import { InputDomainError } from './json';
 import { runObservatoryScan } from './observatory';
-import { pythonStrip } from './pythonText';
+import { optionalString } from './pythonText';
 import { redactSensitive, type PlainJson, type SecretContext } from './redaction';
 import { markChapterWritten, unmarkChapterWritten } from './serialPlanUpdate';
 
@@ -65,11 +65,8 @@ export type IdeCommandDeps = {
 
 type Args = { [key: string]: PlainJson };
 
-const optionalText = (value: PlainJson | undefined) =>
-  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
-
 function projectRoot(command: IdeCommandDefinition, args: Args, platform: 'windows' | 'posix') {
-  const root = optionalText(args.project_root);
+  const root = optionalString(args.project_root);
   if (root === null) throw new IdeCommandExecutionError(`${command.id} 需要 project_root。`);
   const absolute = platform === 'windows' ? /^(?:[a-z]:[\\/]|\\\\)/i : /^\//;
   if (!absolute.test(root))
@@ -93,7 +90,7 @@ async function domain<T>(
 
 async function runCommand(command: IdeCommandDefinition, args: Args, deps: IdeCommandDeps) {
   const { reader, writer, platform } = deps;
-  const glob = () => optionalText(args.glob) ?? '*.md';
+  const glob = () => optionalString(args.glob) ?? '*.md';
   switch (command.id) {
     case 'audit.open':
       return null;
@@ -125,7 +122,7 @@ async function runCommand(command: IdeCommandDefinition, args: Args, deps: IdeCo
         : 8;
       if (typeof target !== 'number' || !Number.isInteger(target) || target < 3 || target > 12)
         throw new IdeCommandExecutionError('book.breakdown 的 target_count 必须在 3 到 12 之间。');
-      const analysisId = optionalText(args.analysis_id);
+      const analysisId = optionalString(args.analysis_id);
       let output: { [key: string]: unknown } = await domain(
         () =>
           runBookBreakdown(reader, writer, root, {
@@ -145,7 +142,7 @@ async function runCommand(command: IdeCommandDefinition, args: Args, deps: IdeCo
       return { breakdown: output };
     }
     case 'book.breakdown.cancel': {
-      const analysisId = optionalText(args.analysis_id);
+      const analysisId = optionalString(args.analysis_id);
       if (analysisId === null)
         throw new IdeCommandExecutionError('book.breakdown.cancel 需要 analysis_id。');
       return {
@@ -166,7 +163,7 @@ async function runCommand(command: IdeCommandDefinition, args: Args, deps: IdeCo
     default: {
       // plan.mark_written / plan.unmark_written：「没改」不是错误，如实带 reason 返回。
       const root = projectRoot(command, args, platform);
-      const filePath = optionalText(args.file_path);
+      const filePath = optionalString(args.file_path);
       if (filePath === null) throw new IdeCommandExecutionError(`${command.id} 需要 file_path。`);
       const update =
         command.id === 'plan.unmark_written' ? unmarkChapterWritten : markChapterWritten;

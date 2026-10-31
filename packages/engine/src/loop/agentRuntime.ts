@@ -14,7 +14,7 @@ import { FsToolError, fsRead, nativeProjectPath, resolveProjectFile } from '../k
 import { isObj, pythonTruthy, type JsonObject, type JsonValue, type Obj } from '../kernel/json';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
-import { compactText, cpSlice } from '../kernel/pythonText';
+import { compactText, cpSlice, optionalString } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
 import {
   missingSetupBeforeFirstChapter,
@@ -58,7 +58,6 @@ import {
   executionResultPayload,
   messageArgs,
   messageText,
-  optionalString,
   roleHints,
   roleMentions,
   type AgentExecutionOutcome,

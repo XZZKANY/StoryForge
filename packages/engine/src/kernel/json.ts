@@ -434,6 +434,9 @@ export type Obj = { [key: string]: unknown };
 /** 任意值是不是普通对象：只排除 null 与数组，不像 isJsonObject 那样排除 JsonFloat。 */
 export const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+/** Python `isinstance(value, int)`：布尔也算。 */
+export const isPyInt = (value: unknown): value is number | boolean =>
+  typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
 
 function kindOf(value: JsonValue | undefined): string {
   if (value === undefined) return '缺省';
@@ -657,3 +660,7 @@ export function pythonTruthy(value: JsonValue | undefined): boolean {
   if (Array.isArray(value)) return value.length > 0;
   return typeof value !== 'object' || Object.keys(value).length > 0;
 }
+
+/** Python `str(value) if value else fallback`。 */
+export const strOr = (value: JsonValue | undefined, fallback: string) =>
+  pythonTruthy(value) ? pythonStr(value) : fallback;

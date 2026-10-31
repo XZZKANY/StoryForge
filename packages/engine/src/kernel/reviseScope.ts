@@ -1,7 +1,13 @@
 import { isObj, pythonEquals, type JsonValue } from './json';
 import { pythonFixed } from './math';
 import { canonicalPunctuation } from './punctuation';
-import { orderedUnique, PYTHON_WHITESPACE, pythonStrip, stringArgList } from './pythonText';
+import {
+  optionalString,
+  orderedUnique,
+  PYTHON_WHITESPACE,
+  pythonStrip,
+  stringArgList,
+} from './pythonText';
 import { AgentOrchestrationError, composeScopedInstruction } from './reviseDelivery';
 import type { SecretContext } from './redaction';
 import { REVIEW_AGENT_KEYS } from './reviewReasoning';
@@ -35,9 +41,6 @@ export type ReviseScope = {
   dropped_unknown_ids: string[];
   narrow: boolean;
 };
-
-const optionalString = (value: unknown) =>
-  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
 
 function reviewReportIssues(report: Report): Issue[] {
   if (!report) return [];
