@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   completeSkillCommand,
   invokedSkillNames,
+  isWriteBatchCommandWord,
   skillCommandQuery,
   startsWithSkillCommand,
 } from './conversationSkills';
@@ -47,6 +48,17 @@ describe('消息开头的技能点名', () => {
       '审稿口径',
       '审稿',
     ]);
+  });
+
+  it('/写、/goal 是批量写章指令，不再点名叫这两个名字的技能', () => {
+    expect(invokedSkillNames('/写 4-10', ['写', ...NAMES])).toEqual([]);
+    expect(invokedSkillNames('、写', ['写'])).toEqual([]);
+    expect(invokedSkillNames('/GOAL', ['GOAL', 'goal'])).toEqual([]);
+    expect(invokedSkillNames('/立项流程 /写', ['写', ...NAMES])).toEqual(['立项流程']);
+    expect(isWriteBatchCommandWord('写')).toBe(true);
+    expect(isWriteBatchCommandWord('Goal')).toBe(true);
+    expect(isWriteBatchCommandWord('写法')).toBe(false);
+    expect(isWriteBatchCommandWord('goals')).toBe(false);
   });
 
   it('只看触发符的开头判断', () => {

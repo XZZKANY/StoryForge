@@ -145,6 +145,24 @@ try {
           rejectRequest();
         return json([]);
       }
+      // 打开作品时批量写章调度器查一次上一批（把应用上次关掉时还在写的那一批改成停下，再读最近一批）：
+      // 这本书没有批量记录。只认这两条、只认这部作品；别的批量写章请求照旧算意外。
+      if (requestPath === '/api/write-batch/recover') {
+        if (method !== 'POST' || body.project_root !== projectPath) rejectRequest();
+        window.__STORYFORGE_WRITE_BATCH_CALLS__ = [
+          ...(window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? []),
+          'recover',
+        ];
+        return json({ recovered: false, batch: null });
+      }
+      if (requestPath === '/api/write-batch/read') {
+        if (method !== 'POST' || body.project_root !== projectPath) rejectRequest();
+        window.__STORYFORGE_WRITE_BATCH_CALLS__ = [
+          ...(window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? []),
+          'read',
+        ];
+        return json({ batch: null, mismatches: [], can_resume: false, resume_from: null });
+      }
 
       if (isApi || parsedUrl.origin !== window.location.origin) {
         rejectRequest();
@@ -334,6 +352,16 @@ try {
     throw new Error(`Console errors:\n${errors.join('\n')}`);
   }
 
+  // 打开作品时批量写章调度器查过上一批（先恢复、再读）；这本书没有批量记录，不出停下 / 写完的卡。
+  const writeBatchCalls = await page.evaluate(() => window.__STORYFORGE_WRITE_BATCH_CALLS__ ?? []);
+  if (writeBatchCalls[0] !== 'recover' || !writeBatchCalls.includes('read')) {
+    throw new Error(
+      `Expected opening the project to recover then read the write batch: ${JSON.stringify(writeBatchCalls)}`,
+    );
+  }
+  if ((await page.getByTestId('write-batch-result').count()) !== 0) {
+    throw new Error('Expected no write batch card for a book without a batch record');
+  }
   console.log(`Desktop frontend smoke passed: ${url}`);
 } finally {
   if (browser) {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { parseWriteBatchCommand, type WriteBatchCommand } from '@storyforge/project-core';
 
 import {
   PATCH_REJECTED_EVENT,
@@ -27,6 +28,9 @@ export type QueuedChatMessage = {
 
 type QueuedChatMessageEntry = QueuedChatMessage & { scope: number };
 
+/** 对话里打的 `/写 …`：不发给 AI，出一张批量写章确认卡。 */
+export type WriteBatchRequest = { id: number; command: WriteBatchCommand };
+
 export function useChatSubmission(
   state: ChatWindowState,
   runAuthorAgent: RunAuthorAgent,
@@ -39,6 +43,13 @@ export function useChatSubmission(
     ChatWindowProps,
     'projectPath' | 'assistantSessionId' | 'pendingInitialPrompt' | 'onPendingInitialPromptConsumed'
   >,
+  /**
+   * 批量写章调度器：在写时什么都不发；续写确认卡开着时和 `/写` 确认卡一样只认新的 `/写`；
+   * 不带范围的 `/写` 交给它续写。
+   */
+  writeBatchScheduler: { occupied: boolean; cardOpen?: boolean; onResume?: () => void } = {
+    occupied: false,
+  },
 ) {
   const {
     agentBusy,
@@ -65,12 +76,24 @@ export function useChatSubmission(
     // Shared by direct/queued/shortcut callbacks, including closures captured before disconnect.
     deliveryUnknownRef.current = deliveryUnknown;
   }, [deliveryUnknown]);
+  const batchOccupied = writeBatchScheduler.occupied;
+  const batchOccupiedRef = useRef(batchOccupied);
+  const onWriteBatchResume = writeBatchScheduler.onResume;
+  useLayoutEffect(() => {
+    batchOccupiedRef.current = batchOccupied;
+  }, [batchOccupied]);
   // Deliberately one pending instruction, not an automatic multi-run FIFO.
   const queuedRef = useRef<QueuedChatMessageEntry | null>(null);
   const nextQueueIdRef = useRef(0);
   const [queuedMessage, setQueuedMessage] = useState<QueuedChatMessageEntry | null>(null);
   const sendingRef = useRef<object | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [writeBatch, setWriteBatch] = useState<(WriteBatchRequest & { scope: number }) | null>(
+    null,
+  );
+  const ownCardOpen = writeBatch?.scope === scope;
+  const writeBatchOpen = ownCardOpen || Boolean(writeBatchScheduler.cardOpen);
+  const closeWriteBatch = useCallback(() => setWriteBatch(null), []);
   const clearQueuedMessages = useCallback(() => {
     queuedRef.current = null;
     setQueuedMessage(null);
@@ -186,9 +209,22 @@ export function useChatSubmission(
         });
         return;
       }
+      // 批量写章在一章接一章地发起：别的话（含新的 `/写`）插进去会顶掉下一章，等停下或写完再发。
+      if (batchOccupiedRef.current) {
+        preserveInstruction();
+        emitToast('批量写章进行中：先停止这一批，再发下一条；草稿已保留。', { tone: 'info' });
+        return;
+      }
       if (awaitingDecision) {
         preserveInstruction();
         emitToast('先处理当前待确认内容，再发下一条；待发消息和草稿已保留。', { tone: 'info' });
+        return;
+      }
+      const batch = parseWriteBatchCommand(instruction);
+      // 批量写章卡开着时只认新的 `/写`（换一张卡），别的话等作者开始或关掉这张卡。
+      if (writeBatchOpen && !batch) {
+        preserveInstruction();
+        emitToast('先开始写或关掉上面的批量写章，再发下一条；草稿已保留。', { tone: 'info' });
         return;
       }
       const clearSubmittedDraft = () => {
@@ -209,6 +245,18 @@ export function useChatSubmission(
       // Claim synchronously; React's busy state alone does not guard same-frame submits.
       if (sendingRef.current) {
         preserveInstruction();
+        return;
+      }
+      if (batch?.kind === 'resume' && onWriteBatchResume) {
+        // 不带范围的 `/写`：读上一批，能续就重新估、出确认卡，不能续在卡上说明原因（调度器来做）。
+        setWriteBatch(null);
+        clearSubmittedDraft();
+        onWriteBatchResume();
+        return;
+      }
+      if (batch) {
+        setWriteBatch({ id: ++nextQueueIdRef.current, scope, command: batch });
+        clearSubmittedDraft();
         return;
       }
       const claim = {};
@@ -250,6 +298,8 @@ export function useChatSubmission(
       setConversationTitle,
       setInput,
       setMessages,
+      onWriteBatchResume,
+      writeBatchOpen,
     ],
   );
   const handleSubmit = useCallback(
@@ -269,6 +319,8 @@ export function useChatSubmission(
       deliveryUnknown ||
       submitting ||
       awaitingDecision ||
+      writeBatchOpen ||
+      batchOccupied ||
       !queuedMessage ||
       queuedMessage.scope !== scope
     )
@@ -278,6 +330,7 @@ export function useChatSubmission(
       if (
         cancelled ||
         deliveryUnknownRef.current ||
+        batchOccupiedRef.current ||
         !isCurrentScope() ||
         queuedRef.current !== queuedMessage ||
         sendingRef.current
@@ -295,6 +348,8 @@ export function useChatSubmission(
     deliveryUnknown,
     submitting,
     awaitingDecision,
+    writeBatchOpen,
+    batchOccupied,
     handleComposerSubmit,
     isCurrentScope,
     queuedMessage,
@@ -387,5 +442,10 @@ export function useChatSubmission(
     conversationScope: scope,
     removeQueuedMessage,
     clearQueuedMessages,
+    writeBatch:
+      writeBatch !== null && ownCardOpen
+        ? { id: writeBatch.id, command: writeBatch.command }
+        : null,
+    closeWriteBatch,
   };
 }

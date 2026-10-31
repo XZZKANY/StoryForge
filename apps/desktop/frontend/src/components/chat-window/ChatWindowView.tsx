@@ -17,7 +17,11 @@ import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import type { ChatWindowState } from './useChatWindowState';
-import type { QueuedChatMessage } from './useChatSubmission';
+import type { QueuedChatMessage, WriteBatchRequest } from './useChatSubmission';
+import { WriteBatchPanel, WriteBatchProgressBar } from './WriteBatchPanel';
+import type { WriteBatchStartFeedback } from './WriteBatchCard';
+import type { WriteBatchScheduler } from './useWriteBatchScheduler';
+import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
 import { ChapterCheckHistoryToggle } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 import { PartnerOpening } from './PartnerOpening';
@@ -59,6 +63,13 @@ type Props = {
   onOpeningDraft?: (request: ChapterWriteRequest) => void;
   /** 输入框空着时的「下一句」提示（`lib/composer-hint.ts`）；null 时用原占位文字。 */
   composerHint?: string | null;
+  /** 对话里打的 `/写 …`：在下面出批量写章确认卡。 */
+  writeBatch?: WriteBatchRequest | null;
+  onCloseWriteBatch?: () => void;
+  /** 卡上「开始写」交给它；没接时按钮禁用。 */
+  onStartWriteBatch?: (plan: ApiWriteBatchPlan) => Promise<WriteBatchStartFeedback>;
+  /** 批量写章调度器：进行中的进度条、续写确认卡、停下或写完的卡。 */
+  writeBatchScheduler?: WriteBatchScheduler;
 };
 
 export function ChatWindowView({
@@ -93,6 +104,10 @@ export function ChatWindowView({
   opening = null,
   onOpeningDraft,
   composerHint = null,
+  writeBatch = null,
+  onCloseWriteBatch,
+  onStartWriteBatch,
+  writeBatchScheduler,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
@@ -218,6 +233,7 @@ export function ChatWindowView({
               handoff={opening}
               onDraft={onOpeningDraft}
               onAsk={(prompt) => void handleComposerSubmit(prompt)}
+              actionsHidden={writeBatch !== null || Boolean(writeBatchScheduler?.occupied)}
             />
           ) : null
         }
@@ -243,6 +259,15 @@ export function ChatWindowView({
         </section>
       )}
 
+      <WriteBatchPanel
+        projectPath={projectPath}
+        permissionProfile={agentPermissionProfile}
+        request={writeBatch}
+        scheduler={writeBatchScheduler}
+        onStart={onStartWriteBatch}
+        onClose={onCloseWriteBatch ?? (() => undefined)}
+      />
+
       {showLightweightStatus && statusText && (
         <LightweightStatus
           text={statusText}
@@ -265,6 +290,13 @@ export function ChatWindowView({
           recovery={state.agentRunRecovery}
           resumePending={state.agentBusy}
           onTypeAhead={() => inputRef.current?.focus()}
+        />
+      )}
+
+      {writeBatchScheduler?.phase.kind === 'running' && (
+        <WriteBatchProgressBar
+          progress={writeBatchScheduler.phase.progress}
+          onStop={writeBatchScheduler.stop}
         />
       )}
 

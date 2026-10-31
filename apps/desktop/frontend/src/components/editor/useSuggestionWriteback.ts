@@ -33,7 +33,14 @@ import {
 } from '../../lib/author-loop';
 import type { BranchInfo } from '../../lib/branches';
 import type { EditorModelCache } from './useMonacoEditor';
+import { deleteCreatedFile } from '../../lib/created-file-delete';
 import { recordAcceptedChapterFacts } from '../../lib/fact-write';
+import { isWriteBatchRun } from '../../lib/write-batch-grant';
+import {
+  reportChapterWriteback,
+  writtenChapter,
+  type ChapterWriteback,
+} from '../../lib/write-batch-writeback';
 import { isWholeFileDrifted, type PatchHunk } from '../../lib/patch-hunks';
 import {
   associateIssuesToOps,
@@ -55,7 +62,7 @@ import {
 import { shouldAutoAcceptSuggestion } from '../../lib/agent-permission';
 import { invalidateContextBundleCache } from '../../lib/project-context';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
-import { markChapterWrittenInPlan, unmarkChapterWrittenInPlan } from '../../lib/serial-plan';
+import { markChapterWrittenInPlan } from '../../lib/serial-plan';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import {
@@ -586,6 +593,8 @@ export function useSuggestionWriteback({
       const assistantSessionId = suggestion.assistantSessionId ?? assistantSessionIdRef.current;
       return enqueueWriteback(() =>
         withNativeDelivery(projectRoot, async (deliveryTicket) => {
+          // 写前快照那条版本记录：批量写章要把它存进批量记录，撤销一批时用。
+          let snapshotPath: string | null = null;
           const expected = targetStateAtStart.diskBaseline;
           const summary = overrides.summary ?? suggestion.summary;
           const note = overrides.note ?? suggestion.note;
@@ -666,6 +675,7 @@ export function useSuggestionWriteback({
                 },
                 deliveryTicket,
               );
+              snapshotPath = result?.path ?? null;
               return result;
             },
             advanceBranchHead: async (timestamp) => {
@@ -801,6 +811,7 @@ export function useSuggestionWriteback({
             receipt: loopRecord.receipt,
             recordPath: loopRecord.record?.recordPath ?? null,
             createdFile: loopRecord.receipt.createdFile,
+            snapshotPath,
             warning,
             writebackWarning: warning,
             retryCaches,
@@ -1010,13 +1021,8 @@ export function useSuggestionWriteback({
                   !canUndoWriteback(targetModel?.getValue() ?? '', wrote, normalizeEol)
                 )
                   throw new Error('文件在核对期间已变化，已取消撤销新建');
-                // 原生 delete_path 尚非 compare-delete；此处只阻断已观察到的漂移，
-                // 读取完成到原生删除之间的跨进程竞态仍需原生原子守卫。
-                await TauriFileSystem.deletePath(projectRoot, path);
-                invalidateContextBundleCache(projectRoot);
-                // 正文没了，这章就不再是「写完的」——把接受时标上的 done 退回 pending。
-                // 只在这一支做：修订的撤销走下面的反向写回，文件还在，那章依然是写完的。
-                await unmarkChapterWrittenInPlan(projectRoot, path);
+                // 此处只阻断已观察到的漂移；删文件、清缓存、计划里退回未写与批量清单上的撤销共用一条路。
+                await deleteCreatedFile(projectRoot, path);
                 // 删除/计划更新期间仍能输入或切页，只清理未变的原 model；不丢弃后来新稿。
                 const canRetireTarget = () =>
                   mountedRef.current &&
@@ -1139,6 +1145,10 @@ export function useSuggestionWriteback({
     // 硬闸：有截断警告且没武装就不写，这一次只武装。逐处接受不经过这里。
     if (suggestion.truncationWarning && truncationArmedIdRef.current !== suggestion.id) {
       if (!actionInFlightRef.current) armTruncatedAccept(suggestion.id);
+      reportChapterWriteback(suggestion.runId, {
+        written: false,
+        reason: '这份修订疑似没写完，要你在编辑器里看过再接受。',
+      });
       return;
     }
     cancelTruncatedAccept();
@@ -1146,6 +1156,13 @@ export function useSuggestionWriteback({
     const projectRoot = projectPathRef.current;
     const actionToken = beginAction('accept', suggestion);
     if (!actionToken) return;
+    // 批量写章自动写进文件的那几章不逐章弹撤销提示（正文与事实记账的都不弹），撤销改由清单提供；
+    // 按这一批登记的运行 id 认，作者手动接受的修订照旧弹。
+    const batchWrite =
+      suggestion.requiresConfirmation === false && isWriteBatchRun(suggestion.runId);
+    // 批量写章的调度器按运行 id 等这份结果：写进去了就连同事实记账一起交，没写进去交原因。
+    let settlement: Promise<ChapterWriteback> | null = null;
+    let failure: string | null = null;
 
     try {
       const currentContent = editorRef.current.getValue();
@@ -1241,13 +1258,16 @@ export function useSuggestionWriteback({
       // 接受一次不等于这章写完了；撤销走的是反向写回，届时正文没了，后端自会拒绝。
       if (!recoveredRecord) await markChapterWrittenInPlan(projectRoot, path);
       // 同一层上把写章检查时抽出的新事实记进台账；不等它，失败只提示，不影响已落盘的正文。
-      if (!recoveredRecord)
-        void recordAcceptedChapterFacts(
-          projectRoot,
-          path,
-          suggestion.runId,
-          () => mountedRef.current && projectPathRef.current === projectRoot,
-        );
+      // 批量写章要等它落定才开下一章（下一章的章纲读已写事实），所以把它连同写前快照交出去。
+      const facts = recoveredRecord
+        ? null
+        : recordAcceptedChapterFacts(
+            projectRoot,
+            path,
+            suggestion.runId,
+            () => !batchWrite && mountedRef.current && projectPathRef.current === projectRoot,
+          );
+      settlement = writtenChapter(projectRoot, path, loopRecord.snapshotPath, facts);
       const runStatus = loopRecord.auditComplete
         ? await forgetSuggestionRecovery(suggestion, true)
         : undefined;
@@ -1272,7 +1292,7 @@ export function useSuggestionWriteback({
         });
         return;
       }
-      if (!recoveredRecord)
+      if (!recoveredRecord && !batchWrite)
         offerUndo(
           suggestion,
           path,
@@ -1284,9 +1304,11 @@ export function useSuggestionWriteback({
       setSuggestionStatus(
         (recoveredRecord
           ? '已核验原来那次写入与闭环记录；未再次写入，保留作者当前编辑'
-          : loopRecord.recordPath
-            ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
-            : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
+          : batchWrite
+            ? '已写入当前文件 · 已留写前快照，撤销在批量写章的清单上'
+            : loopRecord.recordPath
+              ? '已写入当前文件 · 已留写前快照与闭环记录，可点通知里的「撤销」一键回退'
+              : '已写入当前文件 · 已留写前快照，可点通知里的「撤销」一键回退') +
           issueResolutionNote(wholeIssueResolutions, issuesAttributed, wholeIssueCounts),
         'success',
       );
@@ -1302,6 +1324,7 @@ export function useSuggestionWriteback({
         recordPath: loopRecord.recordPath ?? undefined,
       });
     } catch (err) {
+      failure = err instanceof Error ? err.message : String(err);
       if (!isCurrentAction(actionToken)) return;
       failAction(actionToken, `接受失败: ${err instanceof Error ? err.message : String(err)}`);
       emitAuthorLoopResult({
@@ -1312,6 +1335,10 @@ export function useSuggestionWriteback({
       });
     } finally {
       finishAction(actionToken);
+      reportChapterWriteback(
+        suggestion.runId,
+        settlement ?? { written: false, reason: failure ?? '这次接受没有写进文件。' },
+      );
     }
   }, [
     armTruncatedAccept,

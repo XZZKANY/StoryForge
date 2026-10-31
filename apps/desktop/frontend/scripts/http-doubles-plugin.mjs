@@ -12,6 +12,7 @@ const DOUBLES = {
   facts: 'http-facts-double',
   'ide-commands': 'http-ide-commands-double',
   'knowledge-proposals': 'http-knowledge-double',
+  'write-batch': 'http-write-batch-double',
 };
 const WRAPPER = '\0storyforge-http-double:';
 const ORIGINAL = 'storyforge-http-original:';

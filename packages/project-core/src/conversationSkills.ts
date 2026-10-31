@@ -5,9 +5,21 @@ export const CONVERSATION_SKILL_DIR = '技能';
 export const INVOKED_SKILL_MAX = 3;
 
 // 中文输入法下按 / 键打出来的是「、」，全角是「／」，三个都认。
-const TRIGGERS = '/／、';
+export const COMMAND_TRIGGERS = '/／、';
+const TRIGGERS = COMMAND_TRIGGERS;
 const LEADING_TRIGGER = new RegExp(`^\\s*[${TRIGGERS}]`);
 const PENDING_COMMAND = new RegExp(`^\\s*(?:[${TRIGGERS}]\\S+\\s+){0,2}[${TRIGGERS}](\\S*)$`);
+
+/** 批量写章指令的名字：`/写 4-10`。 */
+export const WRITE_BATCH_COMMAND_NAME = '写';
+
+/**
+ * 这个名字是不是指令词（`写`，或不分大小写的 `goal`）：指令优先，同名技能点不到（作者 10-30 第 8 问选 A），
+ * 输入框的 `/` 菜单照列但标出来、提示改名。
+ */
+export function isWriteBatchCommandWord(name: string): boolean {
+  return name === WRITE_BATCH_COMMAND_NAME || name.toLowerCase() === 'goal';
+}
 
 /** 消息是不是以技能点名开头（只看触发符，不核对名字）。 */
 export function startsWithSkillCommand(message: string): boolean {
@@ -30,9 +42,12 @@ export function completeSkillCommand(value: string, name: string): string {
 /**
  * 消息开头连着点名的技能（`/立项流程 /审稿口径 ……`）：每个触发符后面按最长匹配认 `names` 里的名字，
  * 名字后面要么是空白、要么是消息结尾；碰到认不出的就停。去重，最多 {@link INVOKED_SKILL_MAX} 个。
+ * 叫指令词的技能点不到：`/写`、`/goal` 是批量写章指令。
  */
 export function invokedSkillNames(message: string, names: readonly string[]): string[] {
-  const known = [...new Set(names.filter(Boolean))].sort((a, b) => b.length - a.length);
+  const known = [...new Set(names.filter((name) => name && !isWriteBatchCommandWord(name)))].sort(
+    (a, b) => b.length - a.length,
+  );
   const picked: string[] = [];
   let rest = message.trimStart();
   while (picked.length < INVOKED_SKILL_MAX && rest && TRIGGERS.includes(rest[0])) {

@@ -290,6 +290,24 @@ export function parseChapters(text: string, sourcePath: string): Chapter[] {
   return chapters;
 }
 
+const HEADING_LINE = /^#{1,6}(?!#)/u;
+const CLOSING_HASHES = new RegExp(`${PYTHON_WHITESPACE}+#+$`, 'u');
+const TITLE_SEPARATORS = new RegExp(`^(?:${PYTHON_WHITESPACE}|[:：、，,.．·・|｜—–-])+`, 'u');
+
+/**
+ * 一章正文开头那个 Markdown 标题里的章名：去掉 `#` 与「第 N 章」之类的章号（与上面拆书认章同一条规则），
+ * 再去掉章号后的分隔符。第一个非空行不是 Markdown 标题、或去掉章号后什么都不剩，为 null。
+ */
+export function chapterHeadingTitle(text: string): string | null {
+  const first = pythonSplitlines(text.replace(/^\uFEFF/u, '')).find((line) => pythonStrip(line));
+  const line = pythonStrip(first ?? '');
+  if (!HEADING_LINE.test(line)) return null;
+  const heading = pythonStrip(line.replace(/^#+/u, '').replace(CLOSING_HASHES, ''));
+  const match = CHAPTER_RE.exec(heading);
+  const title = pythonStrip((match ? match[3] : heading).replace(TITLE_SEPARATORS, ''));
+  return title || null;
+}
+
 export async function loadProjectChapters(
   reader: ProjectReader,
   root: string,

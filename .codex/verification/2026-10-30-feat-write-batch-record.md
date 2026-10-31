@@ -1,0 +1,64 @@
+## 2026-10-30 `/写` 批量写章 C 刀：批量记录与「下一步」判定
+
+- 背景：方案见 `docs/internal/write-batch-plan-2026-10.md`（作者 10-30 已审 10 问）。本刀叠在 A 刀（`feat/write-batch-plan`，PR #545，基于 `955127b6`）上，只动引擎与 `lib/api`；界面组件、写章固定流程（`chapterWritingPipeline.ts` / `chapterCheckProtocol.ts` / `chapterWritingTools.ts`）、`serial-plan.json` 的写入与 `project.plan_update`、帧契约、golden 都没改。不调模型。
+- 记录放在哪：单独一个文件 `.storyforge/write-batch.json`，只记最近一批；每章「已写」照旧由 `markChapterWritten` 标在 `serial-plan.json`（没动）。写文件复用连载计划的同一个写口（`ProjectWriter.writeProjectFile` + `dumpJson` 缩进 2 + `platformTextBytes`，宿主原子写）。方案 §6.2 已改成这样，并写明续写 / 新开一批的区分。
+- 引擎：
+  - 新 `packages/engine/src/loop/writeBatchRecord.ts`：记录形状、逐字段校验（`parseWriteBatchRecord`）、读写（`readWriteBatchRecord` / `writeWriteBatchRecord`）。版本只认 1；字段不对、章数与范围对不上、status 与 stop 对不上都报 `InputDomainError`，不当成「没有批量」。读预算 16 MiB（范围最多 10000 章、每章一条）。
+  - 新 `packages/engine/src/loop/writeBatchSteps.ts`：`startWriteBatch` / `resumeWriteBatch` / `recordWriteBatchChapter` / `nextWriteBatchStep` / `stopWriteBatch` / `recoverInterruptedWriteBatch` / `markWriteBatchReviewed` / `readWriteBatch`，错误统一 `WriteBatchError`（运行不存在仍是 `AgentRunNotFoundError`）。
+  - `writeBatch.ts`（A 刀）：`planWriteBatch` 改成调内部 `planBatch(deps, input, 'new' | 'resume')`；新增 blocker `batch_running`（最近一批还在写）与 `previous_batch_unreviewed`（最近一批停了 / 写完了但没点审完；停下的给两条路，写完的只给「先点审完」），续写走 `'resume'` 不受这两条约束；范围跨度 > 10000 报 `invalid_range`（说明是防输错，不是每批章数上限）；「每章有没有正文」抽成 `bookChapters`，计划与下一步共用，行为不变。
+  - 记录形状：`{version, id, from, to, created_at, model_key, status, reviewed, stop, legs, chapters}`。每段 leg 比方案多一个 `runs: [{ordinal, run_id, tokens}]`：同一次运行重复记是覆盖不是累加，「上一章」= 当前这一段最后记的那条。`model_key` 只在顶层，续写时换成新的。
+  - 「下一步」判定顺序：1 上一章运行失败 / 被停下 / 检查拦下 / 没交出修订 → 停在那一章（`stopped_here`）；2 修订要作者点接受（`requires_confirmation`）或没写进文件 → 停在那一章；范围里已没有没正文的章 → 写完；3 上一章事实对不上 → 停在下一章之前；4 只读 → 停，模型标识变了 → 停；5 这一段已用 ≥ 上限 → 停（超出量写进说明）；6 试写段写完一章 → 停；7 写范围里下一章还没正文的（读盘，作者中途写了的标 `skipped_written`）。已停 / 已写完的批再问，原样回报。
+- `lib/api`：`write-batch.ts` 加 8 个函数（动态 import 引擎），回包逐字段白名单解码（`decodeWriteBatch` / `decodeWriteBatchStep` / `decodeWriteBatchStart` / `decodeWriteBatchView`，状态与停下原因对不上也报 `WriteBatchShapeError`）；`lib/engine/writeBatch.ts` 装配读口、写口、引擎库与会话库，返回类型标成契约类型；`contracts.ts` 加 `ApiWriteBatch` 等 12 个形状，`ApiWriteBatchBlocker.code` 加两种。
+- 验证：
+  - 引擎新测试 `loop/writeBatchSteps.test.ts` 52 条：记录往返与 6 种坏文件（含 planWriteBatch 也报错）；开跑有 blocker 时拒且不写文件、试写段、已有正文标跳过、范围 10001 拒 / 10000 不拒；未审完拦新批（停下给两条路、写完只给一条）、还在写拦新批、续写不拦；七条规则各至少一例，先后：失败先于待确认、失败先于事实对不上、事实对不上先于上限、只读先于上限、刚好等于上限就停（`>=`）、没剩章就写完不停；正文真值源（记录说写了但文件没了会重写并标 missing、作者中途写的跳过、改过的标 changed、记录说没写正文有了标 written_outside）；记一章时指纹 / 字数 / 用量 / 检查由引擎算、界面多送的字段不收、同一运行不重复累加、6 种不一致报错；停下、只收界面能知道的三种原因、恢复被关掉的批不自动续；续写新开一段重新估、试写后按实际用量估、没章可写时不续也不写文件。
+  - 引擎全量 `npx vitest run`（packages/engine）：110 个文件，14183 passed + 2 skipped（A 刀时 14131，多出的 52 条是本刀新测试）；`tsc --noEmit` EXIT=0。
+  - 前端新测试 `tests/write-batch-record-api.test.ts` 14 条（真引擎库 node:sqlite + 合成作品经 `lib/api` 开跑 → 问下一步 → 记一章 → 停 → 读 → 拦新批 → 标审完；恢复被关掉的批；坏文件报错；解码白名单与 10 种坏形状）；与 `tests/write-batch-api.test.ts`、`tests/source-standards.test.ts`、`tests/ui-terminology.test.ts` 一起跑 28 passed；`npm --prefix apps/desktop/frontend run typecheck` EXIT=0。
+  - `pnpm verify` 跑了两次：
+    - 第一次 EXIT=1：前端单测 258 个文件里 2 个超时红（`tests/book-overview-app.test.tsx`、`tests/focus-styles.test.ts`，都是「Test timed out in 5000ms」），两条都不经过批量写章的代码。当时本机 CPU 占用 79–88%（另有游戏与别的会话在跑，没有别的 node / headless Chrome 进程）。这两个文件单独跑 6 passed；前端单测整套单独重跑 258 个文件 2605 passed、EXIT=0。没有在 A 刀基线上同样满载复跑对照。
+    - 第二次 EXIT=0：lint、前端类型检查、project-core 34 passed、引擎 110 个文件 14183 passed + 2 skipped（含 golden）、前端 258 个文件 2605 passed、行间续写 / 浏览器冒烟 / Agent 对话三个浏览器回归通过。
+- 变异（脚本逐处定点替换、先断言目标串恰好 1 次，跑完在 finally 里写回原字节并核对；前后对四个源文件做 sha256 校验全部 OK）：
+  - M1 规则 2 去掉（要作者点接受也不停）→ 2 条红。
+  - M2 事实对不上不停 → 3 条红。
+  - M3 上限比较 `>=` 改 `>` → 1 条红（刚好等于上限）。
+  - M4 续写也要求先审完 → 4 条红。
+  - M5 下一章改看记录不看正文 → 1 条红（文件没了要重写）。
+  - M6 指纹改收界面送来的值 → 1 条红。
+  - M7 规则 1 不看运行失败 → 5 条红。
+  - M8 规则 4 不看只读 → 2 条红。
+  - M9 规则 4 不看换模型 → 1 条红。
+  - M10 规则 6 试写不停 → 2 条红。
+  - M11 范围上限放宽一章 → 1 条红。
+  - M12 同一运行重复记会重复累加 → 1 条红。
+  - M13 不认识的版本照读 → 1 条红。
+  - M14 前端解码不核状态与停下原因 → 2 条红。
+- golden 零改动：`git status --short packages/engine/golden` 为空。
+- 行尾：改动与新建文件全 LF、无 BOM；`git diff --numstat` 与 `--ignore-all-space --numstat` 一致。
+- 未覆盖 / 取舍：
+  - 没跑真宿主探针与 Tauri 冒烟（磁盘紧；写口沿用宿主现有的 `write_engine_project_file`，它对 `.storyforge/` 下任意相对路径都放行，没加新命令）。
+  - 「范围里已没有没正文的章」放在规则 2 之后、规则 3 之前判断：规则 3–6 都是「开下一章之前」的判断，没有下一章时直接算写完（最后一章事实对不上也算写完，清单上照样看得到条数）。
+  - 规则 2 照字面执行：修订要作者点接受时，即使作者已经点了接受，也停在那一章。
+  - 停在最后一章等作者处理（规则 1、2）后，作者自己处理完、范围里已没有没正文的章时，续写会因「没有要写的章」被拒，这一批一直是停下状态，要点「这批审完了」才能开新的一批。
+  - 记录文件没有「写前比对」：同一部作品同时只该有一个调度器，调用按顺序来；两个窗口同时开跑会互相覆盖。
+  - 待作者点接受的提示里认得出「检查器没给出结果」，认不出 B 刀的「疑似没写完」（那个字段还没定），只说要作者通读。
+
+## 2026-10-30 C 刀审后追加：续写不再卡死、token 按「万」说、方案文档对齐
+
+- 背景：编排者审过 C 刀，退回两件、追加一件，同一分支追加提交。
+- 续写卡死：
+  - `readWriteBatch` 回包加 `can_resume`（引擎判定：最近一批是停下的，而且这一批范围里还有没正文的章）与 `resume_from`（范围里下一个没正文的章序，以正文为准；没有批量或都写了为 null）。界面给不给「从第 k 章接着写」只看 `can_resume`，k 用 `resume_from`。
+  - `resumeWriteBatch` 遇到这一批的章都已经有正文时（比如停在最后一章、作者自己处理完了），不再拒成死局：把这一批改成 `finished`、清掉 `stop`，`pending` / `after_trial` 里已有正文的标 `skipped_written`，回 `{started:false, plan, batch}`；plan 里原来的 `nothing_to_write` 换成稳定 code `batch_all_written`，说明是「这一批（第 a–b 章）的章都已经有正文了，没有要续写的：去清单上审完就行。」之后再开新的一批只差「审完」。
+  - 契约：`ApiWriteBatchView` 加 `can_resume`、`resume_from`；`ApiWriteBatchBlocker.code` 加 `batch_all_written`。前端解码加一致性检查：说能续写却没有停下的批、或没有要续写的章，报 `WriteBatchShapeError`。
+- token 按「万」说：引擎新 `formatTokenCount`（`loop/writeBatch.ts`，从包入口导出）：保留一位小数、整万不带 .0（523456 → 「52.3 万」，600000 → 「60 万」），不足 0.05 万的正数说「不到 0.1 万」、不说成 0（这一条是我加的）。目前给作者看的消息里只有 `cap_reached` 带 token 数，改成「这一段已用 52.3 万 / 上限 45 万 token，超出 7.3 万（……）」。记录文件里的数字字段仍存原始整数（测试钉住）。
+- 方案文档：§2 的「批量记录」与 §8 C 刀改成 `.storyforge/write-batch.json`，§8 C 刀按实际接口、判定顺序与新拦法重写；§6.2 补了一句「全写完就记成写完」和「界面只看能不能续写」。全文已没有「批量段」的说法。
+- 验证：
+  - 引擎批量相关测试 82 passed（新增：全写完续写记成写完并能审完后开新批、停下且有剩章时能续写并给出从第几章续、还在写 / 写完 / 没有批量时不能续写、格式化 7 例；上限两例改用 10 万量级核对「万」的说法与原始整数）。
+  - 引擎全量 `npx vitest run`（packages/engine）：110 个文件，14192 passed + 2 skipped；`tsc --noEmit` EXIT=0。
+  - 前端相关 4 个文件（`write-batch-record-api` / `write-batch-api` / `source-standards` / `ui-terminology`）33 passed；`npx tsc --noEmit -p tsconfig.json`（前端）EXIT=0；改动文件 eslint 与 prettier --check 都过。
+  - 按编排者要求，这次没有再跑整套 `pnpm verify`（推送时 pre-push 跑快测，CI 跑全套）。
+- 变异（同样逐处定点替换、断言目标串恰好 1 次、finally 写回原字节，前后 sha256 核对 OK）：
+  - N1 能不能续写不看正文 → 1 条红。
+  - N2 续写遇到全写完仍拒 → 1 条红。
+  - N3 整万也带 .0 → 6 条红。
+  - N4 不足 0.1 万说成 0 → 1 条红。
+  - N5 前端解码不核能不能续写 → 3 条红。
+- golden 零改动；改动文件全 LF、无 BOM。

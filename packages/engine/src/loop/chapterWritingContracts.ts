@@ -29,7 +29,11 @@ export const CHAPTER_CHECK_ARTIFACT_KIND = 'chapter_check';
 export const CHAPTER_CANDIDATE_ARTIFACT_KIND = 'chapter_candidate';
 export const CHAPTER_WRITE_INTENT = 'chapter.write';
 /** 章纲拟好时写进会话的那句话的开头；章纲读对话节选时以它为上一章的分界。 */
-export const BRIEF_READY_PREFIX = 'Chapter Brief 已准备：';
+export const BRIEF_READY_PREFIX = '章纲已准备：';
+/** 10-31 前写进会话的是这个说法，旧会话里还留着，分界照认。 */
+const LEGACY_BRIEF_READY_PREFIX = 'Chapter Brief 已准备：';
+const isBriefReady = (text: string) =>
+  text.startsWith(BRIEF_READY_PREFIX) || text.startsWith(LEGACY_BRIEF_READY_PREFIX);
 /** 修复步骤借修订链路写进会话的指令开头：不是作者说的话。 */
 export const REPAIR_INSTRUCTION_PREFIX =
   '按已确认 Chapter Brief 修复以下硬失败，只改必要处并输出完整正文：';
@@ -129,6 +133,10 @@ async function relativePath(
   return lexicalPosix(text, platform);
 }
 
+/** 计划里一章的目标文件：记过落盘路径就用它，没记过按章序取 `正文/第NNN章.md`。批量写章列目标也用这一条。 */
+export const plannedChapterPath = (chapter: Pick<PlannedChapter, 'ordinal' | 'declaredPath'>) =>
+  chapter.declaredPath || `正文/第${String(chapter.ordinal).padStart(3, '0')}章.md`;
+
 export type ResolvedTarget = {
   readonly relative: string;
   /** 新文件的项目相对路径（调用方按平台拼成绝对路径）。 */
@@ -148,8 +156,7 @@ export async function resolveTarget(
   const plan = await buildPlan(reader, root, platform);
   let planned = plan !== null ? nextChapter(plan) : null;
   let relative = requestedRelative;
-  if (relative === null && planned !== null)
-    relative = planned.declaredPath || `正文/第${String(planned.ordinal).padStart(3, '0')}章.md`;
+  if (relative === null && planned !== null) relative = plannedChapterPath(planned);
   if (relative === null)
     throw new AgentOrchestrationError(
       '写一章需要目标文件：请先打开空章节文件，或在连载计划中声明下一章。',
@@ -331,7 +338,7 @@ export function briefConversation(
     if (lines.length >= CONVERSATION_MAX_MESSAGES) break;
     const { role } = rows[index];
     const text = pythonStrip(rows[index].content);
-    if (role === 'assistant' && text.startsWith(BRIEF_READY_PREFIX)) break;
+    if (role === 'assistant' && isBriefReady(text)) break;
     if (!text || (role !== 'user' && role !== 'assistant')) continue;
     if (role === 'user' && text.startsWith(REPAIR_INSTRUCTION_PREFIX)) continue;
     if (role === 'assistant' && REVISION_SUMMARY.test(text)) continue;
@@ -570,10 +577,10 @@ const sameAdjustment = (a: Obj, b: Obj) =>
 /** 作者确认的 brief：必须就是待确认的那一版，可编辑字段逐个重新收口，修订号加一。 */
 export function confirmBrief(candidate: unknown, pending: Obj): Obj {
   if (!isJsonObject(candidate as never))
-    throw new AgentOrchestrationError('确认写章前需要提交结构化 Chapter Brief。');
+    throw new AgentOrchestrationError('确认写章前需要提交结构化章纲。');
   const edited = candidate as Obj;
   if (edited.brief_id !== pending.brief_id || edited.revision !== pending.revision)
-    throw new AgentOrchestrationError('Chapter Brief 已过期，请重新生成后再确认。');
+    throw new AgentOrchestrationError('章纲已过期，请重新生成后再确认。');
   const confirmed: Obj = { ...pending };
   for (const [key, limit] of [
     ['chapter_title', 100],
@@ -587,7 +594,7 @@ export function confirmBrief(candidate: unknown, pending: Obj): Obj {
   const minimum = positiveInt(edited.target_chars_min);
   const maximum = positiveInt(edited.target_chars_max);
   if (minimum === null || maximum === null || minimum > maximum)
-    throw new AgentOrchestrationError('Chapter Brief 字数范围无效。');
+    throw new AgentOrchestrationError('章纲字数范围无效。');
   confirmed.target_chars_min = minimum;
   confirmed.target_chars_max = maximum;
   // 作者只能去掉调整（改回原计划），不能借确认塞进新的；没回传这一项就保留原样。

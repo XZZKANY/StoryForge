@@ -20,9 +20,9 @@ type Confirm = (options: {
 }) => Promise<boolean>;
 
 // 设置搜索按这些词命中整个插件分组。
-const SEARCH_TEXT = '插件 技能 写法 指令 导入 移除 Codex';
+const SEARCH_TEXT = '插件 技能 写法 指令 导入 压缩包 zip 移除 Codex';
 
-/** 设置页「插件」：本机插件库里装了什么、从文件夹导入、移除；每本书在对话头「上下文」里选用。 */
+/** 设置页「插件」：本机插件库里装了什么、从文件夹或压缩包导入、移除；每本书在对话头「上下文」里选用。 */
 export function PluginsSection({ plugins, confirm }: { plugins: PluginsState; confirm: Confirm }) {
   const query = useContext(SettingsSearchContext).trim().toLowerCase();
   const visible = !query || SEARCH_TEXT.toLowerCase().includes(query);
@@ -81,16 +81,26 @@ export function PluginsSection({ plugins, confirm }: { plugins: PluginsState; co
               ))}
             </ul>
           )}
-          <div className="px-4 py-3">
+          <div className="flex flex-wrap gap-2 px-4 py-3">
             <Button
               size="sm"
               variant="secondary"
               disabled={plugins.busy}
-              loading={plugins.importing}
-              onClick={() => void plugins.startImport()}
+              loading={plugins.importingFrom === 'folder'}
+              onClick={() => void plugins.startImport('folder')}
               data-testid="plugins-import"
             >
               从文件夹导入…
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={plugins.busy}
+              loading={plugins.importingFrom === 'zip'}
+              onClick={() => void plugins.startImport('zip')}
+              data-testid="plugins-import-zip"
+            >
+              从压缩包导入…
             </Button>
           </div>
         </div>
@@ -135,6 +145,17 @@ function PluginCard({
           <p className="truncate text-sm" data-testid="plugin-card-title">
             <span className="font-medium text-foreground">{title}</span>
             {meta && <span className="text-xs text-muted"> · {meta}</span>}
+            {plugin.bundled && (
+              <>
+                {' '}
+                <span
+                  className="rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted"
+                  data-testid="plugin-card-bundled"
+                >
+                  内置
+                </span>
+              </>
+            )}
           </p>
           {plugin.manifest?.description && (
             <p
@@ -173,17 +194,19 @@ function PluginCard({
           >
             {open ? '收起' : '查看'}
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            aria-label={`移除插件「${title}」`}
-            disabled={disabled}
-            loading={removing}
-            onClick={onRemove}
-            data-testid="plugin-card-remove"
-          >
-            移除
-          </Button>
+          {!plugin.bundled && (
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-label={`移除插件「${title}」`}
+              disabled={disabled}
+              loading={removing}
+              onClick={onRemove}
+              data-testid="plugin-card-remove"
+            >
+              移除
+            </Button>
+          )}
         </div>
       </div>
       {open && (

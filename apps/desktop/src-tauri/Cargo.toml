@@ -29,6 +29,9 @@ chrono = "0.4"
 base64 = "0.22"
 sha2 = "0.10"
 tempfile = "3"
+zip = { version = "9.1", default-features = false, features = ["deflate-flate2"] }
+# zip 只引 flate2、不选后端；Windows 上别处的 flate2 只在编译期（tauri-codegen）用，这里显式开 miniz_oxide 后端。
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }

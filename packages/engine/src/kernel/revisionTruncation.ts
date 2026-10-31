@@ -54,6 +54,11 @@ function endsMidSentence(lines: readonly string[]): boolean {
   return peers.filter(closesSentence).length * 2 > peers.length;
 }
 
+const stoppedQuote = (lines: readonly string[]) =>
+  codePoints(lines[lines.length - 1])
+    .slice(-QUOTE_CHARS)
+    .join('');
+
 /** 原文最后一处还留在新稿里的行之后，那一整段原文在新稿里都找不到；找不到锚或停在原文行尾就不算。 */
 function missingTail(before: readonly string[], after: readonly string[]): string[] | null {
   const afterKeys = new Set(after.map(canonicalPunctuation));
@@ -103,9 +108,7 @@ export function truncationWarning(before: string, after: string): TruncationWarn
   const tail = missingTail(beforeLines, afterLines);
   if (tail === null) return null;
   const { shown, more } = headingTitles(tail);
-  const stopped = codePoints(afterLines[afterLines.length - 1])
-    .slice(-QUOTE_CHARS)
-    .join('');
+  const stopped = stoppedQuote(afterLines);
   const lost = shown.length
     ? `原文最后的${shown.map((title) => `『${title}』`).join('')}${more ? '等' : ''}共 ${tail.length} 段`
     : `原文最后 ${tail.length} 段（从「${codePoints(tail[0]).slice(0, QUOTE_CHARS).join('')}」起）`;
@@ -115,6 +118,23 @@ export function truncationWarning(before: string, after: string): TruncationWarn
       '整份接受会把这些内容一起删掉，请先在对比里核对，或让 AI 重做。',
     missing_line_count: tail.length,
     missing_headings: shown,
+    ends_mid_sentence: true,
+  };
+}
+
+/**
+ * 新写的一章「疑似没写完」：没有原文可比，只看正文是否停在半句（同一套收句规则）。
+ * 形状与整文件修订的截断警告相同，界面照同一处显示；空正文不算。
+ */
+export function newChapterTruncationWarning(content: string): TruncationWarning | null {
+  const lines = contentLines(content);
+  if (!lines.length || !endsMidSentence(lines)) return null;
+  return {
+    message:
+      `AI 写的这一章疑似没写完：正文停在半句（「…${stoppedQuote(lines)}」）。` +
+      '这条修订要你点接受才会写进文件，请先在对比里看看结尾，或让 AI 重写这一章。',
+    missing_line_count: 0,
+    missing_headings: [],
     ends_mid_sentence: true,
   };
 }

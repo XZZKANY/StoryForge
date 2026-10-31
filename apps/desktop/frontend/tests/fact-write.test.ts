@@ -221,6 +221,18 @@ test('给作者的一句话：记了多少、哪条对不上、哪些原句找�
 });
 
 test('接受后记账：通知带「撤销记账」，点了就撤', async () => {
+  vi.mocked(prepareChapterFactRecord).mockResolvedValue({
+    ...ready(ORIGINAL),
+    conflicts: [CONFLICT],
+  } as ChapterFactRecordPlan);
+  // 新记下的条数（不含待定的）与待定条数交回给批量写章的清单。
+  await expect(recordAcceptedChapterFacts(PROJECT, CHAPTER, 'run-7')).resolves.toMatchObject({
+    added: 1,
+    disputes: 1,
+    error: null,
+  });
+  vi.mocked(emitToast).mockClear();
+  disk.set(PATH, ORIGINAL);
   vi.mocked(prepareChapterFactRecord).mockResolvedValue(ready(ORIGINAL));
   await recordAcceptedChapterFacts(PROJECT, CHAPTER, 'run-7');
   expect(emitToast).toHaveBeenCalledOnce();
@@ -232,15 +244,21 @@ test('接受后记账：通知带「撤销记账」，点了就撤', async () =>
   expect(vi.mocked(emitToast).mock.calls[1]).toEqual(['已撤销这次记账。', { tone: 'success' }]);
 });
 
-test('没有运行 id 就不记；记账失败只提示，不往外抛', async () => {
-  await recordAcceptedChapterFacts(PROJECT, CHAPTER, undefined);
-  await recordAcceptedChapterFacts(null, CHAPTER, 'run-7');
+test('没有运行 id 就不记；记账失败只提示，不往外抛（原因交回给批量写章）', async () => {
+  const nothing = { snapshotPath: null, disputes: 0, added: 0, error: null };
+  await expect(recordAcceptedChapterFacts(PROJECT, CHAPTER, undefined)).resolves.toEqual(nothing);
+  await expect(recordAcceptedChapterFacts(null, CHAPTER, 'run-7')).resolves.toEqual(nothing);
   expect(prepareChapterFactRecord).not.toHaveBeenCalled();
 
   vi.mocked(prepareChapterFactRecord).mockRejectedValue(
     new Error('facts.json 的 facts[0].id 应为字符串'),
   );
-  await expect(recordAcceptedChapterFacts(PROJECT, CHAPTER, 'run-7')).resolves.toBeUndefined();
+  await expect(recordAcceptedChapterFacts(PROJECT, CHAPTER, 'run-7')).resolves.toEqual({
+    snapshotPath: null,
+    disputes: 0,
+    added: 0,
+    error: 'facts.json 的 facts[0].id 应为字符串',
+  });
   expect(emitToast).toHaveBeenCalledWith('这章的事实没记上：facts.json 的 facts[0].id 应为字符串', {
     tone: 'error',
   });

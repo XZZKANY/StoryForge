@@ -73,6 +73,7 @@ const plugin = (id: string, extra: Partial<PluginDescription> = {}): PluginDescr
   id,
   root: `C:\\库\\${id}`,
   manifest: manifest(id),
+  bundled: false,
   skills: [],
   styles: [],
   instructions: null,
@@ -185,6 +186,33 @@ test('已装插件一张卡：名字回退、版本作者、计数照写 0、问
   expect([...$('plugin-problems', details)!.querySelectorAll('li')]).toHaveLength(3);
 });
 
+test('自带插件：版本后有「内置」小标，没有「移除」，「查看」照旧', async () => {
+  vi.mocked(listPlugins).mockResolvedValue([
+    plugin('起书基础包', {
+      manifest: manifest('起书基础包', { author: 'StoryForge' }),
+      bundled: true,
+      skills: [entry('立项流程'), entry('审稿口径')],
+    }),
+    plugin('写法包'),
+  ]);
+  await mountSettings();
+  await vi.waitFor(() => expect($$('plugin-card')).toHaveLength(2));
+  const [starter, other] = $$('plugin-card');
+  expect($('plugin-card-title', starter)!.textContent).toBe(
+    '起书基础包 · v1.0.0 · StoryForge 内置',
+  );
+  expect($('plugin-card-bundled', starter)!.textContent).toBe('内置');
+  expect($('plugin-card-bundled', starter)!.className).toBe(
+    'rounded-sm border border-border px-1.5 py-px text-3xs leading-4 text-muted',
+  );
+  expect($('plugin-card-remove', starter)).toBeNull();
+  expect($('plugin-card-bundled', other)).toBeNull();
+  expect($('plugin-card-remove', other)).toBeTruthy();
+
+  await click($('plugin-card-toggle', starter));
+  expect($$('plugin-entry', $('plugin-card-details', starter)!)).toHaveLength(2);
+});
+
 test('没有插件时一行「还没有插件。」', async () => {
   await mountSettings();
   await vi.waitFor(() => expect($('plugins-empty')!.textContent).toBe('还没有插件。'));
@@ -207,6 +235,49 @@ test('选文件夹时取消：不暂存、不弹预览', async () => {
   expect(vi.mocked(stagePluginImport)).not.toHaveBeenCalled();
   expect(dialog()).toBeNull();
   expect(toasts).toEqual([]);
+});
+
+test('从压缩包导入：选 .zip 文件（不是文件夹）→ 同一暂存 → 预览', async () => {
+  await mountSettings();
+  vi.mocked(open).mockResolvedValueOnce('D:\\下载\\写法包.zip');
+  vi.mocked(stagePluginImport).mockResolvedValueOnce(staged());
+  vi.mocked(describeStagedPlugin).mockResolvedValueOnce(
+    plugin('stage-1', { manifest: manifest('写法包'), skills: [entry('立项')] }),
+  );
+  await click($('plugins-import-zip'));
+  await vi.waitFor(() => expect(dialog()).toBeTruthy());
+  const options = vi.mocked(open).mock.calls[0][0]!;
+  expect(options).toMatchObject({
+    multiple: false,
+    filters: [{ name: '插件压缩包', extensions: ['zip'] }],
+  });
+  expect(options.directory).not.toBe(true);
+  expect(vi.mocked(stagePluginImport)).toHaveBeenCalledWith('D:\\下载\\写法包.zip');
+  expect(vi.mocked(describeStagedPlugin)).toHaveBeenCalledWith('C:\\库\\.staging\\stage-1');
+  expect($('plugin-import-head', dialog()!)!.textContent).toContain('写法包 · v1.0.0');
+});
+
+test('选压缩包时取消：不暂存、不弹预览', async () => {
+  await mountSettings();
+  vi.mocked(open).mockResolvedValueOnce(null);
+  await click($('plugins-import-zip'));
+  expect(vi.mocked(open)).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(stagePluginImport)).not.toHaveBeenCalled();
+  expect(dialog()).toBeNull();
+  expect(toasts).toEqual([]);
+});
+
+test('压缩包暂存失败照样弹宿主给的原因', async () => {
+  await mountSettings();
+  vi.mocked(open).mockResolvedValueOnce('D:\\下载\\坏包.zip');
+  vi.mocked(stagePluginImport).mockRejectedValueOnce(
+    '打不开这个压缩包（可能已损坏，或不是 zip 格式）',
+  );
+  await click($('plugins-import-zip'));
+  await vi.waitFor(() => expect(toasts).toHaveLength(1));
+  expect(toasts[0]).toMatchObject({ tone: 'error' });
+  expect(toasts[0].message).toContain('打不开这个压缩包');
+  expect(dialog()).toBeNull();
 });
 
 test('暂存失败弹宿主给的原因；预览读失败时把已暂存的清掉', async () => {

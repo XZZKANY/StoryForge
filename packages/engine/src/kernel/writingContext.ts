@@ -236,7 +236,7 @@ export function writingContextFromGuardedBundle(
     receipt !== null &&
     get(receipt, 'prompt_files_sha256') !== selectionSha256(bundle.files.map(bundleFileDump))
   )
-    throw new WritingContextConflictError('Chapter Brief 的资料投影已变化，请重新生成。');
+    throw new WritingContextConflictError('章纲的资料投影已变化，请重新生成。');
   return new PreparedWritingContext(
     TOKEN,
     identity(projectRoot, filePath, content, intent, platform),
