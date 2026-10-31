@@ -70,3 +70,20 @@
   - U1 界面出错又借 `run_not_started` → loop + scheduler 2 条红。U2 确认前就真续写 → scheduler 3 条红。U3 每章的话不带引擎记下的要求 → scheduler 3 条红。
 - golden 零改动（`git status --short packages/engine/golden` 为空）；改动文件全 LF、无 BOM。`--numstat` 与 `--ignore-all-space --numstat` 只在 `useWriteBatchScheduler.ts`、`write-batch-run.ts`、`write-batch-scheduler.test.tsx` 上不同（`leaveWriteBatch` 等少一层嵌套后的缩进），没有行尾翻转。
 - 仍没做 / 没验：真宿主、真模型都没跑；`docs/internal/write-batch-plan-2026-10.md` §8 里 C 刀接口那段没跟着改（多了预览、note / title、`scheduler_error`、记录版本 2），留给编排者决定要不要同步。
+
+## 2026-10-31 CI 红在浏览器冒烟：打开作品时的批量写章查询没有替身
+
+- 现象：#552 的 CI（Windows / `pnpm verify`）两次都红在浏览器冒烟回归（`verify:smoke`）：`Unexpected fixture requests: Unexpected browser smoke request: /api/write-batch/recover`（出现两次：开发档 StrictMode 把打开作品的 effect 跑了两遍）。
+- 原因：E 刀让调度器在打开作品时调 `recoverInterruptedWriteBatch` 和 `readWriteBatch`。为了 Agent 对话那道回归，我给 `tests/support/http-write-batch-double.ts` 加了这两个接口的 fetch 替身；浏览器冒烟经 `scripts/http-doubles-plugin.mjs` 用的是同一份替身，于是打开作品就会发 `/api/write-batch/recover`，而冒烟脚本的 fetch 编排不认这个路径，按「意外请求即失败」报错。之前我只单跑了 Agent 对话那一道回归，pre-push 也不跑浏览器回归，所以没在本地拦下。
+- 修法：只改 `scripts/verify-smoke.mjs` 的 fetch 编排，「意外请求即失败」的规则没放宽。
+  - 新认两条：`/api/write-batch/recover` 回 `{ recovered: false, batch: null }`，`/api/write-batch/read` 回「没有批量」（`batch: null`、没有对不上的章、不能续写）。两条都只认 POST、只认这部作品的 `project_root`，回包照样走产品的解码器；别的 `/api/write-batch/*` 仍算意外。
+  - 查过其余入口：打开作品和对话初始化只会打这两条；排计划、开跑、续写等只在作者打 `/写` 或点卡片按钮后才发，冒烟不走。行间续写回归用的是单独的入口页（`scripts/fixtures/inline-continuation.jsx`），不挂对话窗口，不发这些请求。`verify-sidebar-scroll.mjs` 不经替身插件、也不在根门禁里，没动。
+  - 冒烟末尾加了一条可证伪的核对：打开作品后先恢复、再读（`recover` 在前、`read` 有），而且不出停下或写完的卡。这条放在「意外请求」「控制台报错」两条核对之后，所以接口没被认时，先报出来的就是和 CI 一样的那句。
+- 先合了 `origin/master`（#551 插件 zip 导入界面），无冲突。
+- 验证（三道浏览器回归各单跑一遍，按 `scripts/verify-local.mjs` 里的命令；都没遇到冷启动超时）：
+  - `npm --prefix apps/desktop/frontend run verify:smoke`：EXIT=0（改完先跑一次，挪核对位置后又跑一次，两次都过）。
+  - 复现：脚本把「恢复」那一条的条件改成 `if (false)` 再跑冒烟，EXIT=1，报错正是 `Unexpected fixture requests: Unexpected browser smoke request: /api/write-batch/recover, Unexpected browser smoke request: /api/write-batch/recover`，和 CI 一致；跑完按原字节还原，核对过 sha256。
+  - `npm --prefix apps/desktop/frontend run verify:inline-continuation`：EXIT=0（`status: passed`）。
+  - `npm --prefix apps/desktop/frontend run verify:agent-conversation`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。相关前端测试（批量写章 10 份、`source-standards`、`ui-terminology`、`chapter-write-request`、`settings-plugins`）14 个文件 136 passed。
+  - 仍没跑整套 `pnpm verify`，靠 CI。
