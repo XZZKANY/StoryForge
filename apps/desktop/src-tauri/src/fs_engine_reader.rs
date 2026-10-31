@@ -1,6 +1,6 @@
 // Uncached, bounded raw reads for the deterministic engine. UI list_project_dir keeps
 // its own filtering contract; visibility and completeness belong to the kernel.
-use super::ensure_canonical_path_inside_project;
+use super::{ensure_canonical_path_inside_project, outside};
 use crate::host_error::HostError;
 use base64::Engine;
 use serde::Serialize;
@@ -12,10 +12,6 @@ const MAX_ENTRIES: usize = 20_000;
 // Must equal the engine's MAX_NATIVE_READ_BYTES (readPort.ts): the largest budget any reader asks for.
 const MAX_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
-
-fn outside(message: impl Into<String>) -> HostError {
-    HostError::new("outside-project", message)
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

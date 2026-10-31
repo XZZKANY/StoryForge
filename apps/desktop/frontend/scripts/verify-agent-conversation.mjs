@@ -78,7 +78,7 @@ try {
         readFile(path) {
           if (path === filePath) return currentFileContent;
           if (path === characterFilePath) return characterFileContent;
-          throw new Error(`ENOENT: no such file or directory: ${path}`);
+          throw { kind: 'missing', message: `作品文件不存在: ${path}` };
         },
         pathExists(path) {
           const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');

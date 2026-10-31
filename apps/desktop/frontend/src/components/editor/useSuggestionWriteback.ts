@@ -145,6 +145,8 @@ export function useSuggestionWriteback(params: UseSuggestionWritebackParams) {
     actionState,
     actionError:
       actionFailure?.suggestion === pendingSuggestion ? (actionFailure?.message ?? null) : null,
+    actionErrorCause:
+      actionFailure?.suggestion === pendingSuggestion ? actionFailure.cause : undefined,
     truncationAcceptArmed: pendingSuggestion !== null && truncationArmedId === pendingSuggestion.id,
     cancelTruncatedAccept,
     isReviseLoading,

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import * as monaco from 'monaco-editor';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { isEditableTarget } from '../lib/browser-guards';
+import { DiskDriftError } from '../lib/host-file-errors';
 import { relativeToProject } from '../lib/project/path';
 import {
   buildPatchHunks,
@@ -23,6 +24,8 @@ type PatchReviewPanelProps = {
   editorFontFamily: string;
   actionKind?: PatchAction | null;
   error?: string | null;
+  /** 失败时抛出的原错误：按类型判断要不要提示可重试，不看文字。 */
+  errorCause?: unknown;
   onAccept: () => void | Promise<void>;
   onAcceptHunk: (hunk: PatchHunk) => void | Promise<void>;
   /** 兑现为 false 表示没否掉（恢复记录写不进去等）：草稿留着。 */
@@ -49,11 +52,11 @@ const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
 const DETERMINISTIC_LOCATE_FAILURE = /无法安全定位|无法唯一确定|插入点前文已变/;
 
 /**
- * P2-D：漂移拒写（内容已变化）与定位类拒写直接重试必再撞墙，不应误导作者「可重试」；
+ * P2-D：漂移拒写（DiskDriftError）与定位类拒写直接重试必再撞墙，不应误导作者「可重试」；
  * 定位类给出真能走通的路。普通错误（写盘失败、网络抖动等）才提示可重试。
  */
-function actionFailureText(error: string): string {
-  if (error.includes('内容已变化')) return `操作失败：${error}`;
+function actionFailureText(error: string, cause: unknown): string {
+  if (cause instanceof DiskDriftError) return `操作失败：${error}`;
   if (DETERMINISTIC_LOCATE_FAILURE.test(error)) {
     const way = error.startsWith('接受分块失败')
       ? '可以让 AI 重出一版。'
@@ -123,6 +126,7 @@ export function PatchReviewPanel({
   onCancelTruncatedAccept,
   actionKind = null,
   error = null,
+  errorCause,
 }: PatchReviewPanelProps) {
   // 补丁一来审阅就占满编辑区、停在第一处改动（作者 10-16：此前默认在正文下方劈出一块、从第 1 行
   // 开始，改动在文末时上下两半都看不到）。作者收起只对这一版补丁算数，下一版补丁又占满。
@@ -152,10 +156,17 @@ export function PatchReviewPanel({
   const [localError, setLocalError] = useState<{
     suggestion: AssistantFileSuggestion;
     message: string;
+    cause: unknown;
   } | null>(null);
   const actionState =
     actionKind ?? (localAction?.suggestion === suggestion ? localAction.kind : null);
-  const actionError = error ?? (localError?.suggestion === suggestion ? localError.message : null);
+  const actionFailure =
+    error !== null
+      ? { message: error, cause: errorCause }
+      : localError?.suggestion === suggestion
+        ? localError
+        : null;
+  const actionError = actionFailure?.message ?? null;
   const actionInFlightRef = useRef<{ kind: PatchAction; token: symbol } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const actionBusy = actionState !== null;
@@ -187,6 +198,7 @@ export function PatchReviewPanel({
         setLocalError({
           suggestion,
           message: error instanceof Error ? error.message : String(error),
+          cause: error,
         });
       };
       try {
@@ -623,8 +635,8 @@ export function PatchReviewPanel({
             aria-live="polite"
             data-testid="patch-action-status"
           >
-            {actionError
-              ? actionFailureText(actionError)
+            {actionFailure
+              ? actionFailureText(actionFailure.message, actionFailure.cause)
               : `处理中：${PATCH_ACTION_LABELS[actionState!]}`}
           </div>
         )}

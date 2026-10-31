@@ -39,7 +39,9 @@ window.__STORYFORGE_MOCK_FS__ = {
     if (readGate) await readGate;
     const normalized = normalize(path);
     if (failed) throw new Error('验收注入：文件读取暂时失败');
-    if (!content.has(normalized)) throw new Error(`样例文件不存在：${normalized}`);
+    // 照宿主报文件还没有的形状（kind: missing），由 TauriFileSystem 翻成错误类。
+    if (!content.has(normalized))
+      throw { kind: 'missing', message: `样例文件不存在：${normalized}` };
     return content.get(normalized)!;
   },
   writeFile(path, value) {

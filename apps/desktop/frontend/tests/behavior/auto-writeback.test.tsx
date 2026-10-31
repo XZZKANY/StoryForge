@@ -16,6 +16,7 @@ import {
   writeFixtureReceipt,
 } from '../../src/lib/writeback-receipt-fixture';
 import { recordRevisionLoop } from '../../src/lib/author-loop';
+import { DiskDriftError, HostFileError } from '../../src/lib/host-file-errors';
 import { act } from 'react';
 import { useRef } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -28,6 +29,8 @@ const deletes: string[] = [];
 const droppedTabs: string[] = [];
 const calls: string[] = [];
 let snapshotFails = false;
+/** 宿主在写入前就拒掉（漂移拒写等）：带回执写入直接报错，不留回执。 */
+let hostWriteRejection: Error | null = null;
 let snapshotCreated = false;
 let versionHistoryOpened = 0;
 
@@ -60,6 +63,7 @@ vi.mock('../../src/lib/tauri-fs', () => ({
       expected: DiskBaseline,
       checkpoint: number | null,
     ) {
+      if (hostWriteRejection) throw hostWriteRejection;
       return writeFixtureReceipt(receiptFs, project, request, expected, checkpoint, async () => {
         await this.writeFileIfUnchanged(project, request.path, request.content, expected);
         receiptFiles.set(request.path, request.content);
@@ -248,6 +252,7 @@ function Harness({ filePath, withPanel = false }: { filePath: string; withPanel?
       editorFontFamily="test-font"
       actionKind={writeback.actionState?.kind ?? null}
       error={writeback.actionError}
+      errorCause={writeback.actionErrorCause}
       truncationArmed={writeback.truncationAcceptArmed}
       onCancelTruncatedAccept={writeback.cancelTruncatedAccept}
       onAccept={writeback.handleAcceptSuggestion}
@@ -308,6 +313,7 @@ beforeEach(() => {
   calls.length = 0;
   toasts.length = 0;
   snapshotFails = false;
+  hostWriteRejection = null;
   snapshotCreated = false;
   planMarkArgs.length = 0;
   planMarkFails = false;
@@ -737,6 +743,26 @@ test('没有截断警告的补丁照旧点一次就写', async () => {
   await clickAccept();
   assert.deepEqual(writes, [{ path: FILE, content: AFTER }]);
   assert.equal(container.querySelector('[data-testid="patch-truncation-confirm"]'), null);
+});
+
+test('宿主漂移拒写一路带着类型到补丁面板：不提示可重试；换成写盘失败才提示', async () => {
+  act(() => root.render(<Harness key="panel" filePath={FILE} withPanel />));
+  await act(async () => {
+    emitFileSuggestion(suggestion({ requiresConfirmation: true }));
+  });
+  const status = () =>
+    container.querySelector('[data-testid="patch-action-status"]')?.textContent ?? '';
+  const drift = `磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: ${FILE}`;
+
+  hostWriteRejection = new DiskDriftError(drift);
+  await clickAccept();
+  assert.deepEqual(writes, []);
+  assert.equal(status(), `操作失败：接受失败: ${drift}`);
+
+  hostWriteRejection = new HostFileError('无法写入文件: 拒绝访问。 (os error 5)');
+  await clickAccept();
+  assert.deepEqual(writes, []);
+  assert.equal(status(), '操作失败：接受失败: 无法写入文件: 拒绝访问。 (os error 5)，可重试');
 });
 
 /** 批量写章这一批的授权，登记上这一轮的运行 id（调度器发起每一章时就是这么做的）。 */

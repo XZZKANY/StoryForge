@@ -1,13 +1,15 @@
 //! Admission facades preserve the original guarded writer and receipt ledger.
-use crate::{fs, fs_writeback_receipts as receipts, host_close_state::HostCloseState};
+use crate::{
+    fs, fs_writeback_receipts as receipts, host_close_state::HostCloseState, host_error::HostError,
+};
 use tauri::State;
 
-async fn run_mutation<T: Send + 'static>(
+async fn run_mutation<T: Send + 'static, E: From<String> + Send + 'static>(
     state: HostCloseState,
     root: String,
     ticket: Option<String>,
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
+    work: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, E> {
     let admission = state.admit(&root, ticket.as_deref())?;
     tokio::task::spawn_blocking(move || {
         let _admission = admission;
@@ -42,7 +44,7 @@ pub async fn write_file_if_unchanged(
     path: String,
     content: String,
     expected: fs::DiskBaseline,
-) -> Result<(), String> {
+) -> Result<(), HostError> {
     run_mutation(
         state.inner().clone(),
         project_root.clone(),
@@ -128,7 +130,7 @@ pub async fn write_file_with_receipt(
     request: receipts::WritebackRequest,
     expected: fs::DiskBaseline,
     checkpoint_timestamp: Option<u64>,
-) -> Result<receipts::WritebackReceipt, String> {
+) -> Result<receipts::WritebackReceipt, HostError> {
     run_mutation(
         state.inner().clone(),
         project_root.clone(),
@@ -200,7 +202,7 @@ mod tests {
         assert_eq!(diagnostic.delivery_tickets, 1);
         assert_ne!(diagnostic.reason, "close_confirmed");
         assert_eq!(
-            run_mutation(state.clone(), root.clone(), None, || Ok(()))
+            run_mutation(state.clone(), root.clone(), None, || Ok::<(), String>(()))
                 .await
                 .unwrap_err(),
             "managed_host_closing"
@@ -209,9 +211,11 @@ mod tests {
         work.await.unwrap().unwrap();
         assert_eq!(std::fs::read_to_string(path).unwrap(), "after");
         assert_eq!(state.diagnostic(true, Some(0)).active_commands, 0);
-        run_mutation(state.clone(), root, Some(ticket.clone()), || Ok(()))
-            .await
-            .unwrap();
+        run_mutation(state.clone(), root, Some(ticket.clone()), || {
+            Ok::<(), String>(())
+        })
+        .await
+        .unwrap();
         state.end_delivery(&ticket).unwrap();
         assert_eq!(state.diagnostic(true, Some(0)).reason, "close_confirmed");
     }
@@ -221,7 +225,7 @@ mod tests {
         let root = std::env::temp_dir().to_str().unwrap().to_string();
         let state = HostCloseState::default();
         assert_eq!(
-            run_mutation(state.clone(), root.clone(), None, || Err::<(), _>(
+            run_mutation(state.clone(), root.clone(), None, || Err::<(), String>(
                 "original_disk_error".into()
             ))
             .await

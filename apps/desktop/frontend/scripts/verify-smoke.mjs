@@ -36,8 +36,9 @@ try {
   });
   await context.addInitScript((projectPath) => {
     window.__STORYFORGE_MOCK_FS__ = {
+      // 照宿主报「文件还没有」的形状（kind: missing），由 TauriFileSystem 翻成错误类。
       readFile: (path) => {
-        throw new Error(`ENOENT: no such file or directory: ${path}`);
+        throw { kind: 'missing', message: `作品文件不存在: ${path}` };
       },
       listDir: () => [],
       pathExists: (path) =>

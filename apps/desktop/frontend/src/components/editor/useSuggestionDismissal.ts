@@ -114,7 +114,11 @@ export function useSuggestionDismissal(
         runStatus: typeof runStatus === 'string' ? runStatus : undefined,
       });
     } catch (err) {
-      failAction(actionToken, `保存旁注失败: ${err instanceof Error ? err.message : String(err)}`);
+      failAction(
+        actionToken,
+        `保存旁注失败: ${err instanceof Error ? err.message : String(err)}`,
+        err,
+      );
     } finally {
       finishAction(actionToken);
     }
@@ -141,7 +145,11 @@ export function useSuggestionDismissal(
       try {
         await retry();
       } catch (error) {
-        failAction(token, `重试失败: ${error instanceof Error ? error.message : String(error)}`);
+        failAction(
+          token,
+          `重试失败: ${error instanceof Error ? error.message : String(error)}`,
+          error,
+        );
       } finally {
         finishAction(token);
       }
@@ -177,6 +185,7 @@ export function useSuggestionDismissal(
           failAction(
             actionToken,
             `拒绝尚未完成: ${error instanceof Error ? error.message : String(error)}`,
+            error,
           );
           return false;
         } finally {

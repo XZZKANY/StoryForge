@@ -87,6 +87,7 @@ export function useSuggestionState({
   const [actionFailure, setActionFailure] = useState<{
     suggestion: AssistantFileSuggestion;
     message: string;
+    cause: unknown;
   } | null>(null);
   const mountedRef = useRef(false);
   const dropOpenFilePathRef = useRef(dropOpenFilePath);
@@ -224,13 +225,13 @@ export function useSuggestionState({
   );
 
   const failAction = useCallback(
-    (token: symbol, message: string) => {
+    (token: symbol, message: string, cause: unknown) => {
       if (!isCurrentAction(token)) return;
       const action = actionInFlightRef.current;
       if (action) {
         // 失败已就地写进补丁面板状态条（面板此刻必然可见：isCurrentAction 钉住了
         // 同一文件同一补丁），同文案 error toast 是双响，省略。
-        setActionFailure({ suggestion: action.suggestion, message });
+        setActionFailure({ suggestion: action.suggestion, message, cause });
       } else {
         setSuggestionStatus(message, 'error');
       }

@@ -4,6 +4,12 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { FileEntry } from '@storyforge/project-core';
+import {
+  DiskDriftError,
+  HostFileError,
+  ProjectFileMissingError,
+  ProjectPathOutsideError,
+} from './host-file-errors';
 import { assertTauriRuntime } from './tauri-env';
 import {
   decodeWritebackIdentity,
@@ -110,12 +116,31 @@ export function invalidateFileSystemCache(path?: string): void {
   invalidateListDirCache(path);
 }
 
+// 读作品文件、按基线写入两类命令报 `{ kind, message }`，照引擎读作品口（lib/engine/reader.ts）
+// 的做法按 kind 翻成错误类；浏览器替身也按同一形状报。
+function hostFileFailure(error: unknown): unknown {
+  if (typeof error === 'string') return new HostFileError(error);
+  if (error === null || typeof error !== 'object' || error instanceof Error) return error;
+  const { kind, message } = error as { kind?: unknown; message?: unknown };
+  if (typeof message === 'string') {
+    if (kind === 'missing') return new ProjectFileMissingError(message);
+    if (kind === 'outside-project') return new ProjectPathOutsideError(message);
+    if (kind === 'drift') return new DiskDriftError(message);
+    if (kind === 'io') return new HostFileError(message);
+  }
+  return Object.assign(new TypeError('Invalid Native file error'), { cause: error });
+}
+
 export class TauriFileSystem {
   static async readProjectFile(projectRoot: string, path: string): Promise<string> {
     const mock = mockFs();
-    if (mock?.readFile) return await mock.readFile(path);
-    assertTauriRuntime('TauriFileSystem.readProjectFile');
-    return await invoke<string>('read_project_file', { projectRoot, path });
+    try {
+      if (mock?.readFile) return await mock.readFile(path);
+      assertTauriRuntime('TauriFileSystem.readProjectFile');
+      return await invoke<string>('read_project_file', { projectRoot, path });
+    } catch (error) {
+      throw hostFileFailure(error);
+    }
   }
 
   static async writeFile(
@@ -157,7 +182,7 @@ export class TauriFileSystem {
         const current = exists ? await mock.readFile(path) : null;
         const matches =
           expected.kind === 'missing' ? !exists : exists && current === expected.content;
-        if (!matches) throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+        if (!matches) throw new DiskDriftError('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
         await mock.writeFile(path, content);
         return;
       }
@@ -169,6 +194,8 @@ export class TauriFileSystem {
         content,
         expected,
       });
+    } catch (error) {
+      throw hostFileFailure(error);
     } finally {
       invalidateListDirCache(path);
     }
@@ -237,6 +264,8 @@ export class TauriFileSystem {
           checkpointTimestamp,
         }),
       );
+    } catch (error) {
+      throw hostFileFailure(error);
     } finally {
       invalidateListDirCache(request.path);
     }

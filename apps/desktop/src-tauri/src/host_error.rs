@@ -1,8 +1,11 @@
-//! 宿主报给引擎读作品口、模型出网与「获取模型」的结构化错误，序列化成 `{ kind, message }`。
-//! 前端只按 kind 分类（`lib/engine/reader.ts`、`lib/engine/llm.ts`、`lib/desktop-llm-config.ts`），
-//! 不解析 message 的措辞；字段名、kind 取值与 message 文案都是对前端的约定。
+//! 宿主报给引擎读作品口、界面读写作品文件、模型出网与「获取模型」的结构化错误，
+//! 序列化成 `{ kind, message }`。前端只按 kind 分类（`lib/engine/reader.ts`、`lib/engine/llm.ts`、
+//! `lib/desktop-llm-config.ts`、`lib/tauri-fs.ts`），不解析 message 的措辞；字段名、kind 取值与
+//! message 文案都是对前端的约定。
 //!
 //! - 读作品（`fs_engine_reader`）：`outside-project` 越出作品，`io` 其余读错。
+//! - 界面读写作品文件（`fs`）：读文件 `missing` 作品内还没有这个文件、`outside-project` 越出作品；
+//!   按基线写入（含带回执写入）`drift` 磁盘内容与基线不符、已拒绝覆盖；其余 `io`。
 //! - 模型出网（`engine_llm`）：`config` 配置文件读不出或密钥解不开，`refused` 出网策略拒绝，
 //!   `connect` / `timeout` / `read` 网络层失败。
 //! - 获取模型（`llm_draft_probe`）：`unauthorized` Key 不对，`misconfigured` 填写有问题，
@@ -52,6 +55,17 @@ mod tests {
             (
                 HostError::new("io", "作品目录读取预算无效"),
                 r#"{"kind":"io","message":"作品目录读取预算无效"}"#,
+            ),
+            (
+                HostError::new("missing", "作品文件不存在: D:/书/.storyforge/book.json"),
+                r#"{"kind":"missing","message":"作品文件不存在: D:/书/.storyforge/book.json"}"#,
+            ),
+            (
+                HostError::new(
+                    "drift",
+                    "磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: D:/书/正文/第001章.md",
+                ),
+                r#"{"kind":"drift","message":"磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: D:/书/正文/第001章.md"}"#,
             ),
             (
                 HostError::new("config", "无法读取 LLM 配置"),
