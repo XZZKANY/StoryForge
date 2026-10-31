@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { FloatingSurface, MenuItem, MenuSeparator } from '../ui';
+import { MenuItem, MenuSeparator, MenuSurface } from '../ui';
 export type ContextMenuItem =
   | { type: 'separator' }
   | { type?: 'item'; label: string; onSelect: () => void; danger?: boolean; disabled?: boolean };
@@ -19,18 +19,14 @@ export function ContextMenu({
   triggerRef?: RefObject<HTMLElement | null>;
 }) {
   return (
-    <FloatingSurface
+    <MenuSurface
+      frosted
       point={{ x, y }}
       triggerRef={triggerRef}
-      role="menu"
       aria-label="操作菜单"
       onDismiss={onClose}
       data-testid="context-menu"
-      className="min-w-[172px] animate-fade-in rounded-lg border border-border/60 bg-surface/[0.92] p-1 shadow-dropdown"
-      style={{
-        backdropFilter: 'blur(40px) saturate(1.5)',
-        WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
-      }}
+      className="min-w-[172px]"
       onContextMenu={(event) => event.preventDefault()}
     >
       {items.map((item, index) =>
@@ -51,6 +47,6 @@ export function ContextMenu({
           </MenuItem>
         ),
       )}
-    </FloatingSurface>
+    </MenuSurface>
   );
 }

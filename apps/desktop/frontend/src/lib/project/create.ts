@@ -1,7 +1,7 @@
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
+import { joinPath } from '../fs-path-ops';
 import { TauriFileSystem } from '../tauri-fs';
 import { enableStarterPlugin, initializeStoryProject } from './initialize';
-import { normalizeRoot } from './path';
 
 /** The book title is also the new directory name; never silently sanitize or rename it. */
 export function validateBlankStoryTitle(title: string): void {
@@ -35,8 +35,7 @@ export function blankStoryProjectPath(parentPath: string, title: string): string
   ) {
     throw new Error('请选择有效的本地保存位置。');
   }
-  const separator = parentPath.includes('\\') ? '\\' : '/';
-  return `${normalizeRoot(parentPath)}${separator}${title}`;
+  return joinPath(parentPath, title);
 }
 
 /** Explicit local creation only: no model request, sample prose, prompt, or overwrite. */
@@ -59,8 +58,7 @@ export async function createBlankStoryProject(parentPath: string, title: string)
   }
   try {
     await initializeStoryProject(projectPath);
-    const separator = projectPath.includes('\\') ? '\\' : '/';
-    await TauriFileSystem.createDir(projectPath, `${projectPath}${separator}.storyforge`, true);
+    await TauriFileSystem.createDir(projectPath, joinPath(projectPath, '.storyforge'), true);
     await TauriFileSystem.writeFile(
       projectPath,
       bookProfilePath(projectPath),

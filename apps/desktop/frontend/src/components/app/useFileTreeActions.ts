@@ -9,7 +9,7 @@ import {
   displayDocName,
   ensureMarkdownName,
   entryName,
-  joinChild,
+  joinPath,
   parentDir,
   sanitizeEntryName,
   siblingPath,
@@ -84,7 +84,7 @@ export function useFileTreeActions({
       if (input === null) return;
       const name = ensureMarkdownName(input);
       if (!name) return;
-      const target = joinChild(dir, name);
+      const target = joinPath(dir, name);
       if (!insideProject(target)) {
         await dialogs.alert({ title: '新建文件失败', message: '文件名必须留在当前作品内。' });
         return;
@@ -117,7 +117,7 @@ export function useFileTreeActions({
       if (input === null) return;
       const name = sanitizeEntryName(input);
       if (!name) return;
-      const target = joinChild(dir, name);
+      const target = joinPath(dir, name);
       if (!insideProject(target)) {
         await dialogs.alert({ title: '新建文件夹失败', message: '名称必须留在当前作品内。' });
         return;
@@ -218,7 +218,7 @@ export function useFileTreeActions({
       });
       if (!picked) return;
       const dest = picked === ROOT_CHOICE ? project : picked;
-      const target = joinChild(dest, name);
+      const target = joinPath(dest, name);
       const label = picked === ROOT_CHOICE ? '作品根目录' : entryName(dest);
       try {
         if (await TauriFileSystem.projectPathExists(project, target)) {
@@ -265,7 +265,7 @@ export function useFileTreeActions({
         entryName(path),
         siblings.map((entry) => entry.name),
       );
-      const relative = relativePathInsideProject(project, joinChild(dir, suggested));
+      const relative = relativePathInsideProject(project, joinPath(dir, suggested));
       // 手稿按路径排章：正文里多出一份就多出一章，作者得事先知道。
       const chapterNote =
         relative && countsAsChapter(relative)
@@ -280,7 +280,7 @@ export function useFileTreeActions({
       if (input === null) return;
       const name = ensureMarkdownName(input);
       if (!name) return;
-      const target = joinChild(dir, name);
+      const target = joinPath(dir, name);
       if (!insideProject(target)) {
         await dialogs.alert({ title: '复制失败', message: '文件名必须留在当前作品内。' });
         return;

@@ -27,6 +27,7 @@ import {
   RangeRow,
   SelectRow,
   SettingCard,
+  SettingDetails,
   SettingGroup,
   ToggleRow,
   UnsavedBadge,
@@ -357,19 +358,20 @@ function ProviderRuntimeEnvNotice() {
     '配置保存在本机 llm-provider.json，API Key 加密存放，保存后界面不再读回明文。模型请求由桌面应用直接发到你填的服务地址；密钥不写进浏览器存储，也不进日志。';
   if (!settingsTextMatches(query, `连接与存储详情 ${description}`)) return null;
   return (
-    <details
+    <SettingDetails
       className="px-4 py-3 text-xs text-muted"
       data-testid="provider-runtime-details"
-      open={Boolean(query)}
+      summary={
+        <>
+          连接与存储详情
+          <span className="ml-2 text-muted" data-testid="provider-runtime-env-source">
+            仅存本机
+          </span>
+        </>
+      }
     >
-      <summary className="cursor-pointer rounded-sm py-1 hover:text-foreground">
-        连接与存储详情
-        <span className="ml-2 text-muted" data-testid="provider-runtime-env-source">
-          仅存本机
-        </span>
-      </summary>
       <p className="mt-2 break-words leading-relaxed">{description}</p>
-    </details>
+    </SettingDetails>
   );
 }
 

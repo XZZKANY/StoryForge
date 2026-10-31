@@ -5,6 +5,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { DialogFilter } from '@tauri-apps/plugin-dialog';
 import type { FileEntry } from '@storyforge/project-core';
+import { joinPath } from './fs-path-ops';
 import { assertTauriRuntime } from './tauri-env';
 import {
   decodeWritebackIdentity,
@@ -251,13 +252,7 @@ export class TauriFileSystem {
     const mock = mockFs();
     if (mock) return readFixtureAudit(mock, projectRoot, request);
     const { operationId } = await this.describeWritebackOperation(projectRoot, request);
-    const separator = projectRoot.includes('\\') ? '\\' : '/';
-    const path = [
-      projectRoot.replace(/[/\\]+$/, ''),
-      '.storyforge',
-      'author-loop',
-      `${operationId}.md`,
-    ].join(separator);
+    const path = joinPath(projectRoot, '.storyforge', 'author-loop', `${operationId}.md`);
     return (await this.projectPathExists(projectRoot, path))
       ? { operationId, content: await this.readProjectFile(projectRoot, path) }
       : null;

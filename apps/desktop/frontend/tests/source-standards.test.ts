@@ -270,3 +270,20 @@ it('正文字数只在 project-core 实现一份，界面与引擎都从那里�
     "export { countProseChars } from '@storyforge/project-core';",
   );
 });
+
+// 按路径里的分隔符拼路径只留 lib/fs-path-ops 的 joinPath：前端 17 个文件曾各自先
+// `x.includes('\\') ? '\\' : '/'` 认分隔符、再手拼。要项目边界检查的走 project-core 的 joinProjectPath。
+const SEPARATOR_SNIFF = /\.includes\(\s*(['"])\\\\\1\s*\)\s*\?/;
+
+it('按 base 认分隔符拼路径只写在 fs-path-ops 的 joinPath 里', () => {
+  expect(SEPARATOR_SNIFF.test("const s = dir.includes('\\\\') ? '\\\\' : '/';")).toBe(true);
+  expect(SEPARATOR_SNIFF.test('return path.includes("\\\\") ? "\\\\" : "/";')).toBe(true);
+  expect(SEPARATOR_SNIFF.test("if (value.includes('\\\\')) fail();")).toBe(false);
+  const sniffing = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => SEPARATOR_SNIFF.test(readFileSync(path, 'utf8')));
+  expect(sniffing).toEqual(['src/lib/fs-path-ops.ts']);
+  expect(readFileSync('src/lib/fs-path-ops.ts', 'utf8')).toContain(
+    'export function joinPath(base: string, ...parts: string[]): string {',
+  );
+});

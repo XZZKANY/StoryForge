@@ -11,6 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { useAsyncEffect } from '../../lib/async-guards';
 import { importCoverImage, readCoverDataUrl } from '../../lib/book-cover';
+import { joinPath } from '../../lib/fs-path-ops';
 import {
   bookProfilePath,
   emptyBookProfile,
@@ -274,8 +275,7 @@ export function useBookProfile({
         const content = serializeBookProfile(next);
         // 失焦就提交：没改动的那一下不写盘。
         if (content === serializeBookProfile(parseBookProfile(source.raw ?? ''))) return;
-        const separator = project.includes('\\') ? '\\' : '/';
-        const storyforgeDir = `${project.replace(/[\\/]+$/, '')}${separator}.storyforge`;
+        const storyforgeDir = joinPath(project, '.storyforge');
         try {
           await TauriFileSystem.createDir(project, storyforgeDir, true);
           await TauriFileSystem.writeFileIfUnchanged(

@@ -7,7 +7,7 @@ import { useState, type RefObject } from 'react';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { formatStoredTimeFull, formatStoredTimeShort } from '../../lib/stored-time';
 import { Pencil, Plus, Search, X } from '../icons/shell-icons';
-import { FloatingSurface, MenuItem, MenuItemAction, MenuSeparator } from '../ui';
+import { MenuItem, MenuItemAction, MenuSeparator, MenuSurface } from '../ui';
 import { sessionDisplayTitle } from './useSessionManagement';
 
 export function SessionMenu({
@@ -50,12 +50,11 @@ export function SessionMenu({
   };
 
   return (
-    <FloatingSurface
-      role="menu"
+    <MenuSurface
       aria-label="本作品的会话"
       triggerRef={triggerRef}
       onDismiss={onDismiss}
-      className="animate-fade-in w-72 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+      className="w-72 overflow-y-auto"
     >
       <div className="px-2 py-1 text-3xs uppercase tracking-[0.08em] text-subtle">本作品的会话</div>
       {sessions.length > 0 && (
@@ -152,6 +151,6 @@ export function SessionMenu({
           </MenuItem>
         </>
       )}
-    </FloatingSurface>
+    </MenuSurface>
   );
 }

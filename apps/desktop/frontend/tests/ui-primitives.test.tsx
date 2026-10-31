@@ -6,11 +6,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
 import { RefreshCw, X } from '../src/components/icons/shell-icons';
+import { SettingsSearchContext } from '../src/components/settings/search-context';
+import { SettingDetails } from '../src/components/settings/SettingRows';
 import {
   MenuItem,
   MenuItemAction,
   MenuSeparator,
+  MenuSurface,
   ModalDialog,
+  revealOnHover,
   Spinner,
 } from '../src/components/ui';
 
@@ -254,6 +258,132 @@ it('菜单分隔线（h-px 配 bg-border）只写在 components/ui 里，MenuSep
   expect(host.firstElementChild?.getAttribute('role')).toBe('separator');
 });
 
+// 字符串字面量里的类名（按空白拆开），用来认「同一串类名」，不管各类名的先后。
+const classStrings = (source: string) =>
+  [...source.matchAll(/['"`]([^'"`\n]*)['"`]/g)].map((match) => match[1].split(/\s+/));
+
+// 菜单外框只留 MenuSurface：页签的两个菜单、作品切换、会话菜单、模型卡片菜单曾各写一份同一串外框类名，
+// 右键菜单另抄一份磨砂变体。
+const MENU_SURFACE_EXEMPT = new Set([
+  // 等 #561 合了再收：这个文件另一会话正在改，本刀没动。
+  'src/components/chat-window/ContextPanel.tsx',
+]);
+
+it('菜单外框（rounded-lg、p-1、shadow-dropdown 同在一串）只写在 ui/Menu.tsx，role="menu" 只由 MenuSurface 声明（#561 在改的文件暂时豁免）', () => {
+  const isMenuFrame = (tokens: string[]) =>
+    ['rounded-lg', 'p-1', 'shadow-dropdown'].every((token) => tokens.includes(token));
+  expect(
+    classStrings(
+      'className="w-52 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"',
+    ).some(isMenuFrame),
+  ).toBe(true);
+  expect(classStrings("className='shadow-dropdown w-64 p-1 rounded-lg'").some(isMenuFrame)).toBe(
+    true,
+  );
+  expect(classStrings('className="rounded-xl p-1.5 shadow-dropdown"').some(isMenuFrame)).toBe(
+    false,
+  );
+  const frameFiles = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => classStrings(readFileSync(path, 'utf8')).some(isMenuFrame));
+  expect(frameFiles.filter((path) => !MENU_SURFACE_EXEMPT.has(path))).toEqual([
+    'src/components/ui/Menu.tsx',
+  ]);
+  const declaresMenu = /(?<!\[)\brole=\{?\s*['"]menu['"]/;
+  expect(declaresMenu.test('<FloatingSurface role="menu">')).toBe(true);
+  expect(declaresMenu.test('<PlainButton role="menuitem">')).toBe(false);
+  expect(declaresMenu.test(`closest('[role="menu"]')`)).toBe(false);
+  const menuFiles = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => declaresMenu.test(readFileSync(path, 'utf8')));
+  expect(menuFiles.filter((path) => !MENU_SURFACE_EXEMPT.has(path))).toEqual([
+    'src/components/ui/Menu.tsx',
+  ]);
+});
+
+it('MenuSurface 是 role="menu" 的浮层，宽度由调用方给；frosted 换成半透明底、淡描边与背景模糊', () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    act(() =>
+      root.render(
+        <>
+          <MenuSurface aria-label="实底" onDismiss={() => {}} className="w-52">
+            <MenuItem>保存</MenuItem>
+          </MenuSurface>
+          <MenuSurface frosted aria-label="磨砂" onDismiss={() => {}} className="min-w-[172px]">
+            <MenuItem>打开</MenuItem>
+          </MenuSurface>
+        </>,
+      ),
+    );
+    const solid = document.querySelector<HTMLElement>('[aria-label="实底"]')!;
+    const frosted = document.querySelector<HTMLElement>('[aria-label="磨砂"]')!;
+    for (const menu of [solid, frosted]) {
+      expect(menu.getAttribute('role')).toBe('menu');
+      for (const token of ['animate-fade-in', 'rounded-lg', 'border', 'p-1', 'shadow-dropdown'])
+        expect(menu.classList.contains(token), token).toBe(true);
+    }
+    expect(solid.classList.contains('w-52')).toBe(true);
+    expect(solid.classList.contains('border-border')).toBe(true);
+    expect(solid.classList.contains('bg-surface')).toBe(true);
+    expect(solid.getAttribute('style')).not.toContain('blur');
+    expect(frosted.classList.contains('min-w-[172px]')).toBe(true);
+    expect(frosted.classList.contains('border-border/60')).toBe(true);
+    expect(frosted.classList.contains('bg-surface/[0.92]')).toBe(true);
+    expect(frosted.classList.contains('bg-surface')).toBe(false);
+    expect(frosted.getAttribute('style')).toContain('blur(40px) saturate(1.5)');
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});
+
+// 悬停才出现的小操作只留 revealOnHover 一种写法：速记的改 / 删、题材的 ×、观测项的勾曾各手写一串
+// opacity-40 … group-hover，菜单行尾的小操作从 opacity-0 起步，作品库与文件树在按钮外面包一层 focus-within 的 span。
+const REVEAL_EXEMPT = new Set([
+  // 页签关闭钮里「未保存圆点 ↔ ×」互换：按钮一直在，不是悬停才出现的操作。
+  'src/components/shell/EditorTabs.tsx',
+  // 等 #561 合了再收：这个文件另一会话正在改，本刀没动。
+  'src/components/chat-window/panels.tsx',
+]);
+
+it('悬停才出现（opacity-0 / opacity-40 配 group-hover:opacity-100）只经 revealOnHover（豁免见上）', () => {
+  const isHoverReveal = (tokens: string[]) =>
+    tokens.some((token) => token === 'opacity-0' || token === 'opacity-40') &&
+    tokens.some((token) => /^group-hover(?:\/\w+)?:opacity-100$/.test(token));
+  expect(
+    classStrings('"text-subtle opacity-40 transition-opacity group-hover:opacity-100"').some(
+      isHoverReveal,
+    ),
+  ).toBe(true);
+  expect(
+    classStrings("'opacity-0 focus-within:opacity-100 group-hover/row:opacity-100'").some(
+      isHoverReveal,
+    ),
+  ).toBe(true);
+  expect(classStrings("'text-muted opacity-70 group-hover:opacity-100'").some(isHoverReveal)).toBe(
+    false,
+  );
+  const files = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => classStrings(readFileSync(path, 'utf8')).some(isHoverReveal));
+  expect(files.filter((path) => !REVEAL_EXEMPT.has(path))).toEqual([]);
+  const hidden = revealOnHover().split(' ');
+  const faint = revealOnHover('faint').split(' ');
+  expect(hidden[0]).toBe('opacity-0');
+  expect(faint[0]).toBe('opacity-40');
+  for (const token of [
+    'transition-opacity',
+    'focus-visible:opacity-100',
+    'group-hover:opacity-100',
+    'group-has-[:focus-visible]:opacity-100',
+  ]) {
+    expect(hidden, token).toContain(token);
+    expect(faint, token).toContain(token);
+  }
+});
 // 同一个组件名只在一处定义：MenuRow（页签菜单、模型卡片各一份）、Section（手稿 / 作品 / 观测镜各包一层
 // PanelSection）都曾各写一份。要复用就从定义它的文件导出，别在新文件里再写一个同名的。
 it('大写开头的函数（组件）不在多个文件里各自定义，MenuItem 只在 ui/Menu.tsx', () => {
@@ -288,4 +418,35 @@ it('设置搜索词只在 search-context 里读', () => {
   expect(filesContaining('useContext(SettingsSearchContext)')).toEqual([
     'src/components/settings/search-context.ts',
   ]);
+});
+
+// 设置卡片里的折叠区只留 SettingDetails：连接与存储详情、模型服务的「高级」曾各写一份 <details open={Boolean(query)}>。
+it('设置里的 <details> 只写在 SettingRows，SettingDetails 在搜索时展开', () => {
+  const settingsFiles = [
+    ...sourceFiles('src/components/settings'),
+    'src/components/SettingsView.tsx',
+  ]
+    .map(relativePath)
+    .filter((path) => readFileSync(path, 'utf8').includes('<details'));
+  expect(settingsFiles).toEqual(['src/components/settings/SettingRows.tsx']);
+  const render = (query: string) => {
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(
+      <SettingsSearchContext.Provider value={query}>
+        <SettingDetails className="px-4 py-3" summary="高级" data-testid="details">
+          <p>内容</p>
+        </SettingDetails>
+      </SettingsSearchContext.Provider>,
+    );
+    return host.querySelector<HTMLDetailsElement>('[data-testid="details"]')!;
+  };
+  expect(render('').open).toBe(false);
+  expect(render('  ').open).toBe(false);
+  expect(render('润色').open).toBe(true);
+  expect(render('').querySelector('summary')?.textContent).toBe('高级');
+});
+
+// 确认弹窗的函数类型只从 AppDialog 取（AppDialogApi['confirm']）：模型服务与插件两个分组曾各抄一份 type Confirm。
+it('确认函数的类型不在别处另抄一份', () => {
+  expect(filesContaining('type Confirm =')).toEqual([]);
 });

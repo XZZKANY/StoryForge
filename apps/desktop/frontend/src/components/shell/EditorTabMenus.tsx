@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 
 import { listLlmProfiles } from '../../lib/desktop-llm-config';
 import { MoreHorizontal, Sparkles } from '../icons/shell-icons';
-import { FloatingSurface, IconButton, MenuItem, MenuSeparator } from '../ui';
+import { IconButton, MenuItem, MenuSeparator, MenuSurface } from '../ui';
 
 export function PolishActionsMenu({
   onPolishActive,
@@ -48,12 +48,11 @@ export function PolishActionsMenu({
       />
       {open && (
         <>
-          <FloatingSurface
-            role="menu"
+          <MenuSurface
             aria-label="操作"
             triggerRef={triggerRef}
             onDismiss={() => setOpen(false)}
-            className="w-52 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+            className="w-52"
             data-testid="editor-polish-menu"
           >
             {dedicated ? (
@@ -64,7 +63,7 @@ export function PolishActionsMenu({
             ) : (
               <MenuItem onClick={() => run(false)}>润色当前章</MenuItem>
             )}
-          </FloatingSurface>
+          </MenuSurface>
         </>
       )}
     </div>
@@ -107,12 +106,11 @@ export function EditorActionsMenu({
       />
       {open && (
         <>
-          <FloatingSurface
-            role="menu"
+          <MenuSurface
             aria-label="操作"
             triggerRef={triggerRef}
             onDismiss={() => setOpen(false)}
-            className="w-56 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+            className="w-56"
             data-testid="editor-more-menu"
           >
             <MenuItem shortcut="Ctrl S" onClick={run(onSaveActive)}>
@@ -129,7 +127,7 @@ export function EditorActionsMenu({
             </MenuItem>
             <MenuItem onClick={run(onCloseOthers)}>关闭其他页签</MenuItem>
             <MenuItem onClick={run(onCloseAll)}>关闭全部页签</MenuItem>
-          </FloatingSurface>
+          </MenuSurface>
         </>
       )}
     </div>

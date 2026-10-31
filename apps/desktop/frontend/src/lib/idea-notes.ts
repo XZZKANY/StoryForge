@@ -9,6 +9,8 @@
  * 作者手写的普通列表因此天然被识别，不必先学一套语法。非列表行原样保留。
  */
 
+import { joinPath } from './fs-path-ops';
+
 export type IdeaNote = {
   /** 在文件中的 0 基行号，回写时按行定位。 */
   line: number;
@@ -94,6 +96,5 @@ export function restoreIdeaNoteLine(content: string, line: number, raw: string):
 }
 
 export function ideaNotesPath(projectPath: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  return `${projectPath.replace(/[\\/]+$/, '')}${separator}灵感.md`;
+  return joinPath(projectPath, '灵感.md');
 }

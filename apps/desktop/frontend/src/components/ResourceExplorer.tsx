@@ -19,7 +19,7 @@ import { parentDir } from '../lib/fs-path-ops';
 import { ChevronRight, FilePlus, FileText, Folder, FolderPlus } from './icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
 import { PanelError } from './shell/PanelError';
-import { IconButton, PlainButton } from './ui';
+import { IconButton, PlainButton, revealOnHover } from './ui';
 import type { FileTreeActions } from './app/useFileTreeActions';
 
 type ContextTarget = { path: string; isDir: boolean };
@@ -307,7 +307,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
           </PlainButton>
 
           {onNodeNewEntry && (
-            <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            <span className={`flex flex-shrink-0 items-center gap-px ${revealOnHover()}`}>
               <IconButton
                 size="compact"
                 label={`在 ${node.name} 下新建文件`}

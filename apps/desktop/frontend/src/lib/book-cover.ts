@@ -8,6 +8,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 
+import { joinPath } from './fs-path-ops';
 import { pickFile, TauriFileSystem } from './tauri-fs';
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -30,8 +31,7 @@ export function coverMimeType(fileName: string): string | null {
 
 /** `.storyforge/` 下的封面绝对路径；fileName 是 book.json 里记的那个名字。 */
 export function coverAbsolutePath(projectPath: string, fileName: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  return `${projectPath.replace(/[\\/]+$/, '')}${separator}.storyforge${separator}${fileName}`;
+  return joinPath(projectPath, '.storyforge', fileName);
 }
 
 /** 导入后的规范文件名：一律 `cover.<原扩展名>`，不沿用来源文件名。 */

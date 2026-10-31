@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Field, FloatingSurface, IconButton, MenuItem, PlainButton, Select } from '../ui';
+import { Button, Field, IconButton, MenuItem, MenuSurface, PlainButton, Select } from '../ui';
 import { Check, MoreHorizontal, Plus } from '../icons/shell-icons';
 import {
   describeProviderHealth,
@@ -8,17 +8,11 @@ import {
   providerKindOr,
 } from '../../lib/provider-config';
 import type { LlmProfile } from '../../lib/desktop-llm-config';
+import type { AppDialogApi } from '../app/AppDialog';
 import { settingsTextMatches, useSettingsQuery } from './search-context';
 import { ModelProfileEditor } from './ModelProfileEditor';
+import { SettingDetails } from './SettingRows';
 import type { ModelProfilesState, ProfileHealth } from './useModelProfiles';
-
-type Confirm = (options: {
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  tone?: 'default' | 'danger';
-}) => Promise<boolean>;
 
 // 设置搜索按这些词命中整个模型服务分组。
 const SEARCH_TEXT =
@@ -38,7 +32,7 @@ export function ModelProfilesSection({
   confirm,
 }: {
   model: ModelProfilesState;
-  confirm: Confirm;
+  confirm: AppDialogApi['confirm'];
 }) {
   const query = useSettingsQuery();
   if (!settingsTextMatches(query, SEARCH_TEXT)) return null;
@@ -146,7 +140,7 @@ export function ModelProfilesSection({
         </p>
       )}
       {model.draft && <ModelProfileEditor draft={model.draft} model={model} />}
-      {profiles.length > 0 && <PolishChoice model={model} open={Boolean(query)} />}
+      {profiles.length > 0 && <PolishChoice model={model} />}
     </div>
   );
 }
@@ -253,13 +247,12 @@ function ProfileCard({
         />
       </span>
       {menuOpen && (
-        <FloatingSurface
-          role="menu"
+        <MenuSurface
           aria-label={`「${title}」的操作`}
           triggerRef={triggerRef}
           align="end"
           onDismiss={() => setMenuOpen(false)}
-          className="w-48 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+          className="w-48"
           data-testid="model-profile-menu-list"
         >
           <MenuItem onClick={run(onEdit)}>编辑</MenuItem>
@@ -271,23 +264,20 @@ function ProfileCard({
           <MenuItem danger disabled={active || onlyOne} onClick={run(onDelete)}>
             {active ? '删除（正在用，先切到别的）' : onlyOne ? '删除（至少留一套）' : '删除'}
           </MenuItem>
-        </FloatingSurface>
+        </MenuSurface>
       )}
     </div>
   );
 }
 
-function PolishChoice({ model, open }: { model: ModelProfilesState; open: boolean }) {
+function PolishChoice({ model }: { model: ModelProfilesState }) {
   const profiles = model.list?.profiles ?? [];
   return (
-    <details
+    <SettingDetails
       className="border-t border-border px-4 py-3"
-      open={open}
+      summary="高级"
       data-testid="model-profiles-advanced"
     >
-      <summary className="cursor-pointer rounded-sm py-1 text-xs text-muted hover:text-foreground">
-        高级
-      </summary>
       <Field
         layout="horizontal"
         className="mt-3"
@@ -313,6 +303,6 @@ function PolishChoice({ model, open }: { model: ModelProfilesState; open: boolea
           </Select>
         )}
       </Field>
-    </details>
+    </SettingDetails>
   );
 }

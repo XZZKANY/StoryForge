@@ -5,6 +5,7 @@
  * app-local 影子 Git tree 内容寻址保存。旧 .snapshot.md 继续读取，不做破坏性迁移。
  */
 
+import { joinPath } from './fs-path-ops';
 import type { FileEntry } from './tauri-fs';
 import { TauriFileSystem } from './tauri-fs';
 import { relativePathInsideProject } from './project/path';
@@ -76,14 +77,6 @@ type StoredVersionMetadata = VersionSnapshotMetadata & {
   recordId?: string;
 };
 
-function sep(projectPath: string): string {
-  return projectPath.includes('\\') ? '\\' : '/';
-}
-
-function normalizeRoot(projectPath: string): string {
-  return projectPath.replace(/[/\\]+$/, '');
-}
-
 /** 某个文件的版本目录。剧情分支画布的分支清单也落在这里。 */
 export function versionDirFor(projectPath: string, filePath: string): string | null {
   const relative = relativePathInsideProject(projectPath, filePath);
@@ -92,18 +85,13 @@ export function versionDirFor(projectPath: string, filePath: string): string | n
 }
 
 function versionDirForRelative(projectPath: string, relative: string): string {
-  const s = sep(projectPath);
-  const safeRelative = relative.split(/[/\\]/).join(s);
-  return [normalizeRoot(projectPath), ...VERSION_ROOT.split('/'), safeRelative].join(s);
+  return joinPath(projectPath, VERSION_ROOT, relative);
 }
 
 async function readLineage(projectPath: string, dir: string): Promise<string[]> {
   try {
     const parsed = JSON.parse(
-      await TauriFileSystem.readProjectFile(
-        projectPath,
-        `${dir}${sep(projectPath)}${LINEAGE_FILE}`,
-      ),
+      await TauriFileSystem.readProjectFile(projectPath, joinPath(dir, LINEAGE_FILE)),
     ) as { previous?: unknown };
     return Array.isArray(parsed.previous)
       ? parsed.previous.filter((name): name is string => typeof name === 'string')
@@ -134,7 +122,7 @@ export async function recordRenameLineage(
     const unique = [...new Map(previous.map((name) => [normalizeRelative(name), name])).values()];
     await TauriFileSystem.writeFile(
       projectPath,
-      `${toDir}${sep(projectPath)}${LINEAGE_FILE}`,
+      joinPath(toDir, LINEAGE_FILE),
       `${JSON.stringify({ previous: unique }, null, 2)}\n`,
     );
   }
@@ -219,11 +207,10 @@ async function recordShadowVersion(
   const relativeFile = relativePathInsideProject(projectPath, filePath);
   if (!dir || !relativeFile) return null;
   const checkpoint = metadata.checkpoint === true;
-  const s = sep(projectPath);
-  const targetDir = checkpoint ? `${dir}${s}${CHECKPOINT_DIR}` : dir;
+  const targetDir = checkpoint ? joinPath(dir, CHECKPOINT_DIR) : dir;
   const timestamp = nextTimestamp();
   const recordId = nextRecordId(timestamp);
-  const metaPath = `${targetDir}${s}${timestamp}${META_SUFFIX}`;
+  const metaPath = joinPath(targetDir, `${timestamp}${META_SUFFIX}`);
   const stored: StoredVersionMetadata = {
     schemaVersion: 2,
     storage: 'shadow-git',
@@ -270,7 +257,6 @@ export async function listVersions(
   const dir = versionDirFor(projectPath, filePath);
   const relativeFile = relativePathInsideProject(projectPath, filePath);
   if (!dir || !relativeFile) return [];
-  const s = sep(projectPath);
   // 改过名的文件：以前的名字下记的版本一并列出，内容仍按当时的路径从影子树里取。
   const previous = (await readLineage(projectPath, dir)).filter(
     (name) => normalizeRelative(name) !== normalizeRelative(relativeFile),
@@ -281,7 +267,7 @@ export async function listVersions(
       ...previous.map((name) => ({ dir: versionDirForRelative(projectPath, name), file: name })),
     ].flatMap((source) => [
       readVersionDir(projectPath, source.dir, source.file, false),
-      readVersionDir(projectPath, `${source.dir}${s}${CHECKPOINT_DIR}`, source.file, true),
+      readVersionDir(projectPath, joinPath(source.dir, CHECKPOINT_DIR), source.file, true),
     ]),
   );
   const versions = lists.flat().sort((a, b) => b.timestamp - a.timestamp);

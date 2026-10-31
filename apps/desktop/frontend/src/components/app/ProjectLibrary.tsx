@@ -1,4 +1,4 @@
-import { Button, IconButton, Input, InputShell, PlainButton } from '../ui';
+import { Button, IconButton, Input, InputShell, PlainButton, revealOnHover } from '../ui';
 
 import { useId, useState } from 'react';
 import { ChevronRight, BookOpen, FolderOpen, Plus, Search, X } from '../icons/shell-icons';
@@ -128,7 +128,7 @@ export function ProjectLibrary({
           {matching.length > 0 ? (
             <ul className="space-y-2">
               {matching.map((path) => (
-                <li key={path} className="group/row relative">
+                <li key={path} className="group relative">
                   <PlainButton
                     data-project-path={path}
                     title={path}
@@ -137,7 +137,7 @@ export function ProjectLibrary({
                       onSelectProject(path);
                     }}
                     disabled={openingProject === path}
-                    className="group flex w-full items-center gap-4 rounded-lg bg-panel px-5 py-4 text-left transition-colors hover:bg-elevated disabled:opacity-60"
+                    className="group/card flex w-full items-center gap-4 rounded-lg bg-panel px-5 py-4 text-left transition-colors hover:bg-elevated disabled:opacity-60"
                   >
                     <BookOpen size={20} aria-hidden="true" className="shrink-0 text-subtle" />
                     <span className="min-w-0 flex-1">
@@ -153,11 +153,13 @@ export function ProjectLibrary({
                     <ChevronRight
                       size={15}
                       aria-hidden="true"
-                      className="shrink-0 text-subtle group-hover:text-foreground"
+                      className="shrink-0 text-subtle group-hover/card:text-foreground"
                     />
                   </PlainButton>
                   {onRemoveProject && path !== activeProject && (
-                    <span className="absolute right-12 top-1/2 flex -translate-y-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100">
+                    <span
+                      className={`absolute right-12 top-1/2 flex -translate-y-1/2 ${revealOnHover()}`}
+                    >
                       <IconButton
                         size="xs"
                         label={`从作品库移除：${titleOf(path)}`}

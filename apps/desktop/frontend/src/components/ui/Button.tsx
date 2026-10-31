@@ -103,3 +103,15 @@ export const PlainButton = forwardRef<HTMLButtonElement, PlainButtonProps>(funct
     />
   );
 });
+
+const REVEAL_REST = { hidden: 'opacity-0', faint: 'opacity-40' };
+
+/**
+ * 悬停才出现的小操作（行尾的改 / 删 / ×、文件夹的新建）的显隐类名：悬停它所在的行（行要带 group 类），
+ * 或键盘焦点落到它、落进同一行时显出来。行里认 :focus-visible 而不是 focus-within，
+ * 鼠标点过留下的焦点不算，点过的那一行不会一直亮着。
+ * faint 平时淡淡露着，默认 hidden 平时完全隐藏；套在按钮上或包着按钮的那层上都行。
+ */
+export function revealOnHover(rest: keyof typeof REVEAL_REST = 'hidden'): string {
+  return `${REVEAL_REST[rest]} transition-opacity hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`;
+}
