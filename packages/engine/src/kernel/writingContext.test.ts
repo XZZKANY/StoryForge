@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p2-writing-context.windows.json';
 import type { EncodedFile } from './contextFixture.test-support';
-import type { Obj } from './contextValues';
+import type { PlainJsonObject } from './contextValues';
 import { GenerationSourceCapture } from './generationSources';
 import { dumpJson } from './json';
 import type { CollectedProjectKnowledge } from './knowledgeContext';
@@ -60,8 +60,8 @@ type PureRow = {
   error?: { type: string; message: string };
 };
 
-function projections(snapshot: Obj) {
-  const output: Obj = {
+function projections(snapshot: PlainJsonObject) {
+  const output: PlainJsonObject = {
     trace: llmContextSnapshotTraceSummary(snapshot),
     selected_values: syntheticContextSelectedValues(snapshot, secrets),
     synthetic: syntheticContextDelivery(snapshot, secrets) as unknown as PlainJson,
@@ -184,7 +184,7 @@ async function withCapture(run: (capture: GenerationSourceCapture) => Promise<un
 const RUN_STATE = { public_id: 'run-9', goal: '写完', status: 'running', current_step: 'draft' };
 
 /** 与 Python oracle 同算法：去掉 snapshot_id，按占位根重算一次稳定 id。 */
-function stableSnapshot(snapshot: Obj) {
+function stableSnapshot(snapshot: PlainJsonObject) {
   const body = stable(
     Object.fromEntries(Object.entries(snapshot).filter(([k]) => k !== 'snapshot_id')),
   );
@@ -262,31 +262,39 @@ describe('real Python writing context project replay', () => {
           );
           const view = projections(snapshot);
           // trace 里的 snapshot_id 依赖真实根；先确认它就是本快照的 id，再换成占位根下的稳定 id。
-          expect((view.trace as Obj).snapshot_id).toBe(snapshot.snapshot_id);
+          expect((view.trace as PlainJsonObject).snapshot_id).toBe(snapshot.snapshot_id);
           const stableView = stableSnapshot(snapshot);
-          (view.trace as Obj).snapshot_id = stableView.stable_id;
+          (view.trace as PlainJsonObject).snapshot_id = stableView.stable_id;
           return { ...stableView, ...view };
         };
       } else if (call.fn === 'admit') {
         run = () =>
           withCapture(async (capture) => {
-            const result = await admitWritingRequest(reader, requestPayload(args.data as Obj), {
-              intent: args.intent as string,
-              ...options,
-              capture,
-            });
+            const result = await admitWritingRequest(
+              reader,
+              requestPayload(args.data as PlainJsonObject),
+              {
+                intent: args.intent as string,
+                ...options,
+                capture,
+              },
+            );
             return result.context_bundle ?? null;
           });
       } else {
         run = async () => {
           const context = await preparedContext();
           return withCapture(async (capture) => {
-            const result = await admitWritingRequest(reader, requestPayload(args.data as Obj), {
-              intent: args.intent as string,
-              preparedContext: context,
-              ...options,
-              capture,
-            });
+            const result = await admitWritingRequest(
+              reader,
+              requestPayload(args.data as PlainJsonObject),
+              {
+                intent: args.intent as string,
+                preparedContext: context,
+                ...options,
+                capture,
+              },
+            );
             return result.context_bundle ?? null;
           });
         };
@@ -319,7 +327,7 @@ describe('writing context boundaries', () => {
         { platform, secrets },
       );
       const bundle = llmContextSnapshotToPromptContextBundle(snapshot, secrets);
-      return Object.keys((bundle.summary as { counts: Obj }).counts);
+      return Object.keys((bundle.summary as { counts: PlainJsonObject }).counts);
     };
     // 桌面端 emptyCounts 的顺序。
     expect(promptCounts({ outline: 1, character: 0, draft: 2, export: 0, Zeta: 1 })).toEqual([

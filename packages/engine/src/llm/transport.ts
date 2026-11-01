@@ -9,7 +9,8 @@ import {
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
-import { pythonStrip } from '../kernel/pythonText';
+import { cpLen, cpSlice, pythonStrip } from '../kernel/pythonText';
+import { decodeUtf8 } from '../readPort';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import {
   credentialHeaderValues,
@@ -95,10 +96,7 @@ class ResponseReadError extends Error {
   }
 }
 
-const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-const UTF8_REPLACE = new TextDecoder('utf-8', { ignoreBOM: true });
 const ENCODER = new TextEncoder();
-const length = (text: string) => Array.from(text).length;
 const elapsedMs = (ctx: LlmContext, startedAt: number) =>
   Math.trunc((ctx.clock() - startedAt) * 1000);
 
@@ -148,7 +146,7 @@ async function readJsonBody(response: HttpResponse): Promise<JsonValue> {
   }
   let text: string;
   try {
-    text = UTF8.decode(raw);
+    text = decodeUtf8(raw, { fatal: true });
   } catch {
     throw new ResponseReadError('UnicodeDecodeError');
   }
@@ -175,7 +173,7 @@ function interruptClosing(
 
 async function errorBody(response: HttpResponse): Promise<string> {
   try {
-    return UTF8_REPLACE.decode(await readAll(response));
+    return decodeUtf8(await readAll(response));
   } catch {
     return '<无法读取响应体>';
   } finally {
@@ -184,7 +182,6 @@ async function errorBody(response: HttpResponse): Promise<string> {
 }
 
 const isOk = (status: number) => status >= 200 && status < 300;
-const truncate = (text: string, limit: number) => Array.from(text).slice(0, limit).join('');
 
 /** POST /chat/completions：429 / 5xx 退避重试（尊重 Retry-After），读取失败也重试；返回响应与起始时刻。 */
 export async function requestChatCompletions(
@@ -227,7 +224,7 @@ export async function requestChatCompletions(
           await sleep(attempt, retryAfterSeconds(response.headers));
           continue;
         }
-        const detail = truncate(redact(await errorBody(response)), 2000);
+        const detail = cpSlice(redact(await errorBody(response)), 2000);
         throw new LlmError(
           `真实 LLM 返回 HTTP ${response.status}（耗时 ${elapsed}ms，尝试 ${attempt}/${attemptLimit}）：${detail}`,
         );
@@ -310,7 +307,7 @@ async function* responseLines(
       checkRunInterruption(control, 'before_stream_read');
       const line = await nextLine();
       if (line === null) return;
-      yield pythonStrip(UTF8_REPLACE.decode(line));
+      yield pythonStrip(decodeUtf8(line));
     }
   } finally {
     await iterator.return?.(undefined);
@@ -402,7 +399,7 @@ export async function* rawStreamChatCompletions(
       attempt += 1;
       continue;
     }
-    const detail = truncate(redact(await errorBody(received)), 2000);
+    const detail = cpSlice(redact(await errorBody(received)), 2000);
     throw new LlmError(
       redact(
         `真实 LLM 流式返回 HTTP ${received.status}（耗时 ${elapsed}ms，尝试 ${attempt}/${attemptLimit}）：${detail}`,
@@ -485,7 +482,7 @@ export async function* rawStreamChatCompletions(
       checkRunInterruption(ctx.control, 'http_error');
       const name = error.kind === 'timeout' ? 'TimeoutError' : error.detail;
       throw new LlmStreamBreak(
-        `真实 LLM 流式读取中断（已输出 ${length(emitted.join(''))} 字）：${name}`,
+        `真实 LLM 流式读取中断（已输出 ${cpLen(emitted.join(''))} 字）：${name}`,
       );
     }
     throw error;
@@ -517,7 +514,7 @@ export async function* rawStreamChatCompletions(
   if (!sawTerminal)
     // 上游在收尾标记前关流：半截正文在自动档下会不经作者点击写进文件，宁可失败。
     throw new LlmError(
-      `真实 LLM 流式在收到终止标记前中断（已输出 ${length(content)} 字），不能把半截正文当成稿。`,
+      `真实 LLM 流式在收到终止标记前中断（已输出 ${cpLen(content)} 字），不能把半截正文当成稿。`,
     );
   const messages = payload.messages;
   const promptText = Array.isArray(messages)

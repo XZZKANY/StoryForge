@@ -1,8 +1,8 @@
 import { compareChapterPaths } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError, readBoundedText, resolveProjectRoot } from './fsTools';
 import { scanProjectFiles, ProjectTreeError } from './projectTree';
-import { pythonStrip } from './pythonText';
+import { clipWithEllipsis, pythonStrip } from './pythonText';
 import { redactSensitiveText, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 
@@ -29,14 +29,9 @@ const optional = (error: unknown) =>
   error instanceof ProjectTreeError ||
   error instanceof FsToolError;
 
-const cut = (text: string, limit: number) => {
-  const points = Array.from(text);
-  return points.length > limit ? `${points.slice(0, limit).join('')}……` : text;
-};
-
 /** 开头的 `---` 块里认「名字 / name」「什么时候用 / when / description」，冒号全半角都行。 */
 export function parseWritingSkill(path: string, content: string): Omit<WritingSkill, 'sha256'> {
-  const text = content.replace(/\r\n?/g, '\n');
+  const text = normalizeNewlines(content);
   const fallbackName = path
     .split('/')
     .slice(-1)[0]
@@ -55,7 +50,12 @@ export function parseWritingSkill(path: string, content: string): Omit<WritingSk
     fields.when ||
     fields.description ||
     pythonStrip(firstLine.replace(/^#+\s*/, ''));
-  return { path, name: cut(name, 40), when: cut(when, WHEN_MAX_CHARS), body };
+  return {
+    path,
+    name: clipWithEllipsis(name, 40),
+    when: clipWithEllipsis(when, WHEN_MAX_CHARS),
+    body,
+  };
 }
 
 /**
@@ -152,7 +152,10 @@ export function writingSkillsBlock(
   return (
     `写法要点（${vetting}写法 skill，这一章照着写；例句只示意，不要照抄）：\n` +
     chosen
-      .map((skill) => `### ${styleLabel(skill)}\n${cut(skill.body, WRITING_SKILL_MAX_CHARS)}`)
+      .map(
+        (skill) =>
+          `### ${styleLabel(skill)}\n${clipWithEllipsis(skill.body, WRITING_SKILL_MAX_CHARS)}`,
+      )
       .join('\n\n')
   );
 }

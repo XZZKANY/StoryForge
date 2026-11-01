@@ -1,5 +1,6 @@
 import type { AssistantFileSuggestion } from './assistant-suggestions';
 import { createSuggestionChangeSet, type SuggestionChangeSet } from './suggestion-change-set';
+import { joinPath } from './fs-path-ops';
 import { relativeToProject } from './project-context';
 import { TauriFileSystem } from './tauri-fs';
 import { readReceiptAuditPayload, verifyReceiptAudit } from './writeback-audit';
@@ -32,20 +33,14 @@ async function journalPath(project: string, file: string): Promise<string> {
   const label = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),
   ).join('');
-  const separator = project.includes('\\') ? '\\' : '/';
-  return [
-    project.replace(/[/\\]+$/, ''),
-    '.storyforge',
-    'pending-suggestions',
-    `${label}.json`,
-  ].join(separator);
+  return joinPath(project, '.storyforge', 'pending-suggestions', `${label}.json`);
 }
 async function readJournal(
   project: string,
   file: string,
 ): Promise<{ path: string; raw: string | null }> {
   const path = await journalPath(project, file);
-  const raw = (await TauriFileSystem.pathExists(path))
+  const raw = (await TauriFileSystem.projectPathExists(project, path))
     ? await TauriFileSystem.readProjectFile(project, path)
     : null;
   return { path, raw };
@@ -172,13 +167,10 @@ export async function loadPendingSuggestion(
  * 只看日志本身（名字须与目标路径对得上），不结算运行；读不了的日志跳过，不挡作品打开。
  */
 export async function listPendingNewFileTargets(project: string): Promise<string[]> {
-  const separator = project.includes('\\') ? '\\' : '/';
-  const directory = [project.replace(/[/\\]+$/, ''), '.storyforge', 'pending-suggestions'].join(
-    separator,
-  );
-  if (!(await TauriFileSystem.pathExists(directory))) return [];
+  const directory = joinPath(project, '.storyforge', 'pending-suggestions');
+  if (!(await TauriFileSystem.projectPathExists(project, directory))) return [];
   const targets: string[] = [];
-  for (const entry of await TauriFileSystem.listDir(directory)) {
+  for (const entry of await TauriFileSystem.listProjectDir(project, directory)) {
     if (entry.isDir || !entry.name.endsWith('.json')) continue;
     try {
       const raw = await TauriFileSystem.readProjectFile(project, entry.path);
@@ -191,7 +183,7 @@ export async function listPendingNewFileTargets(project: string): Promise<string
       if (
         normalizePathForMatch(await journalPath(project, file)) !==
           normalizePathForMatch(entry.path) ||
-        (await TauriFileSystem.pathExists(file))
+        (await TauriFileSystem.projectPathExists(project, file))
       )
         continue;
       targets.push(file);
@@ -279,10 +271,7 @@ export class MissingSuggestionAudit extends Error {
 }
 
 function receiptAuditPath(project: string, operationId: string): string {
-  const separator = project.includes('\\') ? '\\' : '/';
-  return [project.replace(/[/\\]+$/, ''), '.storyforge', 'author-loop', `${operationId}.md`].join(
-    separator,
-  );
+  return joinPath(project, '.storyforge', 'author-loop', `${operationId}.md`);
 }
 
 /** A new proposal/dismissal must not erase the only repair descriptor for an admitted write. */
@@ -300,7 +289,8 @@ async function verifyJournalSettled(
     if (receipt.state !== 'applied' || !receipt.receiptPersisted)
       throw new Error('原写入结果尚未确定，已保留恢复记录；请先核对正文与版本');
     const path = receiptAuditPath(project, receipt.operationId);
-    if (!(await TauriFileSystem.pathExists(path))) throw new MissingSuggestionAudit();
+    if (!(await TauriFileSystem.projectPathExists(project, path)))
+      throw new MissingSuggestionAudit();
     await verifyReceiptAudit(project, path, receipt.operationId, semanticPayload);
   }
   return allApplied;
@@ -381,7 +371,7 @@ export async function recoverSuggestionOperations(
     if (receipt?.state !== 'applied' || !receipt.receiptPersisted)
       throw new Error('修订写入结果尚未确定，请核对正文与版本；不会自动重放旧决定');
     const auditPath = receiptAuditPath(project, receipt.operationId);
-    if (!(await TauriFileSystem.pathExists(auditPath))) {
+    if (!(await TauriFileSystem.projectPathExists(project, auditPath))) {
       if (!repairMissingAudit) throw new MissingSuggestionAudit();
       const record = readRevisionLoopPayload(project, original.filePath, semanticPayload);
       await repairMissingAudit({ ...record, operationId: receipt.operationId });

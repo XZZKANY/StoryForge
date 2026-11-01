@@ -1,4 +1,4 @@
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { decodeUtf8, normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { platformTextBytes, type ProjectWriter } from '../writePort';
 import { checkCanonDeclaration, checkHooksDeclaration } from './canonDeclarations';
 import { captureCanonSourceRevision } from './canonStore';
@@ -72,7 +72,7 @@ async function readDeclaration(
   }
   const parsed = new JsonFields(path).object(parseJsonBytes(raw, path), '顶层');
   check(parsed, path);
-  const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(raw).replace(/\r\n?/g, '\n');
+  const text = normalizeNewlines(decodeUtf8(raw));
   await capture?.observe(purpose, target, { raw, text, complete: true });
   return parsed;
 }

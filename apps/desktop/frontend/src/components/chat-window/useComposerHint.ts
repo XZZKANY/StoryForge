@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { loadProjectSetupFacts, type ProjectSetupFacts } from '../../lib/api/project-setup';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { AUTHOR_LOOP_RESULT_EVENT, type AuthorLoopResult } from '../../lib/assistant-events';
 import type { HandoffChapter } from '../../lib/chapter-handoff';
 import { composerHint } from '../../lib/composer-hint';
@@ -80,20 +81,19 @@ export function useComposerHint({
       ].join('\u0000')
     : null;
   const [facts, setFacts] = useState<{ key: string; facts: ProjectSetupFacts | null } | null>(null);
-  useEffect(() => {
-    if (!factsKey || !projectPath || agentBusy) return;
-    let cancelled = false;
-    loadProjectSetupFacts(projectPath).then(
-      (loaded) => {
-        if (!cancelled) setFacts({ key: factsKey, facts: loaded });
-      },
-      // 读不出就不给依赖立项的那几条提示；不报错打扰作者。
-      () => undefined,
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [agentBusy, factsKey, projectPath]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!factsKey || !projectPath || agentBusy) return;
+      loadProjectSetupFacts(projectPath).then(
+        (loaded) => {
+          if (isCurrent()) setFacts({ key: factsKey, facts: loaded });
+        },
+        // 读不出就不给依赖立项的那几条提示；不报错打扰作者。
+        () => undefined,
+      );
+    },
+    [agentBusy, factsKey, projectPath],
+  );
 
   return composerHint({
     running: agentBusy,

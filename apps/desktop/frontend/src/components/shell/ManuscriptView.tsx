@@ -20,6 +20,7 @@ import type { BookContextAvailability } from '../app/useBookContext';
 import { LiveStatus } from './LiveStatus';
 import { displayDocName } from '../../lib/fs-path-ops';
 import { PanelSection } from './PanelSection';
+import { IconButton, PlainButton, Spinner } from '../ui';
 
 function rosterSpanLabel(entry: RosterEntry): string {
   if (entry.missing) return '正文中尚未登场';
@@ -27,11 +28,6 @@ function rosterSpanLabel(entry: RosterEntry): string {
   return entry.firstChapter === entry.lastChapter
     ? `仅第 ${entry.firstChapter} 章在场`
     : `第 ${entry.firstChapter}–${entry.lastChapter} 章在场`;
-}
-
-/** 手稿视图的分区一律 `manuscript-` 前缀，testid 与抽出公共组件前保持一致。 */
-function Section(props: Omit<Parameters<typeof PanelSection>[0], 'prefix'>) {
-  return <PanelSection {...props} prefix="manuscript" />;
 }
 
 /** 被截断时把丢掉的条数说清楚；没截断就不占版面。 */
@@ -109,27 +105,23 @@ export function ManuscriptView({
             {scale}
           </span>
         )}
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-          title="重新读取（确定性 · 无 LLM）"
-          aria-label="重新读取手稿"
+        <IconButton
+          size="xs"
+          label="重新读取手稿"
+          tooltip="重新读取（确定性 · 无 LLM）"
+          icon={<Spinner icon={RefreshCw} spinning={busy} size={14} strokeWidth={1.6} />}
           onClick={onRefresh}
           disabled={busy}
           data-testid="manuscript-refresh"
-        >
-          <RefreshCw size={14} strokeWidth={1.6} className={busy ? 'animate-spin' : ''} />
-        </button>
-        <button
-          type="button"
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          title="回到资源管理器 · Ctrl Shift E"
-          aria-label="回到资源管理器"
+        />
+        <IconButton
+          size="xs"
+          label="回到资源管理器"
+          tooltip="回到资源管理器 · Ctrl Shift E"
+          icon={<FileText size={14} strokeWidth={1.6} />}
           onClick={onBackToExplorer}
           data-testid="manuscript-back-to-explorer"
-        >
-          <FileText size={14} strokeWidth={1.6} />
-        </button>
+        />
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -155,8 +147,7 @@ export function ManuscriptView({
                   const current = chapter.relativePath === snapshot.currentRelativePath;
                   return (
                     <li key={chapter.relativePath}>
-                      <button
-                        type="button"
+                      <PlainButton
                         className={`flex h-7 w-full items-center gap-2 px-2 text-left text-xs transition-colors hover:bg-elevated ${
                           current
                             ? 'bg-elevated text-foreground'
@@ -176,15 +167,14 @@ export function ManuscriptView({
                         <span className="flex-shrink-0 font-mono text-3xs text-subtle">
                           {formatEstimatedChars(chapter.estimatedChars)}
                         </span>
-                      </button>
+                      </PlainButton>
                     </li>
                   );
                 })}
               </ul>
             )}
             {onDraftNextChapter && nextChapterOrdinal !== null ? (
-              <button
-                type="button"
+              <PlainButton
                 className="flex h-7 w-full items-center gap-2 px-2 text-left text-xs text-agent transition-colors hover:bg-agent/10"
                 onClick={onDraftNextChapter}
                 data-testid="manuscript-draft-next"
@@ -195,10 +185,11 @@ export function ManuscriptView({
                 <span className="min-w-0 flex-1 truncate">
                   AI 起草下一章 · 第 {nextChapterOrdinal} 章
                 </span>
-              </button>
+              </PlainButton>
             ) : null}
 
-            <Section
+            <PanelSection
+              prefix="manuscript"
               title="骨架索引"
               meta={`${snapshot.skeleton.length}/${snapshot.skeletonTotal}`}
               testid="skeleton"
@@ -229,9 +220,10 @@ export function ManuscriptView({
                 shown={snapshot.skeleton.length}
                 unit="份"
               />
-            </Section>
+            </PanelSection>
 
-            <Section
+            <PanelSection
+              prefix="manuscript"
               title="模型拿到的实体名单"
               meta={`${snapshot.roster.length}/${snapshot.rosterDeclaredTotal}`}
               testid="roster"
@@ -265,9 +257,10 @@ export function ManuscriptView({
                 shown={snapshot.roster.length}
                 unit="位"
               />
-            </Section>
+            </PanelSection>
 
-            <Section
+            <PanelSection
+              prefix="manuscript"
               title="模型这轮收到的原文"
               meta={snapshot.promptBlock ? `${snapshot.promptBlock.length} 字` : '空'}
               testid="prompt"
@@ -294,7 +287,7 @@ export function ManuscriptView({
                   已指向事实卡 · {snapshot.dossierRelativePath}
                 </p>
               )}
-            </Section>
+            </PanelSection>
           </>
         )}
       </div>

@@ -1,16 +1,7 @@
-import { Field, type FieldControlProps, DialogSurface, Button, Input, Select } from './ui';
+import { ModalDialog, Button, Input } from './ui';
 import { AppDialogHost, useAppDialog } from './app/AppDialog';
 
-import {
-  useContext,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   DEFAULT_APP_SETTINGS,
   sanitizeAppSettings,
@@ -19,21 +10,28 @@ import {
 } from '../lib/user-settings';
 import { Info, Palette, Puzzle, Sparkles, Type } from './icons/shell-icons';
 import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
-import { currentAppVersion } from '../lib/update-check';
-import {
-  checkAppUpdate,
-  downloadAppUpdate,
-  restartToInstall,
-  useAppUpdate,
-  type AppUpdateState,
-} from '../lib/app-update';
 import { useModelProfiles } from './settings/useModelProfiles';
 import { ModelProfilesSection } from './settings/ModelProfilesSection';
 import { AppearanceSection } from './settings/AppearanceSection';
-import { SettingsSearchContext } from './settings/search-context';
+import {
+  SettingsSearchContext,
+  settingsTextMatches,
+  useSettingsQuery,
+} from './settings/search-context';
 import { usePlugins } from './settings/usePlugins';
 import { PluginsSection } from './settings/PluginsSection';
 import { takeRequestedSettingsSection } from '../lib/settings-section';
+import { AboutRows } from './settings/AboutRows';
+import {
+  ActionRow,
+  RangeRow,
+  SelectRow,
+  SettingCard,
+  SettingDetails,
+  SettingGroup,
+  ToggleRow,
+  UnsavedBadge,
+} from './settings/SettingRows';
 
 type SettingsViewProps = {
   settings: AppSettings;
@@ -137,19 +135,14 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4 animate-fade-in"
-      data-modal-backdrop=""
-    >
-      <DialogSurface
+    <>
+      <ModalDialog
         dismissOutside
         onClose={requestClose}
         initialFocusRef={searchRef}
         fallbackFocusRef={fallbackFocusRef}
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="settings-title"
-        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-dialog animate-slide-up-fade"
+        className="flex h-[85vh] max-h-[760px] w-full max-w-[940px] overflow-hidden bg-background text-foreground"
         data-testid="settings-view"
       >
         <aside className="flex w-48 flex-shrink-0 flex-col bg-panel px-3 py-3">
@@ -349,288 +342,36 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
             </div>
           </SettingsSearchContext.Provider>
         </main>
-      </DialogSurface>
+      </ModalDialog>
       <AppDialogHost
         dialog={confirmDialog.dialog}
         onClose={confirmDialog.closeDialog}
         onPromptValueChange={confirmDialog.updatePromptValue}
       />
-    </div>
+    </>
   );
 }
 
 function ProviderRuntimeEnvNotice() {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
+  const query = useSettingsQuery();
   const description =
     '配置保存在本机 llm-provider.json，API Key 加密存放，保存后界面不再读回明文。模型请求由桌面应用直接发到你填的服务地址；密钥不写进浏览器存储，也不进日志。';
-  if (query && !`连接与存储详情 ${description}`.toLowerCase().includes(query)) return null;
+  if (!settingsTextMatches(query, `连接与存储详情 ${description}`)) return null;
   return (
-    <details
+    <SettingDetails
       className="px-4 py-3 text-xs text-muted"
       data-testid="provider-runtime-details"
-      open={Boolean(query)}
+      summary={
+        <>
+          连接与存储详情
+          <span className="ml-2 text-muted" data-testid="provider-runtime-env-source">
+            仅存本机
+          </span>
+        </>
+      }
     >
-      <summary className="cursor-pointer rounded-sm py-1 hover:text-foreground">
-        连接与存储详情
-        <span className="ml-2 text-muted" data-testid="provider-runtime-env-source">
-          仅存本机
-        </span>
-      </summary>
       <p className="mt-2 break-words leading-relaxed">{description}</p>
-    </details>
-  );
-}
-
-function SettingGroup({
-  id,
-  title,
-  badge = null,
-  children,
-}: {
-  id: string;
-  title: string;
-  badge?: ReactNode;
-  children: ReactNode;
-}) {
-  // sf-settings-group + sf-settings-card：搜索过滤后若卡片内全部行 null 渲染 → 卡片 :empty，
-  // 整组（含标题）随之 CSS 隐藏，不再留空标题/空卡壳（见 index.css）。
-  return (
-    <section id={id} className="sf-settings-group mb-8 scroll-mt-6">
-      <h2 className="mb-3 text-sm font-medium text-foreground">
-        {title}
-        {badge}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-/** 「未保存」徽标：仅在正在编辑的模型配置与打开时不一致时出现，保存或取消后消失。 */
-function UnsavedBadge({ visible, testId }: { visible: boolean; testId: string }) {
-  if (!visible) return null;
-  return (
-    <span className="ml-2 text-xs font-normal text-warning" data-testid={testId}>
-      ● 未保存
-    </span>
-  );
-}
-
-function SettingCard({ children }: { children: ReactNode }) {
-  return <div className="sf-settings-card overflow-hidden rounded-xl bg-surface">{children}</div>;
-}
-
-function RowShell({
-  title,
-  description,
-  children,
-  controlId,
-  descriptionId,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode | ((control: FieldControlProps) => ReactNode);
-  controlId?: string;
-  descriptionId?: string;
-}) {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
-  if (query && !`${title} ${description}`.toLowerCase().includes(query)) return null;
-  if (controlId)
-    return (
-      <Field
-        id={controlId}
-        label={title}
-        description={description}
-        descriptionId={descriptionId}
-        layout="horizontal"
-        className="min-h-[76px] px-4 py-3"
-      >
-        {(control) => (typeof children === 'function' ? children(control) : children)}
-      </Field>
-    );
-
-  return (
-    <div className="flex min-h-[76px] items-center gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        {controlId ? (
-          <label htmlFor={controlId} className="text-sm font-medium text-foreground">
-            {title}
-          </label>
-        ) : (
-          <div className="text-sm font-medium text-foreground">{title}</div>
-        )}
-        <div
-          id={descriptionId ?? (controlId ? `${controlId}-description` : undefined)}
-          className="mt-1 text-xs leading-relaxed text-muted"
-        >
-          {description}
-        </div>
-      </div>
-      <div className="flex-shrink-0">{typeof children === 'function' ? null : children}</div>
-    </div>
-  );
-}
-
-function ToggleRow({
-  title,
-  description,
-  checked,
-  onChange,
-}: {
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  // controlId 走 RowShell 的 Field 分支：标题成为真 label，点标题也能切开关；
-  // 按钮改名职责交给 label 关联，不再自带 aria-label。
-  const controlId = useId();
-  return (
-    <RowShell title={title} description={description} controlId={controlId}>
-      {(control) => (
-        <button
-          {...control}
-          type="button"
-          aria-pressed={checked}
-          onClick={() => onChange(!checked)}
-          className={`relative h-[22px] w-[38px] rounded-full transition-colors ${
-            checked ? 'bg-accent hover:bg-accent/90' : 'bg-border-strong hover:bg-border'
-          }`}
-        >
-          <span
-            className={`absolute left-0 top-0.5 h-[18px] w-[18px] rounded-full transition-transform ${
-              checked ? 'translate-x-[18px] bg-accent-foreground' : 'translate-x-0.5 bg-foreground'
-            }`}
-          />
-        </button>
-      )}
-    </RowShell>
-  );
-}
-
-function RangeRow({
-  title,
-  description,
-  value,
-  min,
-  max,
-  step,
-  unit = 'px',
-  formatValue,
-  testId,
-  onChange,
-}: {
-  title: string;
-  description: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  unit?: string;
-  formatValue?: (value: number) => string;
-  testId: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <RowShell title={title} description={description} controlId={testId}>
-      {(control) => (
-        <div className="flex items-center gap-3">
-          <input
-            type="range"
-            {...control}
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(event) => onChange(Number(event.target.value))}
-            className="w-40 accent-accent"
-            data-testid={testId}
-          />
-          <span className="w-14 whitespace-nowrap text-right text-sm tabular-nums text-foreground">
-            {formatValue ? formatValue(value) : `${value}${unit}`}
-          </span>
-        </div>
-      )}
-    </RowShell>
-  );
-}
-
-function SelectRow({
-  title,
-  description,
-  value,
-  onChange,
-  options,
-  testId,
-}: {
-  title: string;
-  description: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: ReadonlyArray<{ value: string; label: string }>;
-  testId: string;
-}) {
-  return (
-    <RowShell title={title} description={description} controlId={testId}>
-      {(control) => (
-        <Select
-          {...control}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          controlSize="sm"
-          className="w-[180px]"
-          data-testid={testId}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-      )}
-    </RowShell>
-  );
-}
-
-function ActionRow({
-  title,
-  description,
-  actionLabel,
-  onAction,
-  disabled = false,
-  status = null,
-}: {
-  title: string;
-  description: string;
-  actionLabel: string;
-  onAction: () => void;
-  disabled?: boolean;
-  status?: { text: string; tone: 'ok' | 'error' } | null;
-}) {
-  return (
-    <RowShell title={title} description={description}>
-      <div className="flex items-center gap-2.5">
-        {status && (
-          <span
-            className={`max-w-[280px] whitespace-pre-wrap break-words text-xs ${
-              status.tone === 'error' ? 'text-error' : 'text-success'
-            }`}
-            role={status.tone === 'error' ? 'alert' : 'status'}
-            data-testid="action-row-status"
-          >
-            {status.text}
-          </span>
-        )}
-        <Button
-          size="sm"
-          variant="secondary"
-          className="flex-shrink-0 text-sm"
-          onClick={onAction}
-          disabled={disabled}
-        >
-          {actionLabel}
-        </Button>
-      </div>
-    </RowShell>
+    </SettingDetails>
   );
 }
 
@@ -656,126 +397,4 @@ function NavIcon({ label }: { label: string }) {
             ? Type
             : Info;
   return <Icon size={15} strokeWidth={1.6} />;
-}
-
-function updateStatus(update: AppUpdateState): { label: string; tone: string } | null {
-  switch (update.phase) {
-    case 'idle':
-      return null;
-    case 'checking':
-      return { label: '检查中…', tone: 'text-subtle' };
-    case 'up-to-date':
-      return { label: `已是最新（${update.current}）`, tone: 'text-subtle' };
-    case 'check-failed':
-      return { label: `检查失败：${update.message}`, tone: 'text-error' };
-    case 'available':
-      return update.downloadError
-        ? { label: `下载失败：${update.downloadError}`, tone: 'text-error' }
-        : {
-            label: `有新版本 ${update.update.latest}（当前 ${update.update.current}）`,
-            tone: 'text-warning',
-          };
-    case 'downloading': {
-      const done = update.total
-        ? `${Math.floor((update.received / update.total) * 100)}%`
-        : `${(update.received / 1048576).toFixed(1)} MB`;
-      return { label: `正在下载 ${update.update.latest}… ${done}`, tone: 'text-subtle' };
-    }
-    case 'ready':
-      return update.installError
-        ? { label: `没能开始安装：${update.installError}`, tone: 'text-error' }
-        : { label: `${update.update.latest} 已下载好`, tone: 'text-warning' };
-  }
-}
-
-/** 出错已记进状态、在状态行显示，按钮这里不再抛。 */
-const quietly = (task: () => Promise<void>) => () => void task().catch(() => {});
-
-function UpdateNotes({ latest, notes }: { latest: string; notes: string }) {
-  const query = useContext(SettingsSearchContext).trim().toLowerCase();
-  if (query && !`更新说明 ${notes}`.toLowerCase().includes(query)) return null;
-  return (
-    <div className="px-4 pb-3" data-testid="about-update-notes">
-      <div className="text-xs font-medium text-foreground">{latest} 更新说明</div>
-      <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-muted">
-        {notes}
-      </div>
-    </div>
-  );
-}
-
-/** 关于区：当前版本 + 检查更新 → 下载 → 重启安装（与启动时的右下角提示共用一份进度）。 */
-function AboutRows() {
-  const [version, setVersion] = useState<string | null>(null);
-  const update = useAppUpdate();
-
-  useEffect(() => {
-    let cancelled = false;
-    void currentAppVersion().then((value) => {
-      if (!cancelled) setVersion(value);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const runCheck = async () => {
-    await checkAppUpdate(version ?? (await currentAppVersion()));
-  };
-  const status = updateStatus(update);
-  const info =
-    update.phase === 'available' || update.phase === 'downloading' || update.phase === 'ready'
-      ? update.update
-      : null;
-  const action =
-    update.phase === 'available'
-      ? { label: '下载新版', run: quietly(downloadAppUpdate) }
-      : update.phase === 'downloading'
-        ? { label: '下载中…', run: null }
-        : update.phase === 'ready'
-          ? { label: '重启安装', run: quietly(restartToInstall) }
-          : {
-              label: '检查更新',
-              run: update.phase === 'checking' ? null : quietly(runCheck),
-            };
-
-  return (
-    <>
-      <RowShell title="当前版本" description="StoryForge IDE 桌面端。">
-        <span
-          className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 font-mono text-xs text-muted"
-          data-testid="about-version"
-        >
-          {version ? `v${version}` : '开发模式'}
-        </span>
-      </RowShell>
-      <RowShell
-        title="检查更新"
-        description="联网查看有没有新版本，有就可以下载。点「重启安装」会先问有没有未保存的修改，再关掉 StoryForge 装好并重新打开。网络不通时会检查失败，不影响写作。"
-      >
-        <div className="flex items-center gap-3">
-          {status && (
-            <span
-              className={`max-w-[280px] truncate text-xs ${status.tone}`}
-              data-testid="about-update-status"
-            >
-              {status.label}
-            </span>
-          )}
-          <Button
-            type="button"
-            onClick={action.run ?? undefined}
-            disabled={!action.run}
-            size="sm"
-            variant="secondary"
-            className="flex-shrink-0 text-sm"
-            data-testid="about-update-check"
-          >
-            {action.label}
-          </Button>
-        </div>
-      </RowShell>
-      {info?.notes && <UpdateNotes latest={info.latest} notes={info.notes} />}
-    </>
-  );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../golden/p3-contracts.json';
+import { composeScopedInstruction, INSTRUCTION_BUDGET } from '../kernel/reviseDelivery';
 import { chatResponse, ProviderError, TokenUsage, type StreamEvent } from '../llm/contracts';
 import { RunControl, RunInterrupted } from '../llm/control';
 import {
@@ -236,5 +237,12 @@ describe('P3-2 范围补充', () => {
     for (const message of ['确认写进文件', '就这版写进文件吧', '确认写回', '接受当前补丁'])
       expect(isConfirmWritebackRequest(message), message).toBe(true);
     expect(isConfirmWritebackRequest('这段写进文件了吗')).toBe(false);
+  });
+
+  it('内核修订范围抛的编排错误，loop 的 instanceof 也认得（只有一个类）', () => {
+    const tooLong = ['字'.repeat(INSTRUCTION_BUDGET + 1)];
+    expect(() => composeScopedInstruction(tooLong, [], [], { values: [] })).toThrow(
+      AgentOrchestrationError,
+    );
   });
 });

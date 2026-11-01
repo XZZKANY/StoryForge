@@ -10,9 +10,10 @@
  * 过期守卫同 useBookContext：项目或目标变化后，在途响应一律丢弃。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { executeIdeCommand } from '../../lib/api/ide-commands';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { mapBookContextPayload } from '../../lib/book-context';
 import {
   buildChapterHandoff,
@@ -37,7 +38,6 @@ export function useChapterHandoff({
   enabled?: boolean;
 }): ChapterHandoff | null {
   const [fetched, setFetched] = useState<{ key: string; previous: PreviousChapter } | null>(null);
-  const seqRef = useRef(0);
 
   // 与交接同一推导：最后一章还空着时按它问，后端给回的正是前一章（真正写到的地方）的结尾。
   const resolved = chapters && chapters.length > 0 ? resolveHandoffChapters(chapters) : null;
@@ -49,25 +49,25 @@ export function useChapterHandoff({
       ? [projectPath, target, last.relativePath, last.estimatedChars ?? ''].join('\u0000')
       : null;
 
-  useEffect(() => {
-    if (!enabled || !key || !projectPath || !target) return;
-    const seq = ++seqRef.current;
-    void executeIdeCommand('book.context', { project_root: projectPath, current_file: target })
-      .then((result) => {
-        if (seq !== seqRef.current) return;
-        const payload = (result as { payload?: { book_context?: unknown } }).payload?.book_context;
-        setFetched({ key, previous: mapBookContextPayload(payload)?.previousChapter ?? null });
-      })
-      .catch((error: unknown) => {
-        if (seq !== seqRef.current) return;
-        // 拿不到结尾只是少一句引文，交接其余部分照常显示。
-        console.error('读取上一章结尾失败', error);
-        setFetched({ key, previous: null });
-      });
-    return () => {
-      seqRef.current += 1;
-    };
-  }, [enabled, key, projectPath, target]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!enabled || !key || !projectPath || !target) return;
+      void executeIdeCommand('book.context', { project_root: projectPath, current_file: target })
+        .then((result) => {
+          if (!isCurrent()) return;
+          const payload = (result as { payload?: { book_context?: unknown } }).payload
+            ?.book_context;
+          setFetched({ key, previous: mapBookContextPayload(payload)?.previousChapter ?? null });
+        })
+        .catch((error: unknown) => {
+          if (!isCurrent()) return;
+          // 拿不到结尾只是少一句引文，交接其余部分照常显示。
+          console.error('读取上一章结尾失败', error);
+          setFetched({ key, previous: null });
+        });
+    },
+    [enabled, key, projectPath, target],
+  );
 
   const previousChapter = fetched && fetched.key === key ? fetched.previous : null;
   return useMemo(

@@ -4,7 +4,7 @@
  * 窗口窄时整组按钮换到书名下面一行，不挤书名。
  */
 import { ChevronRight, Library, Pencil, RefreshCw } from '../icons/shell-icons';
-import { Button, IconButton } from '../ui';
+import { Button, IconButton, Spinner } from '../ui';
 
 export function BookOverviewHeader({
   title,
@@ -43,13 +43,7 @@ export function BookOverviewHeader({
           <IconButton
             size="md"
             label="重新读取作品资料"
-            icon={
-              <RefreshCw
-                size={15}
-                className={refreshing ? 'animate-spin' : ''}
-                aria-hidden="true"
-              />
-            }
+            icon={<Spinner icon={RefreshCw} spinning={refreshing} size={15} />}
             onClick={onRefresh}
             disabled={refreshing}
             data-testid="book-overview-refresh"

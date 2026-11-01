@@ -1,9 +1,10 @@
 import type { ProjectReader } from '../readPort';
-import { cpLen, isObj, get, type Obj } from './contextValues';
+import { isObj, get, type PlainJsonObject } from './contextValues';
 import { GenerationSourceCapture, normcase, selectionSha256 } from './generationSources';
 import { dumpJson } from './json';
 import { buildLlmContextSnapshot } from './llmContext';
 import { llmContextSnapshotToPromptContextBundle } from './llmPromptContext';
+import { cpLen } from './pythonText';
 import { redactSensitive, type PlainJson, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 
@@ -38,8 +39,8 @@ export type AssistantContextBundle = {
   project_root: string;
   current_file: string;
   files: AssistantContextBundleFile[];
-  summary: Obj;
-  budget: Obj | null;
+  summary: PlainJsonObject;
+  budget: PlainJsonObject | null;
 };
 
 const FILE_LIMITS: [keyof AssistantContextBundleFile, number][] = [
@@ -50,7 +51,7 @@ const FILE_LIMITS: [keyof AssistantContextBundleFile, number][] = [
   ['excerpt', 4000],
 ];
 
-function boundedText(source: Obj, key: string, max: number, where: string): string {
+function boundedText(source: PlainJsonObject, key: string, max: number, where: string): string {
   const value = get(source, key);
   if (typeof value !== 'string')
     throw new ContextBundleValidationError(`${where}.${key} 必须是字符串`);
@@ -60,7 +61,7 @@ function boundedText(source: Obj, key: string, max: number, where: string): stri
   return value;
 }
 
-function onlyKeys(source: Obj, allowed: readonly string[], where: string) {
+function onlyKeys(source: PlainJsonObject, allowed: readonly string[], where: string) {
   const extra = Object.keys(source).filter((key) => !allowed.includes(key));
   if (extra.length)
     throw new ContextBundleValidationError(`${where} 不允许字段：${extra.join(', ')}`);
@@ -96,13 +97,13 @@ export function validateAssistantContextBundle(raw: PlainJson | undefined): Assi
     project_root: boundedText(raw, 'project_root', 1024, 'context_bundle'),
     current_file: boundedText(raw, 'current_file', 1024, 'context_bundle'),
     files,
-    summary: JSON.parse(JSON.stringify(summary)) as Obj,
-    budget: budget === null ? null : (JSON.parse(JSON.stringify(budget)) as Obj),
+    summary: JSON.parse(JSON.stringify(summary)) as PlainJsonObject,
+    budget: budget === null ? null : (JSON.parse(JSON.stringify(budget)) as PlainJsonObject),
   };
 }
 
 /** pydantic model_dump 的字段顺序。 */
-function bundleFileDump(file: AssistantContextBundleFile): Obj {
+function bundleFileDump(file: AssistantContextBundleFile): PlainJsonObject {
   return {
     path: file.path,
     relative_path: file.relative_path,
@@ -112,7 +113,7 @@ function bundleFileDump(file: AssistantContextBundleFile): Obj {
   };
 }
 
-function bundleDump(bundle: AssistantContextBundle): Obj {
+function bundleDump(bundle: AssistantContextBundle): PlainJsonObject {
   return {
     project_root: bundle.project_root,
     current_file: bundle.current_file,
@@ -220,7 +221,7 @@ type Target = {
  */
 export function writingContextFromGuardedBundle(
   raw: PlainJson,
-  target: Target & { projectRoot: string; contextReceipt?: Obj | null },
+  target: Target & { projectRoot: string; contextReceipt?: PlainJsonObject | null },
 ): PreparedWritingContext {
   const bundle = validateAssistantContextBundle(raw);
   const { projectRoot, filePath, content, intent, platform } = target;
@@ -246,12 +247,12 @@ export function writingContextFromGuardedBundle(
 }
 
 export function writingContextFromSnapshot(
-  snapshot: Obj,
+  snapshot: PlainJsonObject,
   target: Target & { secrets: SecretContext },
 ): PreparedWritingContext {
   const { projectRoot, filePath, content, intent, platform, secrets } = target;
   const selectedValue = get(snapshot, 'selected_file');
-  const selected: Obj = isObj(selectedValue) ? selectedValue : {};
+  const selected: PlainJsonObject = isObj(selectedValue) ? selectedValue : {};
   const project = get(snapshot, 'project');
   let capturedRoot = isObj(project) ? get(project, 'project_root') : undefined;
   if (typeof capturedRoot === 'string' && capturedRoot.startsWith('storyforge://'))
@@ -323,7 +324,7 @@ export async function admitWritingRequest<T extends WritingRequest>(
       );
   } else {
     if ((payload.context_bundle ?? null) === null && projectRoot === null) return payload;
-    const raw: Obj = payload.context_bundle ? bundleDump(payload.context_bundle) : {};
+    const raw: PlainJsonObject = payload.context_bundle ? bundleDump(payload.context_bundle) : {};
     // 请求身份优先：bundle 不能把读盘重定向到别处。
     raw.project_root = projectRoot || 'storyforge://llm-context';
     raw.current_file = payload.file_path;
@@ -350,7 +351,7 @@ export async function admitWritingRequest<T extends WritingRequest>(
   }
   const bundle = prepared.contextBundle;
   if (prepared.contextReceiptJson) {
-    const receipt = JSON.parse(prepared.contextReceiptJson) as Obj;
+    const receipt = JSON.parse(prepared.contextReceiptJson) as PlainJsonObject;
     if (get(receipt, 'prompt_files_sha256') !== selectionSha256(bundle.files.map(bundleFileDump)))
       throw new WritingContextConflictError('写作上下文送达版本不匹配，请重新准备。');
     if (options.capture)

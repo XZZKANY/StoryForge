@@ -1,4 +1,10 @@
-import { isJsonObject, pythonStr, type JsonObject, type JsonValue } from '../kernel/json';
+import {
+  isJsonObject,
+  pythonStr,
+  strOrNull,
+  type JsonObject,
+  type JsonValue,
+} from '../kernel/json';
 import { pythonStrip } from '../kernel/pythonText';
 import {
   chatResponse,
@@ -53,8 +59,6 @@ const FRAME_FIELDS = new Set([
   'finish_reason',
   'response_id',
 ]);
-const strOrNull = (value: unknown) =>
-  value === undefined || value === null ? null : pythonStr(value as JsonValue);
 
 /** OpenAI 兼容线协议之上的类型化适配器。 */
 export class OpenAICompatibleProvider implements LlmProvider {

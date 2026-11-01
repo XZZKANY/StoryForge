@@ -152,6 +152,21 @@ test('「插件」排在模型服务之后：导航锚点 plugins、分组在模
   );
 });
 
+test('设置搜索按插件分组的关键词命中（不分大小写），搜别的就藏起来', async () => {
+  await mountSettings();
+  const search = $('settings-search') as HTMLInputElement;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  const type = (value: string) =>
+    act(async () => {
+      setValue!.call(search, value);
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  await type('ZIP');
+  expect($('plugins-section')).toBeTruthy();
+  await type('字号');
+  expect($('plugins-section')).toBeNull();
+});
+
 test('已装插件一张卡：名字回退、版本作者、计数照写 0、问题只显示第一条加「等 N 条」', async () => {
   vi.mocked(listPlugins).mockResolvedValue([
     plugin('mist', {

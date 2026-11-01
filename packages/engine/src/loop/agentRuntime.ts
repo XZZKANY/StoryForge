@@ -11,10 +11,10 @@ import {
 } from '../assistant/service';
 import { readProjectFileRaw, resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { FsToolError, fsRead, nativeProjectPath, resolveProjectFile } from '../kernel/fsTools';
-import { pythonTruthy, type JsonObject, type JsonValue } from '../kernel/json';
+import { isObj, pythonTruthy, type JsonObject, type JsonValue, type Obj } from '../kernel/json';
 import { buildLlmContextSnapshot } from '../kernel/llmContext';
 import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptContext';
-import { compactText } from '../kernel/pythonText';
+import { compactText, cpSlice, optionalString } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
 import {
   missingSetupBeforeFirstChapter,
@@ -23,7 +23,7 @@ import {
   type SetupKind,
 } from '../kernel/projectSetup';
 import { revisionReferencesReview } from '../kernel/reviseScope';
-import type { ProjectReader } from '../readPort';
+import { decodeUtf8, type ProjectReader } from '../readPort';
 import { callLlm, callLlmMessages, ConfiguredLlmProvider } from '../llm/client';
 import { missingLlmEnv, type LlmSource } from '../llm/config';
 import { checkRunInterruption, RunInterrupted } from '../llm/control';
@@ -58,7 +58,6 @@ import {
   executionResultPayload,
   messageArgs,
   messageText,
-  optionalString,
   roleHints,
   roleMentions,
   type AgentExecutionOutcome,
@@ -98,12 +97,7 @@ import {
 } from './conversationHistory';
 import { pythonStrip } from '../kernel/pythonText';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 const truthy = (value: unknown) => pythonTruthy(value as JsonValue);
-const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 const UNANSWERED = '（模型这轮没返回内容，换个说法再问我一次？）';
 const NOT_CONFIGURED =
@@ -459,7 +453,7 @@ export class AgentRuntime {
           // 审稿哈希与补丁区间绑定同一份作者原文（不归一换行）。
           const { target, raw } = await readProjectFileRaw(reader, projectPath, relPath);
           payload.file_path = nativeProjectPath(projectPath, target, platform);
-          payload.content = STRICT_UTF8.decode(raw);
+          payload.content = decodeUtf8(raw, { fatal: true });
           payload._trace_file_path = relPath;
         } else {
           const read = await fsRead(reader, projectPath, relPath, { offset: 0, limit: 200_000 });

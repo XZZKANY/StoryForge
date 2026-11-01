@@ -1,6 +1,7 @@
 import { isJsonObject, pythonTruthy, type JsonValue } from '../kernel/json';
 import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import { isSensitiveKey } from '../kernel/redaction';
+import { decodeUtf8 } from '../readPort';
 import { providerFamily } from './config';
 
 /** 只读模型列表不符合所配置的协议；不携带原始响应。 */
@@ -183,15 +184,13 @@ function checkedPort(port: string | null) {
   if (value > 65535) throw new RangeError('Port out of range 0-65535');
 }
 
-const UTF8 = new TextDecoder('utf-8', { ignoreBOM: true });
-
 /** urllib.parse.unquote（UTF-8，非法序列替换为 U+FFFD）：只在 ASCII 段里解百分号转义。 */
 export function pythonUnquote(text: string): string {
   if (!text.includes('%')) return text;
   let output = '';
   let bytes: number[] = [];
   const flush = () => {
-    if (bytes.length) output += UTF8.decode(new Uint8Array(bytes));
+    if (bytes.length) output += decodeUtf8(new Uint8Array(bytes));
     bytes = [];
   };
   for (let i = 0; i < text.length; i++) {

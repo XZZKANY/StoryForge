@@ -1,4 +1,4 @@
-import { pythonStrip } from './pythonText';
+import { orderedUnique, pythonStrip, stringArgList } from './pythonText';
 import { DEFAULT_PERMISSION_PROFILE } from './skillCatalog';
 
 export type AgentRole = {
@@ -254,26 +254,18 @@ export function isRoleAllowedTool(roleName: string, toolName: string): boolean {
   return Boolean(role && role.allowed_tools.includes(toolName));
 }
 
-const stringList = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === 'string' && Boolean(pythonStrip(item)))
-        .map(pythonStrip)
-    : [];
-const orderedUnique = (values: readonly string[]) => [...new Set(values)];
-
 /** 把桌面端传来的 role 名 / @提及 归一化为可执行的 role hints。 */
 export function normalizeAgentRoleInputs(args: { [key: string]: unknown }) {
   const hints: string[] = [];
   const unknownHints: string[] = [];
-  for (const raw of stringList(args.agent_role_hints)) {
+  for (const raw of stringArgList(args.agent_role_hints)) {
     const role = getAgentRole(raw) ?? resolveAgentRoleAlias(raw);
     if (role && role.can_be_mentioned) hints.push(role.name);
     else unknownHints.push(raw);
   }
   const mentions: string[] = [];
   const unknownMentions: string[] = [];
-  for (const mention of stringList(args.agent_role_mentions)) {
+  for (const mention of stringArgList(args.agent_role_mentions)) {
     mentions.push(mention);
     const role = resolveAgentRoleAlias(mention);
     if (role && role.can_be_mentioned) hints.push(role.name);

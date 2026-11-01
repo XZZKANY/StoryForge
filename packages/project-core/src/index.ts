@@ -37,6 +37,7 @@ export {
   relativeToProject,
   resolveProjectRelativePath,
 } from './path';
+export { countProseChars } from './proseChars';
 export {
   parseWriteBatchCommand,
   WRITE_BATCH_ORDINAL_MAX_DIGITS,

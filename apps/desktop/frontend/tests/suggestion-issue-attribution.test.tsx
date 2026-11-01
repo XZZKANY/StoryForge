@@ -55,7 +55,7 @@ vi.mock('../src/lib/tauri-fs', () => ({
     writeFile: effects.write,
     createWritebackAudit: (project: string, id: string, content: string) =>
       createFixtureAudit(receiptFs, project, id, content),
-    pathExists: (path: string) => effects.disk.has(path),
+    projectPathExists: (_project: string, path: string) => effects.disk.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),
     readWritebackAudit: (project: string, request: WritebackRequest) =>
       readFixtureAudit(receiptFs, project, request),

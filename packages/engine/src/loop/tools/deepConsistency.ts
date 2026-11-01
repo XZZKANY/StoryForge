@@ -6,16 +6,13 @@ import {
   resolveProjectRoot,
   resolveScopedPath,
 } from '../../kernel/fsTools';
-import { pythonStrip } from '../../kernel/pythonText';
+import type { Obj } from '../../kernel/json';
+import { codePoints, cpSlice, pythonStrip } from '../../kernel/pythonText';
 import type { LlmSource } from '../../llm/config';
 import type { ProjectReader } from '../../readPort';
 import type { ToolHandler } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { requiredString } from './runtimeArguments';
-
-type Obj = { [key: string]: unknown };
-const points = (text: string) => Array.from(text);
-const cpSlice = (text: string, end: number) => points(text).slice(0, end).join('');
 
 // 人物目录喂「角色声音约束」槽位，其余设定文件喂「必含事实」槽位，对齐 judge 提示的类别触发条件。
 const CHARACTER_DIR = '人物';
@@ -100,13 +97,13 @@ async function collectBibleFiles(
     }
     const budget = Math.min(BIBLE_FILE_CHAR_BUDGET, BIBLE_TOTAL_CHAR_BUDGET - totalChars);
     const excerpt = cpSlice(text, budget);
-    const chars = points(excerpt).length;
+    const chars = codePoints(excerpt).length;
     entries.push({
       name: stem(candidate),
       path: candidate,
       excerpt,
       chars,
-      truncated: points(text).length > budget,
+      truncated: codePoints(text).length > budget,
     });
     totalChars += chars;
   }
@@ -133,7 +130,7 @@ export async function deepConsistencyReview(
   const rawContent = (await readBoundedText(reader, root, target, MAX_FILE_BYTES)).content;
   if (!pythonStrip(rawContent)) throw new FsToolError(`文件没有可评审的内容：${path}`);
   const content = cpSlice(rawContent, CONTENT_CHAR_BUDGET);
-  const contentTruncated = points(rawContent).length > CONTENT_CHAR_BUDGET;
+  const contentTruncated = codePoints(rawContent).length > CONTENT_CHAR_BUDGET;
   const [bibleFiles, bibleTruncated] = await collectBibleFiles(
     reader,
     root,
@@ -172,7 +169,7 @@ export async function deepConsistencyReview(
     throw new FsToolError(
       '语义评审模型调用失败（网络 / 超时 / 响应异常），本轮没有产出结论；可稍后重试。',
     );
-  const chars = points(content);
+  const chars = codePoints(content);
   const issues = outcome.issues.map((issue) => ({
     category: issue.category,
     severity: issue.severity,

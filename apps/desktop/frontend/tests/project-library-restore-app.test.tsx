@@ -73,6 +73,21 @@ const stored: WorkspaceSession = {
 };
 const mounted: Array<{ root: ReturnType<typeof createRoot>; host: HTMLElement }> = [];
 
+/** 作品文件夹（projectFolderExists）与作品内路径（projectPathExists）分开打桩。 */
+function stubExists(
+  folder: (path: string) => Promise<boolean> | boolean,
+  inside: (path: string) => Promise<boolean> | boolean = () => true,
+) {
+  return {
+    folder: vi
+      .spyOn(TauriFileSystem, 'projectFolderExists')
+      .mockImplementation(async (path) => folder(path)),
+    inside: vi
+      .spyOn(TauriFileSystem, 'projectPathExists')
+      .mockImplementation(async (_root, path) => inside(path)),
+  };
+}
+
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem(SESSION_KEY, JSON.stringify(stored));
@@ -87,10 +102,10 @@ beforeEach(() => {
   );
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(TauriFileSystem, 'readFile').mockRejectedValue(
+  vi.spyOn(TauriFileSystem, 'readProjectFile').mockRejectedValue(
     new Error('ENOENT: isolated fixture has no metadata'),
   );
-  vi.spyOn(TauriFileSystem, 'listDir').mockResolvedValue([]);
+  vi.spyOn(TauriFileSystem, 'listProjectDir').mockResolvedValue([]);
   vi.spyOn(TauriFileSystem, 'writeFile').mockRejectedValue(new Error('unexpected fixture write'));
   vi.spyOn(TauriFileSystem, 'createDir').mockRejectedValue(new Error('unexpected fixture mkdir'));
   vi.mocked(chooseDirectory).mockReset();
@@ -143,16 +158,19 @@ async function fill(input: HTMLInputElement, value: string) {
 
 test('真实 App 有存档仍先停作品库；仅点击同一最近作品后校验、恢复页签/正文并传递光标', async () => {
   const check = deferred<boolean>();
-  const exists = vi
-    .spyOn(TauriFileSystem, 'pathExists')
-    .mockImplementation(async (path) =>
-      path === ROOT ? check.promise : stored.openFiles.includes(path),
-    );
+  const exists = stubExists(
+    (path) => (path === ROOT ? check.promise : false),
+    (path) => stored.openFiles.includes(path),
+  );
   const host = await mountApp();
   assert.equal(surface(host), 'library');
   assert.equal(get(host, 'library-resume-project'), null, '启动尚未选择当前作品');
   assert.equal(get(host, 'restore-editor-probe'), null);
-  assert.equal(exists.mock.calls.length, 0, '启动不自动校验存档或选择项目');
+  assert.equal(
+    exists.folder.mock.calls.length + exists.inside.mock.calls.length,
+    0,
+    '启动不自动校验存档或选择项目',
+  );
   assert.deepEqual(parseWorkspaceSession(localStorage.getItem(SESSION_KEY)), stored);
   await click(recent(host, ROOT));
   assert.equal(surface(host), 'library');
@@ -175,7 +193,10 @@ test('真实 App 有存档仍先停作品库；仅点击同一最近作品后校
 });
 
 test('真实 App 选择另一最近作品只进入其总览，不错误恢复旧作品页签或光标', async () => {
-  const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(false);
+  const exists = stubExists(
+    () => false,
+    () => false,
+  );
   const host = await mountApp();
   await click(recent(host, OTHER));
   assert.equal(surface(host), 'overview');
@@ -185,7 +206,7 @@ test('真实 App 选择另一最近作品只进入其总览，不错误恢复旧
   assert.equal(editor?.dataset.file, '');
   assert.equal(JSON.parse(editor?.dataset.cursors ?? 'null'), null);
   assert.ok(
-    !exists.mock.calls.some(([path]) => stored.openFiles.includes(path)),
+    !exists.inside.mock.calls.some(([, path]) => stored.openFiles.includes(path)),
     '不启动旧文件恢复校验',
   );
   assert.deepEqual(parseWorkspaceSession(localStorage.getItem(SESSION_KEY)), {
@@ -198,11 +219,10 @@ test('真实 App 选择另一最近作品只进入其总览，不错误恢复旧
 
 test('恢复校验中显式返回作品库，迟到结果不能夺走导航；之后仍可重试原存档', async () => {
   const check = deferred<boolean>();
-  const exists = vi
-    .spyOn(TauriFileSystem, 'pathExists')
-    .mockImplementation(async (path) =>
-      path === ROOT ? check.promise : stored.openFiles.includes(path),
-    );
+  const exists = stubExists(
+    (path) => (path === ROOT ? check.promise : false),
+    (path) => stored.openFiles.includes(path),
+  );
   const host = await mountApp();
   await click(recent(host, ROOT));
   await click(get(host, 'titlebar-library'));
@@ -214,7 +234,8 @@ test('恢复校验中显式返回作品库，迟到结果不能夺走导航；�
   assert.equal(surface(host), 'library');
   assert.equal(get(host, 'restore-editor-probe'), null);
   assert.deepEqual(parseWorkspaceSession(localStorage.getItem(SESSION_KEY)), stored);
-  exists.mockResolvedValue(true);
+  exists.folder.mockResolvedValue(true);
+  exists.inside.mockResolvedValue(true);
   await click(recent(host, ROOT));
   assert.equal(surface(host), 'workspace');
   assert.deepEqual(tabPaths(host), stored.openFiles);
@@ -225,8 +246,9 @@ test('打开新建对话框接管在途恢复；新建文件系统等待期间�
   const mkdir = deferred<void>();
   const parent = 'D:/__library_restore_test__';
   const createdProject = `${parent}/新建作品`;
-  vi.spyOn(TauriFileSystem, 'pathExists').mockImplementation(async (path) =>
-    path === ROOT ? restoreCheck.promise : stored.openFiles.includes(path),
+  stubExists(
+    (path) => (path === ROOT ? restoreCheck.promise : false),
+    (path) => stored.openFiles.includes(path),
   );
   vi.mocked(TauriFileSystem.createDir).mockImplementation(async (_root, path) => {
     if (path === createdProject) await mkdir.promise;
@@ -272,7 +294,7 @@ test('打开新建对话框接管在途恢复；新建文件系统等待期间�
 });
 
 test('同一 Windows 根目录从原生 chooser 再打开只继续当前作品，保留脏页签且工作台不跳总览', async () => {
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  stubExists(() => true);
   const host = await mountApp();
   await click(recent(host, ROOT));
   await click(get(host, 'restore-dirty-probe'));
@@ -296,7 +318,7 @@ test('同一 Windows 根目录从原生 chooser 再打开只继续当前作品�
 });
 
 test('只移动光标即保存当前现场，不必切文件、页签或作品', async () => {
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  stubExists(() => true);
   const host = await mountApp();
   await click(recent(host, ROOT));
   const tabsBefore = tabPaths(host);
@@ -314,7 +336,7 @@ test('只移动光标即保存当前现场，不必切文件、页签或作品',
 });
 
 test('切到另一作品后旧光标回调不能改写当前作品或复活旧现场', async () => {
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  stubExists(() => true);
   const host = await mountApp();
   await click(recent(host, ROOT));
   await click(get(host, 'titlebar-library'));
@@ -335,7 +357,7 @@ test('关闭现场恢复后光标回调不能重新建立存档', async () => {
     APP_SETTINGS_KEY,
     JSON.stringify({ ...DEFAULT_APP_SETTINGS, restoreLastSession: false }),
   );
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  stubExists(() => true);
   const host = await mountApp();
   await click(recent(host, ROOT));
   assert.equal(localStorage.getItem(SESSION_KEY), null);
@@ -344,7 +366,7 @@ test('关闭现场恢复后光标回调不能重新建立存档', async () => {
 });
 
 test('同作品关闭页签后迟到光标不得复活该文件或污染其他页签光标', async () => {
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  stubExists(() => true);
   const host = await mountApp();
   await click(recent(host, ROOT));
   const closedPath = `${ROOT}/正文/01.md`;

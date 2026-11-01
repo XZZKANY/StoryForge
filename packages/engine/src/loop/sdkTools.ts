@@ -1,3 +1,4 @@
+import { cpLen } from '../kernel/pythonText';
 import type { ToolCall, ToolSpec } from '../llm/contracts';
 import {
   cloneJson,
@@ -12,8 +13,6 @@ import {
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
-
-const cpLen = (text: string) => Array.from(text).length;
 
 export type RuntimeArtifact = {
   readonly kind: string;

@@ -11,6 +11,7 @@ import { isModelRequestStep, processSteps } from './chat-window/agent-step-mappi
 import { isAuthorRejection } from './chat-window/display-utils';
 import { RunElapsed } from './chat-window/RunElapsed';
 import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
+import { PlainButton } from './ui';
 
 // 「整理回答」是每轮对话都有的循环收尾步，本身不是作者要看的过程。
 const isLoopSummary = (step: AgentStep) => step.tool === 'agent.loop';
@@ -60,8 +61,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
 
   return (
     <div className="mb-1">
-      <button
-        type="button"
+      <PlainButton
         onClick={() => setManualOpen(!open)}
         className="flex h-[22px] w-full items-center gap-2 text-2xs text-subtle transition-colors hover:text-muted"
         data-testid="thinking-fold-toggle"
@@ -91,7 +91,7 @@ export function AgentStepsPanel({ run }: { run: AgentRun }) {
           </span>
         )}
         <span className={`text-3xs transition-transform ${open ? '' : '-rotate-90'}`}>▾</span>
-      </button>
+      </PlainButton>
 
       {/* 流动折叠：grid 0fr→1fr，长内容不截断、短内容不空跑 */}
       <div
@@ -216,13 +216,12 @@ function StepRow({ step }: { step: AgentStep }) {
   return (
     <div className="flex flex-col">
       {inlineDetail ? (
-        <button
-          type="button"
+        <PlainButton
           onClick={() => setDetailOpen((value) => !value)}
           className={`${rowClass} transition-colors hover:bg-elevated`}
         >
           {rowContent}
-        </button>
+        </PlainButton>
       ) : (
         // 无详情可展开时是纯静态行：渲染 div 而非 disabled button，
         // 避免全局 button:disabled{cursor:not-allowed} 让静态行挂着禁用光标。

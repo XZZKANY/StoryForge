@@ -1,4 +1,6 @@
-import { InputDomainError, isJsonObject, parseJson, type JsonValue } from './json';
+import { countProseChars } from '@storyforge/project-core';
+import { normalizeNewlines } from '../readPort';
+import { isJsonObject, ModelJsonNotFound, parseModelJson, type JsonValue } from './json';
 import { pythonStrip } from './pythonText';
 
 /** 拆书产出的写法 skill（作者在作品档案里点「放进 写法/」才落进作品）；每次拆书整份覆盖。 */
@@ -38,7 +40,6 @@ export class BreakdownSkillsError extends Error {
 
 const DIALOGUE = /“[^”]*”|「[^」]*」|"[^"\n]*"/gu;
 const QUESTION_OR_QUOTE = /[？?”」"]/u;
-const chars = (text: string) => Array.from(text.replace(/\s/gu, '')).length;
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -46,7 +47,9 @@ const median = (values: number[]) => {
 };
 
 export function craftMetrics(texts: readonly string[]): CraftMetrics | null {
-  const chapters = texts.map((text) => text.replace(/\r\n?/g, '\n')).filter((text) => chars(text));
+  const chapters = texts
+    .map((text) => normalizeNewlines(text))
+    .filter((text) => countProseChars(text));
   if (!chapters.length) return null;
   let total = 0;
   let dialogue = 0;
@@ -55,11 +58,14 @@ export function craftMetrics(texts: readonly string[]): CraftMetrics | null {
   const offsets: number[] = [];
   for (const text of chapters) {
     const lines = text.split('\n').filter((line) => pythonStrip(line));
-    total += chars(text);
+    total += countProseChars(text);
     paragraphs += lines.length;
-    dialogue += (text.match(DIALOGUE) ?? []).reduce((sum, quote) => sum + chars(quote), 0);
+    dialogue += (text.match(DIALOGUE) ?? []).reduce(
+      (sum, quote) => sum + countProseChars(quote),
+      0,
+    );
     const first = text.search(DIALOGUE);
-    if (first >= 0) offsets.push(chars(text.slice(0, first)));
+    if (first >= 0) offsets.push(countProseChars(text.slice(0, first)));
     if (QUESTION_OR_QUOTE.test(lines[lines.length - 1] ?? '')) hookEndings += 1;
   }
   return {
@@ -119,16 +125,13 @@ export function skillFileContent(
 export function parseBreakdownSkills(raw: unknown, source: string): BreakdownSkill[] {
   if (typeof raw !== 'string' || !pythonStrip(raw))
     throw new BreakdownSkillsError('写法 skill 返回为空。');
-  const text = pythonStrip(raw);
   let parsed: JsonValue;
   try {
-    parsed = parseJson(text, 'writing skills');
+    parsed = parseModelJson(raw, { source: 'writing skills', locate: 'objectSpan' });
   } catch (error) {
-    if (!(error instanceof InputDomainError)) throw error;
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new BreakdownSkillsError('写法 skill 不是有效 JSON。');
-    parsed = parseJson(text.slice(start, end + 1), 'writing skills');
+    if (error instanceof ModelJsonNotFound)
+      throw new BreakdownSkillsError('写法 skill 不是有效 JSON。');
+    throw error;
   }
   const list = isJsonObject(parsed) ? parsed.skills : undefined;
   if (!Array.isArray(list)) throw new BreakdownSkillsError('写法 skill 缺少 skills 列表。');

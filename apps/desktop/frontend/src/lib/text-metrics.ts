@@ -1,9 +1,5 @@
-/** 网文计字口径：非空白字符数（含标点），与发行平台的字数统计口径接近。 */
-export function countProseChars(text: string): number {
-  if (!text) return 0;
-  // .length 数 UTF-16 码元会把增补面字符算成 2，按码点数。
-  return Array.from(text.replace(/\s+/g, '')).length;
-}
+// 正文字数与引擎同一份口径，实现在 project-core。
+export { countProseChars } from '@storyforge/project-core';
 
 /**
  * 严格汉字数（只数 CJK 统一表意文字，不含标点与拉丁）。

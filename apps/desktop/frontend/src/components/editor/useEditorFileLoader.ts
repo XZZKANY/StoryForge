@@ -1,7 +1,8 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor';
 
+import { useAsyncLayoutEffect } from '../../lib/async-guards';
 import { TauriFileSystem, type DiskBaseline } from '../../lib/tauri-fs';
 import type { EditorModelCache } from './useMonacoEditor';
 
@@ -10,6 +11,7 @@ export function useEditorFileLoader({
   originalContentRef,
   issueDecorationsRef,
   filePathRef,
+  projectPathRef,
   isDirtyRef,
   autoSaveTimerRef,
   resetSuggestionWriteback,
@@ -23,6 +25,7 @@ export function useEditorFileLoader({
   originalContentRef: MutableRefObject<string>;
   issueDecorationsRef: MutableRefObject<monaco.editor.IEditorDecorationsCollection | null>;
   filePathRef: MutableRefObject<string | null>;
+  projectPathRef: MutableRefObject<string | null>;
   isDirtyRef: MutableRefObject<boolean>;
   autoSaveTimerRef: MutableRefObject<number | null>;
   resetSuggestionWriteback: () => void;
@@ -46,112 +49,118 @@ export function useEditorFileLoader({
   }, []);
 
   // 加载文件内容
-  useLayoutEffect(() => {
-    loadRequestIdRef.current += 1;
-    const requestId = loadRequestIdRef.current;
-    let disposed = false;
-    const isCurrentRequest = () =>
-      !disposed && loadRequestIdRef.current === requestId && filePathRef.current === filePath;
-    issueDecorationsRef.current?.clear();
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-    isDirtyRef.current = false;
-    setIsDirty(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 文件切换必须在浏览器绘制前同步 detach 旧 model，避免输入落入错误文件
-    setLoadedIsDirty(false);
-    setLoadedDiskBaseline(null);
+  useAsyncLayoutEffect(
+    (isCurrent) => {
+      loadRequestIdRef.current += 1;
+      const requestId = loadRequestIdRef.current;
+      const isCurrentRequest = () =>
+        isCurrent() && loadRequestIdRef.current === requestId && filePathRef.current === filePath;
+      issueDecorationsRef.current?.clear();
+      if (autoSaveTimerRef.current !== null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      isDirtyRef.current = false;
+      setIsDirty(false);
+      // 文件切换必须在浏览器绘制前同步 detach 旧 model，避免输入落入错误文件
+      setLoadedIsDirty(false);
+      setLoadedDiskBaseline(null);
 
-    if (!filePath) {
-      originalContentRef.current = '';
+      if (!filePath) {
+        originalContentRef.current = '';
+        setLoadedFilePath(null);
+        setLoadedContent('');
+        setLoadedIsDirty(false);
+        setLoadedContentPreview('');
+        setLoadAttemptFilePath(null);
+        setLoadError('');
+        setShowHistory(false);
+        resetSuggestionWriteback();
+        setIsDirty(false);
+        return;
+      }
+
+      setLoadAttemptFilePath(filePath);
       setLoadedFilePath(null);
       setLoadedContent('');
-      setLoadedIsDirty(false);
       setLoadedContentPreview('');
-      setLoadAttemptFilePath(null);
       setLoadError('');
       setShowHistory(false);
       resetSuggestionWriteback();
-      setIsDirty(false);
-      return;
-    }
 
-    setLoadAttemptFilePath(filePath);
-    setLoadedFilePath(null);
-    setLoadedContent('');
-    setLoadedContentPreview('');
-    setLoadError('');
-    setShowHistory(false);
-    resetSuggestionWriteback();
-
-    const cached = modelCacheRef.current.get(filePath);
-    if (cached) {
-      const content = cached.model.getValue();
-      originalContentRef.current = cached.originalContent;
-      setLoadedDiskBaseline(cached.diskBaseline);
-      setLoadedContent(content);
-      const dirty = content !== cached.originalContent;
-      setIsDirty(dirty);
-      setLoadedIsDirty(dirty);
-      setLoadedFilePath(filePath);
-      setLoadedContentPreview(content.slice(0, 120));
-      adoptPendingSuggestion(filePath);
-      return;
-    }
-
-    const loadFile = async () => {
-      try {
-        // 文件尚不存在时按"新文件"空内容打开（Agent 起草补丁的目标文件在确认写回前不落盘）；
-        // pathExists 不可用（如浏览器 smoke mock 未提供）时回退旧行为，交给 readFile 决定。
-        let exists = true;
-        try {
-          exists = await TauriFileSystem.pathExists(filePath);
-        } catch {
-          exists = true;
-        }
-        if (!isCurrentRequest()) return;
-        const content = exists ? await TauriFileSystem.readFile(filePath) : '';
-        if (!isCurrentRequest()) {
-          return;
-        }
-        originalContentRef.current = content;
-        setLoadedDiskBaseline(exists ? { kind: 'content', content } : { kind: 'missing' });
+      const cached = modelCacheRef.current.get(filePath);
+      if (cached) {
+        const content = cached.model.getValue();
+        originalContentRef.current = cached.originalContent;
+        setLoadedDiskBaseline(cached.diskBaseline);
         setLoadedContent(content);
-        setIsDirty(false);
-        setLoadedIsDirty(false);
+        const dirty = content !== cached.originalContent;
+        setIsDirty(dirty);
+        setLoadedIsDirty(dirty);
         setLoadedFilePath(filePath);
         setLoadedContentPreview(content.slice(0, 120));
         adoptPendingSuggestion(filePath);
-      } catch (err) {
-        if (!isCurrentRequest()) {
-          return;
-        }
-        const message = err instanceof Error ? err.message : String(err);
-        console.error('读取文件失败:', err);
-        setLoadError(message);
+        return;
       }
-    };
 
-    void loadFile();
-    return () => {
-      disposed = true;
-    };
-  }, [
-    adoptPendingSuggestion,
-    autoSaveTimerRef,
-    filePath,
-    filePathRef,
-    issueDecorationsRef,
-    isDirtyRef,
-    modelCacheRef,
-    originalContentRef,
-    resetSuggestionWriteback,
-    retryNonce,
-    setIsDirty,
-    setLoadedContentPreview,
-    setShowHistory,
-  ]);
+      const loadFile = async () => {
+        try {
+          // 文件尚不存在时按"新文件"空内容打开（Agent 起草补丁的目标文件在确认写回前不落盘）；
+          // 查不了（没打开作品、浏览器 smoke mock 未提供等）时回退旧行为，交给 readProjectFile 决定。
+          let exists = true;
+          try {
+            const root = projectPathRef.current;
+            if (root) exists = await TauriFileSystem.projectPathExists(root, filePath);
+          } catch {
+            exists = true;
+          }
+          if (!isCurrentRequest()) return;
+          let content = '';
+          if (exists) {
+            const projectPath = projectPathRef.current;
+            if (!projectPath) throw new Error(`没有打开作品，读不了文件：${filePath}`);
+            content = await TauriFileSystem.readProjectFile(projectPath, filePath);
+          }
+          if (!isCurrentRequest()) {
+            return;
+          }
+          originalContentRef.current = content;
+          setLoadedDiskBaseline(exists ? { kind: 'content', content } : { kind: 'missing' });
+          setLoadedContent(content);
+          setIsDirty(false);
+          setLoadedIsDirty(false);
+          setLoadedFilePath(filePath);
+          setLoadedContentPreview(content.slice(0, 120));
+          adoptPendingSuggestion(filePath);
+        } catch (err) {
+          if (!isCurrentRequest()) {
+            return;
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          console.error('读取文件失败:', err);
+          setLoadError(message);
+        }
+      };
+
+      void loadFile();
+    },
+    [
+      adoptPendingSuggestion,
+      autoSaveTimerRef,
+      filePath,
+      filePathRef,
+      issueDecorationsRef,
+      isDirtyRef,
+      modelCacheRef,
+      originalContentRef,
+      projectPathRef,
+      resetSuggestionWriteback,
+      retryNonce,
+      setIsDirty,
+      setLoadedContentPreview,
+      setShowHistory,
+    ],
+  );
 
   return {
     loadedFilePath,

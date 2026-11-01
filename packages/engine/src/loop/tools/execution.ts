@@ -1,5 +1,6 @@
 import type { AssistantDeps } from '../../assistant/service';
 import type { GenerationDeliveryCapture } from '../../kernel/generationDelivery';
+import type { Obj } from '../../kernel/json';
 import { getAgentRole, isRoleAllowedTool, listSubagentRoles } from '../../kernel/roleCatalog';
 import type { PatchProposal } from '../chatLoopTypes';
 import type { LlmSource } from '../../llm/config';
@@ -12,8 +13,6 @@ import {
   deriveRequiresConfirmation,
   type AgentRuntimeToolSpec,
 } from './specModels';
-
-type Obj = { [key: string]: unknown };
 
 export type ToolArtifact = {
   readonly kind: string;
@@ -92,8 +91,6 @@ export type ToolHandler = (context: ToolExecutionContext, payload: Obj) => Promi
 export type ToolDefinition = {
   readonly name: string;
   readonly description: string;
-  readonly input_schema: Obj;
-  readonly output_schema: Obj;
   readonly allowed_roles: readonly string[];
   readonly permission_level: string;
   readonly risk_level: string;
@@ -114,8 +111,6 @@ export const toolDefinitionFromSpec = (
 ): ToolDefinition => ({
   name: spec.name,
   description: spec.description,
-  input_schema: { ...spec.input_schema },
-  output_schema: { ...spec.output_schema },
   allowed_roles: [...spec.allowed_roles],
   permission_level: derivePermissionLevel(spec.risk_level, spec.execution_mode),
   risk_level: spec.risk_level,

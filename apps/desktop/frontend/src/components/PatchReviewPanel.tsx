@@ -1,6 +1,5 @@
 import { Button } from './ui';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import * as monaco from 'monaco-editor';
+import { useMemo } from 'react';
 import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
 import { isEditableTarget } from '../lib/browser-guards';
 import { relativeToProject } from '../lib/project/path';
@@ -11,9 +10,20 @@ import {
   type PlacedPatchHunk,
 } from '../lib/patch-hunks';
 import { markdownToPlainLine } from '../lib/plain-text';
-import { currentMonacoTheme } from '../lib/theme';
-import { proseReadingTypography, STORYFORGE_EDITOR_UNICODE_HIGHLIGHT } from './editor/options';
+import {
+  actionFailureText,
+  buildPatchReviewTraceTitle,
+  circledNumber,
+  diffStats,
+  PATCH_ACTION_LABELS,
+  type PatchAction,
+} from './editor/patch-review-text';
 import { usePatchHunkZones } from './editor/usePatchHunkZones';
+import { usePatchDiffEditor } from './editor/usePatchDiffEditor';
+import { usePatchReviewActions } from './editor/usePatchReviewActions';
+import { usePatchReviewShortcuts } from './editor/usePatchReviewShortcuts';
+
+export { buildPatchReviewTraceTitle } from './editor/patch-review-text';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;
@@ -23,6 +33,8 @@ type PatchReviewPanelProps = {
   editorFontFamily: string;
   actionKind?: PatchAction | null;
   error?: string | null;
+  /** 失败时抛出的原错误：按类型判断要不要提示可重试，不看文字。 */
+  errorCause?: unknown;
   onAccept: () => void | Promise<void>;
   onAcceptHunk: (hunk: PatchHunk) => void | Promise<void>;
   /** 兑现为 false 表示没否掉（恢复记录写不进去等）：草稿留着。 */
@@ -33,81 +45,6 @@ type PatchReviewPanelProps = {
   truncationArmed?: boolean;
   onCancelTruncatedAccept?: () => void;
 };
-
-type PatchAction = 'accept' | 'hunk' | 'reject' | 'note' | 'retry' | 'undo';
-
-const PATCH_ACTION_LABELS: Record<PatchAction, string> = {
-  undo: '撤销写入',
-  accept: '接受',
-  hunk: '接受修改块',
-  reject: '拒绝',
-  note: '保存旁注',
-  retry: '重试',
-};
-
-// 定位类拒写只取决于补丁和当前稿，再点多少次结果都一样。
-const DETERMINISTIC_LOCATE_FAILURE = /无法安全定位|无法唯一确定|插入点前文已变/;
-
-/**
- * P2-D：漂移拒写（内容已变化）与定位类拒写直接重试必再撞墙，不应误导作者「可重试」；
- * 定位类给出真能走通的路。普通错误（写盘失败、网络抖动等）才提示可重试。
- */
-function actionFailureText(error: string): string {
-  if (error.includes('内容已变化')) return `操作失败：${error}`;
-  if (DETERMINISTIC_LOCATE_FAILURE.test(error)) {
-    const way = error.startsWith('接受分块失败')
-      ? '可以让 AI 重出一版。'
-      : '可以让 AI 重出一版，或逐处接受。';
-    return `操作失败：${error.replace(/。?$/, '。')}${way}`;
-  }
-  return `操作失败：${error}，可重试`;
-}
-
-type DiffStats = {
-  addedLines: number;
-  removedLines: number;
-};
-
-/** 工程追溯字段仅进 title/tooltip，主行不展示。 */
-export function buildPatchReviewTraceTitle(suggestion: AssistantFileSuggestion): string {
-  const parts = [`修订 ${suggestion.id}`];
-  if (suggestion.assistantSessionId != null) {
-    parts.push(`会话 ${suggestion.assistantSessionId}`);
-  }
-  if (suggestion.model) {
-    parts.push(suggestion.model);
-  }
-  if (suggestion.issueIds?.length) {
-    parts.push(suggestion.issueIds.join(', '));
-  }
-  return parts.join(' · ');
-}
-
-function diffStats(before: string, after: string): DiffStats {
-  const beforeLines = before.split('\n');
-  const afterLines = after.split('\n');
-  let commonPrefix = 0;
-  while (
-    commonPrefix < beforeLines.length &&
-    commonPrefix < afterLines.length &&
-    beforeLines[commonPrefix] === afterLines[commonPrefix]
-  ) {
-    commonPrefix += 1;
-  }
-  let commonSuffix = 0;
-  while (
-    commonSuffix + commonPrefix < beforeLines.length &&
-    commonSuffix + commonPrefix < afterLines.length &&
-    beforeLines[beforeLines.length - 1 - commonSuffix] ===
-      afterLines[afterLines.length - 1 - commonSuffix]
-  ) {
-    commonSuffix += 1;
-  }
-  return {
-    removedLines: Math.max(0, beforeLines.length - commonPrefix - commonSuffix),
-    addedLines: Math.max(0, afterLines.length - commonPrefix - commonSuffix),
-  };
-}
 
 export function PatchReviewPanel({
   suggestion,
@@ -123,86 +60,31 @@ export function PatchReviewPanel({
   onCancelTruncatedAccept,
   actionKind = null,
   error = null,
+  errorCause,
 }: PatchReviewPanelProps) {
-  // 补丁一来审阅就占满编辑区、停在第一处改动（作者 10-16：此前默认在正文下方劈出一块、从第 1 行
-  // 开始，改动在文末时上下两半都看不到）。作者收起只对这一版补丁算数，下一版补丁又占满。
-  const [collapsedId, setCollapsedId] = useState<string | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const expanded = collapsedId !== suggestion.id;
-  const setExpanded = useCallback(
-    (next: boolean | ((value: boolean) => boolean)) =>
-      setCollapsedId((collapsed) => {
-        const current = collapsed !== suggestion.id;
-        return (typeof next === 'function' ? next(current) : next) ? null : suggestion.id;
-      }),
-    [suggestion.id],
-  );
-  const [rejection, setRejection] = useState<{
-    suggestion: AssistantFileSuggestion;
-    draft: string | null;
-  } | null>(null);
-  const rejectDraft = rejection?.suggestion === suggestion ? rejection.draft : null;
-  const setRejectDraft = (value: string | null | ((previous: string | null) => string | null)) => {
-    setRejection({ suggestion, draft: typeof value === 'function' ? value(rejectDraft) : value });
-  };
-  const [localAction, setLocalAction] = useState<{
-    suggestion: AssistantFileSuggestion;
-    kind: PatchAction;
-  } | null>(null);
-  const [localError, setLocalError] = useState<{
-    suggestion: AssistantFileSuggestion;
-    message: string;
-  } | null>(null);
-  const actionState =
-    actionKind ?? (localAction?.suggestion === suggestion ? localAction.kind : null);
-  const actionError = error ?? (localError?.suggestion === suggestion ? localError.message : null);
-  const actionInFlightRef = useRef<{ kind: PatchAction; token: symbol } | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const actionBusy = actionState !== null;
-
-  useLayoutEffect(
-    () => () => {
-      actionInFlightRef.current = null;
-    },
-    [suggestion],
-  );
-
-  const runAction = useCallback(
-    (kind: PatchAction, action: () => void | Promise<void>) => {
-      if (kind !== 'accept') onCancelTruncatedAccept?.();
-      if (actionKind || actionInFlightRef.current) return;
-      if (kind === 'accept' && Object.keys(suggestion.operationView?.conflicts ?? {}).length)
-        return;
-      const token = Symbol(kind);
-      actionInFlightRef.current = { kind, token };
-      setLocalError(null);
-      setLocalAction({ suggestion, kind });
-      const finish = () => {
-        if (actionInFlightRef.current?.token !== token) return;
-        actionInFlightRef.current = null;
-        setLocalAction(null);
-      };
-      const fail = (error: unknown) => {
-        if (actionInFlightRef.current?.token !== token) return;
-        setLocalError({
-          suggestion,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      };
-      try {
-        const result = action();
-        if (result && typeof result.then === 'function') {
-          void result.catch(fail).finally(finish);
-        } else {
-          finish();
-        }
-      } catch (error) {
-        fail(error);
-        finish();
-      }
-    },
-    [actionKind, onCancelTruncatedAccept, suggestion],
-  );
+  const actions = usePatchReviewActions({
+    suggestion,
+    actionKind,
+    error,
+    errorCause,
+    onCancelTruncatedAccept,
+  });
+  const {
+    detailsOpen,
+    setDetailsOpen,
+    expanded,
+    setExpanded,
+    setRejection,
+    rejectDraft,
+    setRejectDraft,
+    actionState,
+    actionError,
+    actionFailure,
+    actionInFlightRef,
+    panelRef,
+    actionBusy,
+    runAction,
+  } = actions;
 
   const stats = useMemo(
     () => diffStats(suggestion.before, suggestion.after),
@@ -253,134 +135,14 @@ export function PatchReviewPanel({
     });
   };
 
-  // 快捷键：只在当前可见补丁的操作区接管；编辑器、Composer、设置等文本目标不抢键。
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (
-        !(event.ctrlKey || event.metaKey) ||
-        event.altKey ||
-        event.shiftKey ||
-        event.defaultPrevented
-      )
-        return;
-      if (actionBusy) return;
-      if (event.isComposing || isEditableTarget(event.target)) return;
-      const panel = panelRef.current;
-      const target = event.target;
-      if (
-        !panel ||
-        !(target instanceof Element) ||
-        !panel.contains(target) ||
-        panel.closest('[hidden], .hidden, [inert], [aria-hidden="true"]') ||
-        !target.closest(
-          '[role="group"][aria-label="修订操作"], [role="group"][aria-label="修订分块操作"]',
-        )
-      ) {
-        return;
-      }
-      switch (event.key.toLowerCase()) {
-        case 'y':
-          event.preventDefault();
-          runAction('accept', onAccept);
-          break;
-        case 'n':
-          event.preventDefault();
-          onCancelTruncatedAccept?.();
-          setRejection((previous) => ({
-            suggestion,
-            draft: previous?.suggestion === suggestion && previous.draft !== null ? null : '',
-          }));
-          break;
-        case 'e':
-          event.preventDefault();
-          setExpanded((value) => !value);
-          break;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [actionBusy, onAccept, onCancelTruncatedAccept, runAction, setExpanded, suggestion]);
+  usePatchReviewShortcuts({ suggestion, onAccept, onCancelTruncatedAccept }, actions);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const diffEditorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
-  const originalModelRef = useRef<monaco.editor.ITextModel | null>(null);
-  const modifiedModelRef = useRef<monaco.editor.ITextModel | null>(null);
-  // 差异是异步算出来的：算完那一刻再停到第一处改动；挂载时与换了新补丁时各等一次。
-  const revealPendingRef = useRef(true);
-
-  // 挂载期创建只读内联 diff 编辑器；suggestion 变化时只更新 model 内容，不销毁重建（保留滚动位置）。
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const diffEditor = monaco.editor.createDiffEditor(containerRef.current, {
-      readOnly: true,
-      renderSideBySide: false,
-      automaticLayout: true,
-      theme: currentMonacoTheme(),
-      minimap: { enabled: false },
-      wordWrap: 'on',
-      scrollBeyondLastLine: false,
-      renderOverviewRuler: false,
-      lineNumbers: 'off',
-      folding: false,
-      ...proseReadingTypography(editorFontSize, editorFontFamily),
-      unicodeHighlight: STORYFORGE_EDITOR_UNICODE_HIGHLIGHT,
-    });
-    // 定位不到的分块仍按原始行号指路（「第 N 处 · 第 X 行」），original 侧给出行号做定位锚；
-    // modified 侧行号对指路没有用处，保持关闭省一点宽度。
-    diffEditor.getOriginalEditor().updateOptions({ lineNumbers: 'on' });
-    const original = monaco.editor.createModel(suggestion.before, 'markdown');
-    const modified = monaco.editor.createModel(suggestion.after, 'markdown');
-    const revealSubscription = diffEditor.onDidUpdateDiff(() => {
-      if (!revealPendingRef.current) return;
-      revealPendingRef.current = false;
-      diffEditor.revealFirstDiff();
-    });
-    diffEditor.setModel({ original, modified });
-    diffEditorRef.current = diffEditor;
-    originalModelRef.current = original;
-    modifiedModelRef.current = modified;
-    return () => {
-      revealSubscription.dispose();
-      diffEditor.dispose();
-      original.dispose();
-      modified.dispose();
-      diffEditorRef.current = null;
-      originalModelRef.current = null;
-      modifiedModelRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 挂载期一次性创建 diff 编辑器；before/after 后续变化由下方 effect 同步到 model，避免销毁重建
-  }, []);
-
-  // 同一面板实例上换了新补丁时，只刷新两个 model 的内容；新补丁（id 变化）等差异重算完再停到
-  // 第一处改动——立刻读 getLineChanges 拿到的还是上一版的差异。同一补丁被分块接受局部刷新（id 不变）
-  // 则保留位置。
-  const lastSuggestionIdRef = useRef(suggestion.id);
-  useEffect(() => {
-    let changed = false;
-    if (originalModelRef.current && originalModelRef.current.getValue() !== suggestion.before) {
-      originalModelRef.current.setValue(suggestion.before);
-      changed = true;
-    }
-    if (modifiedModelRef.current && modifiedModelRef.current.getValue() !== suggestion.after) {
-      modifiedModelRef.current.setValue(suggestion.after);
-      changed = true;
-    }
-    if (lastSuggestionIdRef.current !== suggestion.id) {
-      lastSuggestionIdRef.current = suggestion.id;
-      revealPendingRef.current = changed;
-      if (!changed) diffEditorRef.current?.revealFirstDiff();
-    }
-  }, [suggestion.id, suggestion.before, suggestion.after]);
-
-  // 展开/收起改变容器高度后，立即让 Monaco 重新布局。
-  useEffect(() => {
-    diffEditorRef.current?.layout();
-  }, [expanded]);
-
-  // diff 编辑器挂载期一次性创建（保留滚动位置），字号/字体设置变化时 updateOptions 追平。
-  useEffect(() => {
-    diffEditorRef.current?.updateOptions(proseReadingTypography(editorFontSize, editorFontFamily));
-  }, [editorFontSize, editorFontFamily]);
+  const { containerRef, diffEditorRef } = usePatchDiffEditor({
+    suggestion,
+    editorFontSize,
+    editorFontFamily,
+    expanded,
+  });
 
   // 逐处接受挂在对比区每处改动的正下方（作者试用 #3/#11）；要排在上面同步 model 的 effect 之后，
   // 新补丁的 zone 才按新正文的行号落位。
@@ -623,8 +385,8 @@ export function PatchReviewPanel({
             aria-live="polite"
             data-testid="patch-action-status"
           >
-            {actionError
-              ? actionFailureText(actionError)
+            {actionFailure
+              ? actionFailureText(actionFailure.message, actionFailure.cause)
               : `处理中：${PATCH_ACTION_LABELS[actionState!]}`}
           </div>
         )}
@@ -707,8 +469,4 @@ export function PatchReviewPanel({
       {hunkZones}
     </div>
   );
-}
-
-function circledNumber(value: number): string {
-  return value <= 20 ? String.fromCharCode(0x2460 + value - 1) : `(${value})`;
 }

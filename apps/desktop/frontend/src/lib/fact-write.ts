@@ -15,6 +15,7 @@ import {
   type ChapterFactRecordPlan,
   type FactBackfillPlan,
 } from './api/facts';
+import { joinPath } from './fs-path-ops';
 import { relativePathInsideProject } from './project/path';
 import { TauriFileSystem } from './tauri-fs';
 import { emitToast } from './toast';
@@ -36,12 +37,13 @@ export type FactRecordOutcome =
 const FACTS_RELATIVE = ['.storyforge', 'canon', 'facts.json'];
 
 export function factsLedgerPathFor(projectPath: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  return [projectPath.replace(/[/\\]+$/, ''), ...FACTS_RELATIVE].join(separator);
+  return joinPath(projectPath, ...FACTS_RELATIVE);
 }
 
-async function readLedger(path: string): Promise<string | null> {
-  return (await TauriFileSystem.pathExists(path)) ? await TauriFileSystem.readFile(path) : null;
+async function readLedger(projectPath: string, path: string): Promise<string | null> {
+  return (await TauriFileSystem.projectPathExists(projectPath, path))
+    ? await TauriFileSystem.readProjectFile(projectPath, path)
+    : null;
 }
 
 /** 以 baseline 为准写：等快照那几秒里别处改过（另一次记账、作者手改），宿主拒写，不拿旧计划盖掉。 */
@@ -74,7 +76,7 @@ export async function recordChapterFacts({
   runId: string;
 }): Promise<FactRecordOutcome> {
   const path = factsLedgerPathFor(projectPath);
-  const before = await readLedger(path);
+  const before = await readLedger(projectPath, path);
   const plan = await prepareChapterFactRecord({
     projectRoot: projectPath,
     filePath,
@@ -83,7 +85,7 @@ export async function recordChapterFacts({
   });
   if (plan.status === 'skipped') return { status: 'skipped' };
   if (plan.status === 'unchanged') return { status: 'unchanged', plan };
-  if ((await readLedger(path)) !== before) {
+  if ((await readLedger(projectPath, path)) !== before) {
     throw new Error('facts.json 在记账期间被改过了，这次没有写入。');
   }
   const snapshot = await snapshotBeforeWrite(projectPath, path, before ?? '', {
@@ -112,9 +114,9 @@ export async function retireFactGuarded({
   label: string;
 }): Promise<{ undo: () => Promise<void> }> {
   const path = factsLedgerPathFor(projectPath);
-  const before = await readLedger(path);
+  const before = await readLedger(projectPath, path);
   const after = await retireLedgerFact(before, factId);
-  if ((await readLedger(path)) !== before) {
+  if ((await readLedger(projectPath, path)) !== before) {
     throw new Error('facts.json 刚被别处改过，这次没有作废。');
   }
   await snapshotBeforeWrite(projectPath, path, before ?? '', {
@@ -139,9 +141,9 @@ export async function resolveDisputeGuarded({
   label: string;
 }): Promise<{ undo: () => Promise<void> }> {
   const path = factsLedgerPathFor(projectPath);
-  const before = await readLedger(path);
+  const before = await readLedger(projectPath, path);
   const after = await resolveLedgerDispute(projectPath, before, factId, choice);
-  if ((await readLedger(path)) !== before) {
+  if ((await readLedger(projectPath, path)) !== before) {
     throw new Error('facts.json 刚被别处改过，这次没有写入。');
   }
   await snapshotBeforeWrite(projectPath, path, before ?? '', {
@@ -159,7 +161,7 @@ async function undoFactsWrite(
   before: string | null,
   written: string,
 ): Promise<void> {
-  if ((await readLedger(path)) !== written) {
+  if ((await readLedger(projectPath, path)) !== written) {
     throw new Error('facts.json 之后又改过，不能直接撤销；记账前的那一份在版本记录里。');
   }
   if (before === null) await TauriFileSystem.deletePath(projectPath, path);
@@ -184,7 +186,7 @@ export async function restoreFactsLedger(
     throw new Error('找不到记账前那一版事实台账的版本记录，没法自动恢复：去版本历史里找。');
   const target = await readVersionState(projectPath, entry);
   const goal = target.exists ? target.content : null;
-  const before = await readLedger(path);
+  const before = await readLedger(projectPath, path);
   if (goal === before) return false;
   await snapshotBeforeWrite(projectPath, path, before ?? '', {
     source: 'Editor',
@@ -195,7 +197,7 @@ export async function restoreFactsLedger(
     await writeLedger(projectPath, path, before, goal);
     return true;
   }
-  if ((await readLedger(path)) !== before)
+  if ((await readLedger(projectPath, path)) !== before)
     throw new Error('facts.json 刚被别处改过，这次没有恢复。');
   await TauriFileSystem.deletePath(projectPath, path);
   return true;
@@ -215,13 +217,13 @@ export async function backfillFactsGuarded({
   onProgress?: (done: number, total: number, path: string) => void;
 }): Promise<{ plan: FactBackfillPlan; undo: (() => Promise<void>) | null }> {
   const path = factsLedgerPathFor(projectPath);
-  const before = await readLedger(path);
+  const before = await readLedger(projectPath, path);
   const plan = await prepareFactBackfill(
     { projectRoot: projectPath, ledgerText: before, paths },
     onProgress,
   );
   if (plan.status === 'unchanged') return { plan, undo: null };
-  if ((await readLedger(path)) !== before) {
+  if ((await readLedger(projectPath, path)) !== before) {
     throw new Error('facts.json 在补录期间被改过了，这次没有写入；再点一次补录。');
   }
   const done = plan.chapters.filter((chapter) => chapter.status === 'done').length;

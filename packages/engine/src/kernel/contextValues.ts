@@ -37,24 +37,21 @@ export const CHAPTER_CONTEXT_KEYS = [
   'current_scene',
 ] as const;
 
-export type Obj = { [key: string]: PlainJson };
+export type PlainJsonObject = { [key: string]: PlainJson };
 
-export const isObj = (value: unknown): value is Obj =>
+export const isObj = (value: unknown): value is PlainJsonObject =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
-export const hasKey = (source: Obj, key: string) =>
+export const hasKey = (source: PlainJsonObject, key: string) =>
   Object.prototype.hasOwnProperty.call(source, key);
 /** Python 的 `d.get(key)`：不碰原型链。 */
-export const get = (source: Obj, key: string): PlainJson | undefined =>
+export const get = (source: PlainJsonObject, key: string): PlainJson | undefined =>
   hasKey(source, key) ? source[key] : undefined;
 /** Python 的 `d.get(key, fallback)`：键在就返回原值（哪怕是 null）。 */
-export const getOr = (source: Obj, key: string, fallback: PlainJson): PlainJson =>
+export const getOr = (source: PlainJsonObject, key: string, fallback: PlainJson): PlainJson =>
   hasKey(source, key) ? source[key] : fallback;
-/** Python `len(str)` 按码点计。 */
-export const cpLen = (text: string) => Array.from(text).length;
-export const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 /** context_values.first_string：首个非空白字符串字段（去首尾空白）。 */
-export function firstString(source: Obj, ...keys: string[]): string | null {
+export function firstString(source: PlainJsonObject, ...keys: string[]): string | null {
   for (const key of keys) {
     const value = get(source, key);
     if (typeof value === 'string' && pythonStrip(value)) return pythonStrip(value);
@@ -92,7 +89,7 @@ export function artifactKind(artifact: PlainJson): string | null {
   return typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
 }
 
-export function artifactPayload(artifact: PlainJson): Obj | null {
+export function artifactPayload(artifact: PlainJson): PlainJsonObject | null {
   const value = isObj(artifact) ? get(artifact, 'payload') : undefined;
   return isObj(value) ? value : null;
 }

@@ -4,7 +4,6 @@
  */
 
 import {
-  useEffect,
   useRef,
   useState,
   useMemo,
@@ -12,14 +11,15 @@ import {
   useCallback,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
+import { useAsyncEffect } from '../lib/async-guards';
 import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
 import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
 import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
 import { parentDir } from '../lib/fs-path-ops';
-import { FolderIcon, MarkdownFileIcon } from './StoryIcons';
-import { FilePlus, FolderPlus } from './icons/shell-icons';
+import { ChevronRight, FilePlus, FileText, Folder, FolderPlus } from './icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
 import { PanelError } from './shell/PanelError';
+import { IconButton, PlainButton, revealOnHover } from './ui';
 import type { FileTreeActions } from './app/useFileTreeActions';
 
 type ContextTarget = { path: string; isDir: boolean };
@@ -60,45 +60,43 @@ export function ResourceExplorer({
   const [retryNonce, setRetryNonce] = useState(0);
   const loadedProjectRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!projectPath) {
-      loadedProjectRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 无项目时同步清空资源树派生态，React18 合法模式
-      setFiles([]);
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-    // 同一本书重读时不闪「加载中」：树不卸载，作者折起来的文件夹也就不会被重新展开。
-    if (loadedProjectRef.current !== projectPath) setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
-        const entries = await TauriFileSystem.listDir(projectPath, true);
-        const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
-
-        if (!cancelled) {
-          loadedProjectRef.current = projectPath;
-          setFiles(filteredEntries);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          loadedProjectRef.current = null;
-          setError(err instanceof Error ? err.message : '加载文件失败');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) {
+        loadedProjectRef.current = null;
+        // 无项目时同步清空资源树派生态
+        setFiles([]);
+        setError(null);
+        return;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, refreshVersion, retryNonce]);
+      // 同一本书重读时不闪「加载中」：树不卸载，作者折起来的文件夹也就不会被重新展开。
+      if (loadedProjectRef.current !== projectPath) setLoading(true);
+      setError(null);
+
+      void (async () => {
+        try {
+          const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
+          const filteredEntries = entries.filter(isVisibleProjectTreeEntry);
+
+          if (isCurrent()) {
+            loadedProjectRef.current = projectPath;
+            setFiles(filteredEntries);
+          }
+        } catch (err) {
+          if (isCurrent()) {
+            loadedProjectRef.current = null;
+            setError(err instanceof Error ? err.message : '加载文件失败');
+          }
+        } finally {
+          if (isCurrent()) {
+            setLoading(false);
+          }
+        }
+      })();
+    },
+    [projectPath, refreshVersion, retryNonce],
+  );
 
   const tree = useMemo(() => {
     if (!projectPath) return [];
@@ -283,7 +281,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
           data-testid="tree-folder-row"
           data-folder-path={node.path}
         >
-          <button
+          <PlainButton
             onClick={handleToggle}
             className="flex h-full min-w-0 flex-1 items-center text-left"
             aria-expanded={isOpen}
@@ -291,31 +289,30 @@ const TreeNodeItem = memo(function TreeNodeItem({
             <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
             <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-              <svg
-                className={`w-3.5 h-3.5 transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path d="M6 4l4 4-4 4V4z" />
-              </svg>
+              <ChevronRight
+                size={14}
+                strokeWidth={1.7}
+                className={`transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
+              />
             </div>
             <span
               className={`mr-1.5 flex h-4 w-4 flex-shrink-0 items-center justify-center ${isOpen ? 'text-foreground' : 'text-muted group-hover:text-foreground'}`}
             >
-              <FolderIcon className="h-3.5 w-3.5" />
+              <Folder size={13} strokeWidth={1.7} />
             </span>
 
             <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
               {node.name}
             </span>
-          </button>
+          </PlainButton>
 
           {onNodeNewEntry && (
-            <span className="flex flex-shrink-0 items-center gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-              <button
-                className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
-                title={`在「${node.name}」下新建文件`}
-                aria-label={`在 ${node.name} 下新建文件`}
+            <span className={`flex flex-shrink-0 items-center gap-px ${revealOnHover()}`}>
+              <IconButton
+                size="compact"
+                label={`在 ${node.name} 下新建文件`}
+                tooltip={`在「${node.name}」下新建文件`}
+                icon={<FilePlus size={13} strokeWidth={1.6} />}
                 data-testid="tree-folder-new-file"
                 onClick={(event) => {
                   event.stopPropagation();
@@ -323,22 +320,19 @@ const TreeNodeItem = memo(function TreeNodeItem({
                   setIsOpen(true);
                   onNodeNewEntry('file', node.path);
                 }}
-              >
-                <FilePlus size={13} strokeWidth={1.6} />
-              </button>
-              <button
-                className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle hover:bg-surface hover:text-foreground"
-                title={`在「${node.name}」下新建文件夹`}
-                aria-label={`在 ${node.name} 下新建文件夹`}
+              />
+              <IconButton
+                size="compact"
+                label={`在 ${node.name} 下新建文件夹`}
+                tooltip={`在「${node.name}」下新建文件夹`}
+                icon={<FolderPlus size={13} strokeWidth={1.6} />}
                 data-testid="tree-folder-new-folder"
                 onClick={(event) => {
                   event.stopPropagation();
                   setIsOpen(true);
                   onNodeNewEntry('folder', node.path);
                 }}
-              >
-                <FolderPlus size={13} strokeWidth={1.6} />
-              </button>
+              />
             </span>
           )}
         </div>
@@ -364,7 +358,7 @@ const TreeNodeItem = memo(function TreeNodeItem({
   }
 
   return (
-    <button
+    <PlainButton
       onClick={handleSelect}
       onDoubleClick={handlePin}
       onContextMenu={(event) => onNodeContextMenu?.(event, { path: node.path, isDir: false })}
@@ -386,14 +380,16 @@ const TreeNodeItem = memo(function TreeNodeItem({
       <div className="flex items-center h-full pl-[4px]">{indentBlocks}</div>
 
       <div className="w-5 h-full flex items-center justify-center flex-shrink-0 ml-[2px]">
-        <MarkdownFileIcon
-          className={`h-3.5 w-3.5 ${isActive ? 'text-accent' : 'text-muted opacity-70 group-hover:opacity-100'}`}
+        <FileText
+          size={13}
+          strokeWidth={1.7}
+          className={isActive ? 'text-accent' : 'text-muted opacity-70 group-hover:opacity-100'}
         />
       </div>
 
       <span className="min-w-0 flex-1 truncate text-sm" title={node.path}>
         {node.name}
       </span>
-    </button>
+    </PlainButton>
   );
 });

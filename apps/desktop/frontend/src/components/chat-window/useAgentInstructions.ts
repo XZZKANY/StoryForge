@@ -4,6 +4,7 @@ import {
   loadAuthorInstructions,
   type AuthorInstructionsState,
 } from '../../lib/api/author-instructions';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { normalizePathForMatch } from '../../lib/project/path';
@@ -19,7 +20,7 @@ export async function createAuthorInstructionsFile(projectRoot: string): Promise
   const dir = resolveProjectRelativePath(projectRoot, '.storyforge');
   const file = resolveProjectRelativePath(projectRoot, '.storyforge/agent-instructions.md');
   if (dir === null || file === null) throw new Error('长期规矩的路径不在当前作品里');
-  if (await TauriFileSystem.pathExists(file)) return file;
+  if (await TauriFileSystem.projectPathExists(projectRoot, file)) return file;
   await TauriFileSystem.createDir(projectRoot, dir, true);
   await TauriFileSystem.writeFile(projectRoot, file, AUTHOR_INSTRUCTIONS_TEMPLATE);
   return file;
@@ -58,19 +59,18 @@ export function useAgentInstructions(projectPath: string | null) {
     return () => window.removeEventListener(FS_MUTATION_EVENT, onMutation);
   }, []);
 
-  useEffect(() => {
-    if (!projectPath) return;
-    let cancelled = false;
-    const settle = (view: AgentInstructionsView) => {
-      if (!cancelled) setLoaded({ projectPath, view });
-    };
-    loadAuthorInstructions(projectPath).then(settle, (error: unknown) =>
-      settle({ status: 'error', message: errorText(error) }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, version]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) return;
+      const settle = (view: AgentInstructionsView) => {
+        if (isCurrent()) setLoaded({ projectPath, view });
+      };
+      loadAuthorInstructions(projectPath).then(settle, (error: unknown) =>
+        settle({ status: 'error', message: errorText(error) }),
+      );
+    },
+    [projectPath, version],
+  );
 
   const create = useCallback(async () => {
     if (!projectPath || creating) return;

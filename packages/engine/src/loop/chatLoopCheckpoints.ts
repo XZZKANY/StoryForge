@@ -11,9 +11,11 @@ import { AUTHOR_INSTRUCTIONS_PATH } from '../kernel/fsTools';
 import {
   cloneJson,
   isJsonObject,
+  isObj,
   parseJson,
   type JsonObject,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import type { SecretContext } from '../kernel/redaction';
@@ -28,10 +30,7 @@ import { listLoopToolSpecs, llmToolName } from './tools/catalog';
 import type { ToolArtifact } from './tools/execution';
 import { traceAsDict, type AgentToolTrace } from './traces';
 
-type Obj = { [key: string]: unknown };
 type CheckpointFields = ConstructorParameters<typeof RuntimeCheckpoint>[0];
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** 本轮读过的一个文件：请求时的写法 → 解析后的项目相对路径与内容摘要（不存在记 null）。 */
 export type SourceFingerprint = {

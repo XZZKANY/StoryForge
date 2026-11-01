@@ -1,7 +1,13 @@
-import { pythonEquals, type JsonValue } from './json';
+import { isObj, pythonEquals, type JsonValue } from './json';
 import { pythonFixed } from './math';
 import { canonicalPunctuation } from './punctuation';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import {
+  optionalString,
+  orderedUnique,
+  PYTHON_WHITESPACE,
+  pythonStrip,
+  stringArgList,
+} from './pythonText';
 import { AgentOrchestrationError, composeScopedInstruction } from './reviseDelivery';
 import type { SecretContext } from './redaction';
 import { REVIEW_AGENT_KEYS } from './reviewReasoning';
@@ -36,23 +42,9 @@ export type ReviseScope = {
   narrow: boolean;
 };
 
-const orderedUnique = (values: readonly string[]) => [...new Set(values)];
-const optionalString = (value: unknown) =>
-  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
-/** _text.string_arg_list：只取非空字符串并去空白。 */
-export function stringArgList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === 'string' && Boolean(pythonStrip(item)))
-        .map(pythonStrip)
-    : [];
-}
-const isObject = (value: unknown): value is Issue =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-
 function reviewReportIssues(report: Report): Issue[] {
   if (!report) return [];
-  return Array.isArray(report.issues) ? report.issues.filter(isObject) : [];
+  return Array.isArray(report.issues) ? report.issues.filter(isObj) : [];
 }
 
 function reviewReportActions(report: Report): string[] {
@@ -66,7 +58,7 @@ function reviewReportActions(report: Report): string[] {
 }
 
 export function scopeIssues(scope: { [key: string]: unknown }): Issue[] {
-  return Array.isArray(scope.issues) ? scope.issues.filter(isObject) : [];
+  return Array.isArray(scope.issues) ? scope.issues.filter(isObj) : [];
 }
 
 export function issueCategory(issue: Issue): string | null {

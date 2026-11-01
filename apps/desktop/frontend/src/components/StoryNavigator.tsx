@@ -12,12 +12,12 @@ import {
   type SemanticKind,
 } from '../lib/project-context';
 import { invalidateFileSystemCache } from '../lib/tauri-fs';
-import { RefreshCw } from './icons/shell-icons';
+import { useAsyncEffect } from '../lib/async-guards';
+import { FileText, RefreshCw } from './icons/shell-icons';
 import { PanelError } from './shell/PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
-import { MarkdownFileIcon } from './StoryIcons';
 import type { FileTreeActions } from './app/useFileTreeActions';
-import { IconButton } from './ui';
+import { IconButton, PlainButton } from './ui';
 
 type StoryNavigatorProps = {
   projectPath: string | null;
@@ -108,42 +108,40 @@ export function StoryNavigator({
   }, [projectPath, reload]);
   const treeRefresh = refreshVersion + localRefresh;
 
-  useEffect(() => {
-    if (!projectPath || activeTab !== 'story') {
-      indexProjectRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 项目或视图失效时同步清空派生索引
-      setIndex(null);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    // 同一本书重读时不闪「加载中」，索引原地换新。
-    if (indexProjectRef.current !== projectPath) setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
-        const nextIndex = await buildProjectIndex(projectPath);
-        if (!cancelled) {
-          indexProjectRef.current = projectPath;
-          setIndex(nextIndex);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          indexProjectRef.current = null;
-          setError(err instanceof Error ? err.message : '加载故事索引失败');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath || activeTab !== 'story') {
+        indexProjectRef.current = null;
+        // 项目或视图失效时同步清空派生索引
+        setIndex(null);
+        setError(null);
+        setLoading(false);
+        return;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, projectPath, treeRefresh, retryNonce]);
+      // 同一本书重读时不闪「加载中」，索引原地换新。
+      if (indexProjectRef.current !== projectPath) setLoading(true);
+      setError(null);
+
+      void (async () => {
+        try {
+          const nextIndex = await buildProjectIndex(projectPath);
+          if (isCurrent()) {
+            indexProjectRef.current = projectPath;
+            setIndex(nextIndex);
+          }
+        } catch (err) {
+          if (isCurrent()) {
+            indexProjectRef.current = null;
+            setError(err instanceof Error ? err.message : '加载故事索引失败');
+          }
+        } finally {
+          if (isCurrent()) setLoading(false);
+        }
+      })();
+    },
+    [activeTab, projectPath, treeRefresh, retryNonce],
+  );
 
   const storyGroups = useMemo(() => buildStoryNavigationGroups(index?.files ?? []), [index]);
 
@@ -220,8 +218,7 @@ function NavigatorTabButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <PlainButton
       role="tab"
       aria-selected={active}
       className={`h-5 rounded-sm px-2 text-2xs font-medium transition-colors ${
@@ -230,7 +227,7 @@ function NavigatorTabButton({
       onClick={onClick}
     >
       {label}
-    </button>
+    </PlainButton>
   );
 }
 
@@ -342,9 +339,8 @@ function StoryGroup({
           const active = file.path === currentFile;
           const preview = !active && file.path === previewFile;
           return (
-            <button
+            <PlainButton
               key={file.path}
-              type="button"
               title={file.relativePath}
               className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-left transition-colors ${
                 active
@@ -359,10 +355,10 @@ function StoryGroup({
               onDoubleClick={() => onFileSelect(file.path)}
             >
               <span className={active ? 'text-accent-foreground' : 'text-muted'}>
-                <MarkdownFileIcon />
+                <FileText size={13} strokeWidth={1.7} />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
-            </button>
+            </PlainButton>
           );
         })}
       </div>

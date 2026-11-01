@@ -9,18 +9,22 @@ import {
   type FactConflict,
 } from '../kernel/factLedger';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
-import { InputDomainError, isJsonObject, type JsonObject, type JsonValue } from '../kernel/json';
+import {
+  InputDomainError,
+  isJsonObject,
+  type JsonObject,
+  type JsonValue,
+  type Obj,
+} from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
-import type { ProjectReader } from '../readPort';
+import { readProjectText, type ProjectReader } from '../readPort';
 import type { RunStore } from '../store/runs';
 import {
   CHAPTER_BRIEF_ARTIFACT_KIND,
   CHAPTER_CHECK_ARTIFACT_KIND,
 } from './chapterWritingContracts';
-
-type Obj = { [key: string]: unknown };
 
 export type FactRecordDeps = {
   readonly reader: ProjectReader;
@@ -119,9 +123,9 @@ export async function prepareChapterFactRecord(
   const relative = (await reader.resolveProjectPath(root, input.file_path)).resolvedRelativePath;
   if (latest(CHAPTER_BRIEF_ARTIFACT_KIND)?.payload.target_path !== relative)
     return skipped('other_file');
-  const read = await reader.readProjectBytes(root, relative, MAX_READ_BYTES);
-  if (read.exceeded) throw new InputDomainError(`${relative}：文件超过 2 MiB`);
-  const content = new TextDecoder('utf-8', { ignoreBOM: true }).decode(read.bytes);
+  const read = await readProjectText(reader, root, relative, MAX_READ_BYTES);
+  if (read === null) throw new InputDomainError(`${relative}：文件超过 2 MiB`);
+  const content = read.text;
   const ledger = parseFactLedger(input.ledger_text);
 
   const candidates: FactCandidate[] = [];

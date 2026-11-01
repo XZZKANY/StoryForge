@@ -1,12 +1,5 @@
-import {
-  dumpJson,
-  isJsonObject,
-  JsonFloat,
-  pythonStr,
-  pythonTruthy,
-  type JsonValue,
-} from '../kernel/json';
-import { pythonStrip } from '../kernel/pythonText';
+import { dumpJson, isJsonObject, JsonFloat, strOr, type JsonValue } from '../kernel/json';
+import { cpLen, pythonStrip } from '../kernel/pythonText';
 import { redactSensitiveText, type SecretContext } from '../kernel/redaction';
 import {
   envValue,
@@ -77,8 +70,6 @@ export function retryDelay(options: {
   return Math.min(delay, RETRY_DELAY_CEILING_SECONDS);
 }
 
-const length = (text: string) => Array.from(text).length;
-
 /**
  * 合并配置密钥与本次请求的凭据（_configured_secret_values）：去重、只留 6 字以上、按长度降序。
  * 等长密钥之间的先后 Python 依赖集合迭代序，这里取先出现者在前。
@@ -88,9 +79,9 @@ export function withSecrets(
   extras: readonly (string | null | undefined)[],
 ): SecretContext {
   const values = [...extras, ...context.values].filter(
-    (value): value is string => typeof value === 'string' && length(value) >= 6,
+    (value): value is string => typeof value === 'string' && cpLen(value) >= 6,
   );
-  return { values: [...new Set(values)].sort((a, b) => length(b) - length(a)) };
+  return { values: [...new Set(values)].sort((a, b) => cpLen(b) - cpLen(a)) };
 }
 
 /** 把给定密钥子串替换为 ***，再跑一遍常规脱敏；日志与错误文本兜底。 */
@@ -101,7 +92,7 @@ export function redactSecrets(
 ): string {
   let redacted = text;
   for (const secret of secrets)
-    if (secret && length(secret) >= 6) redacted = redacted.split(secret).join('***');
+    if (secret && cpLen(secret) >= 6) redacted = redacted.split(secret).join('***');
   return redactSensitiveText(redacted, withSecrets(context, secrets));
 }
 
@@ -179,9 +170,6 @@ export function assistantMessage(data: { [key: string]: JsonValue }) {
     throw new LlmError('真实 LLM 响应缺少 message，这次没有拿到可用的结果。');
   return message;
 }
-
-const strOr = (value: JsonValue | undefined, fallback: string) =>
-  pythonTruthy(value) ? pythonStr(value) : fallback;
 
 /** 把 message.tool_calls 归一成 OpenAI 形状；参数对象序列化成 JSON 文本。 */
 export function messageToolCalls(message: { [key: string]: JsonValue }) {

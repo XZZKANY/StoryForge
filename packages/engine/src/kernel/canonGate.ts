@@ -1,5 +1,6 @@
 import { JsonFields, type JsonObject, type JsonValue } from './json';
 import { pythonStrip } from './pythonText';
+import { sha1Id } from './sha1';
 
 const CANON_FILE = '.storyforge/canon/canon.json';
 const PRESENCE_FILE = '.storyforge/canon/derived/presence.json';
@@ -99,12 +100,6 @@ function byCodePoint(a: string, b: string): number {
   return left.length - right.length;
 }
 
-async function issueId(parts: readonly string[]): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(parts.join('|')));
-  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0'));
-  return `canon_${hex.join('').slice(0, 12)}`;
-}
-
 async function singleHolder(holders: readonly Holder[]): Promise<CanonIssue[]> {
   const groups = new Map<string, Holder[]>();
   for (const entry of holders) {
@@ -125,7 +120,7 @@ async function singleHolder(holders: readonly Holder[]): Promise<CanonIssue[]> {
         if (start > end) continue;
         const pair = [left.holder, right.holder].sort(byCodePoint);
         issues.push({
-          id: await issueId(['single_holder', item, ...pair]),
+          id: await sha1Id('canon', ['single_holder', item, ...pair]),
           category: 'single_holder',
           severity: 'blocking',
           item,
@@ -185,7 +180,7 @@ async function lifespan(
     if (!hits.length) continue;
     const hint = reason !== null && pythonStrip(reason) ? `（声明原因：${reason}）` : '';
     issues.push({
-      id: await issueId(['lifespan', entity, String(exitsAfter)]),
+      id: await sha1Id('canon', ['lifespan', entity, String(exitsAfter)]),
       category: 'lifespan',
       severity: 'medium',
       entity,
@@ -209,7 +204,7 @@ export async function checkCanon(canon: JsonValue, presence: JsonValue): Promise
   const cycle = timelineCycle(edges);
   if (cycle !== null) {
     conflicts.push({
-      id: await issueId(['timeline_order', ...cycle]),
+      id: await sha1Id('canon', ['timeline_order', ...cycle]),
       category: 'timeline_order',
       severity: 'blocking',
       cycle,

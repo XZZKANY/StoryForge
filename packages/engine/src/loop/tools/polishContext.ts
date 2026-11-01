@@ -1,13 +1,8 @@
 import { AUTHOR_INSTRUCTIONS_PATH } from '../../kernel/fsTools';
+import { isObj, type Obj } from '../../kernel/json';
 import { syntheticContextSelectedValues } from '../../kernel/llmPromptContext';
-import { pythonStrip } from '../../kernel/pythonText';
+import { optionalString, pythonStrip } from '../../kernel/pythonText';
 import type { SecretContext } from '../../kernel/redaction';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const text = (value: unknown): string | null =>
-  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
 
 /** 只投影已准入的作者自定义指令文件，不认模型给的风格元数据（patches/polish_context）。 */
 export function polishAuthorRequirementsFromContextSnapshot(snapshot: unknown): string[] {
@@ -54,7 +49,7 @@ function appendUnique(target: string[], value: string, limit: number) {
 }
 
 function contextFileEntity(item: Obj): string | null {
-  const title = text(item.title) ?? text(item.relative_path);
+  const title = optionalString(item.title) ?? optionalString(item.relative_path);
   if (!title) return null;
   let name = title.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '';
   const dot = name.lastIndexOf('.');
@@ -88,9 +83,9 @@ export function polishConstraintsFromContextSnapshot(
   if (Array.isArray(files))
     for (const item of files) {
       if (!isObj(item)) continue;
-      const kind = text(item.kind);
-      const relativePath = text(item.relative_path);
-      const excerpt = text(item.excerpt);
+      const kind = optionalString(item.kind);
+      const relativePath = optionalString(item.relative_path);
+      const excerpt = optionalString(item.excerpt);
       const entity = kind !== null && ENTITY_FILE_KINDS.has(kind) ? contextFileEntity(item) : null;
       if (entity !== null) appendUnique(result.protected_entities, entity, MAX_ENTITIES);
       if (
@@ -120,8 +115,8 @@ export function polishConstraintsFromContextSnapshot(
   );
   for (const item of memoryItems) {
     if (!isObj(item)) continue;
-    const entity = text(item.entity);
-    const fact = text(item.text);
+    const entity = optionalString(item.entity);
+    const fact = optionalString(item.text);
     if (entity) appendUnique(result.protected_entities, entity, MAX_ENTITIES);
     if (fact) appendUnique(result.required_facts, fact, MAX_FACTS);
   }

@@ -9,7 +9,9 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { useAsyncEffect } from '../../lib/async-guards';
 import { importCoverImage, readCoverDataUrl } from '../../lib/book-cover';
+import { joinPath } from '../../lib/fs-path-ops';
 import {
   bookProfilePath,
   emptyBookProfile,
@@ -30,6 +32,7 @@ import {
 } from '../../lib/idea-notes';
 import { scanManuscriptTotals, type ManuscriptTotals } from '../../lib/manuscript-stats';
 import { limitOutlineEntries, parseHeadings, type OutlineEntry } from '../../lib/outline-index';
+import { ProjectFileMissingError } from '../../lib/host-file-errors';
 import { buildProjectIndex } from '../../lib/project-context';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import { emitToast } from '../../lib/toast';
@@ -71,15 +74,12 @@ function message(error: unknown): string {
 }
 
 /** 文件不存在返回 null；其它读错照常抛出。 */
-async function readTextOrNull(path: string): Promise<string | null> {
+async function readTextOrNull(projectPath: string, path: string): Promise<string | null> {
   try {
-    return await TauriFileSystem.readFile(path);
+    return await TauriFileSystem.readProjectFile(projectPath, path);
   } catch (error) {
-    const detail = message(error).toLowerCase();
-    // 档案 / 灵感文件尚未创建是常态，不是错误；其它 I/O 错误必须暴露。
-    if (/not found|no such file|enoent|不存在|找不到|找不到指定|notfound/.test(detail)) {
-      return null;
-    }
+    // 档案 / 灵感文件尚未创建是常态，不是错误；作品目录读不了等其它错误必须暴露。
+    if (error instanceof ProjectFileMissingError) return null;
     throw error;
   }
 }
@@ -95,9 +95,13 @@ function isProfileObject(raw: string): boolean {
   }
 }
 
-async function readTextOrEmpty(path: string, allowMissing = true): Promise<string> {
-  if (!allowMissing) return await TauriFileSystem.readFile(path);
-  return (await readTextOrNull(path)) ?? '';
+async function readTextOrEmpty(
+  projectPath: string,
+  path: string,
+  allowMissing = true,
+): Promise<string> {
+  if (!allowMissing) return await TauriFileSystem.readProjectFile(projectPath, path);
+  return (await readTextOrNull(projectPath, path)) ?? '';
 }
 
 async function scanOutline(projectPath: string): Promise<OutlineEntry[]> {
@@ -105,7 +109,7 @@ async function scanOutline(projectPath: string): Promise<OutlineEntry[]> {
   const files = index.files.filter((file) => file.kind === 'outline');
   const entries: OutlineEntry[] = [];
   for (const file of files) {
-    const content = await readTextOrEmpty(file.path, false);
+    const content = await readTextOrEmpty(projectPath, file.path, false);
     for (const heading of parseHeadings(content)) {
       entries.push({ ...heading, path: file.path, relativePath: file.relativePath });
     }
@@ -173,75 +177,73 @@ export function useBookProfile({
 
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
 
-  useEffect(() => {
-    if (!activeProject || !active) return;
-    let cancelled = false;
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!activeProject || !active) return;
 
-    void (async () => {
-      setLoading(true);
-      setRefreshing(true);
-      setTotalsError(null);
-      setProfileError(null);
-      setOutlineError(null);
-      setSaveError(null);
-      let rawProfile: string | null | undefined;
-      let rawNotes: string | null | undefined;
-      try {
-        rawProfile = await readTextOrNull(bookProfilePath(activeProject));
-      } catch (error) {
-        if (!cancelled) setProfileError(message(error));
-      }
-      try {
-        rawNotes = await readTextOrNull(ideaNotesPath(activeProject));
-      } catch {
-        // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
-        rawNotes = undefined;
-      }
-      if (cancelled) return;
-      const broken = typeof rawProfile === 'string' && !isProfileObject(rawProfile);
-      if (broken) setProfileError('book.json 不是有效的 JSON 对象，先在编辑器里修好');
-      profileSource.current =
-        rawProfile === undefined || broken
-          ? undefined
-          : { project: activeProject, raw: rawProfile };
-      const loaded = parseBookProfile(rawProfile ?? '');
-      setProfile(loaded);
-      notesSource.current =
-        rawNotes === undefined ? undefined : { project: activeProject, content: rawNotes };
-      setNotes(parseIdeaNotes(rawNotes ?? ''));
-      setLoading(false);
-
-      if (loaded.cover) {
-        const url = await readCoverDataUrl(activeProject, loaded.cover);
-        if (!cancelled) setCoverUrl(url);
-      }
-
-      setOutlineLoading(true);
-      try {
-        const outline = await scanOutline(activeProject);
-        if (!cancelled) setOutlineAll(outline);
-      } catch (error) {
-        if (!cancelled) {
-          setOutlineAll([]);
-          setOutlineError(message(error));
+      void (async () => {
+        setLoading(true);
+        setRefreshing(true);
+        setTotalsError(null);
+        setProfileError(null);
+        setOutlineError(null);
+        setSaveError(null);
+        let rawProfile: string | null | undefined;
+        let rawNotes: string | null | undefined;
+        try {
+          rawProfile = await readTextOrNull(activeProject, bookProfilePath(activeProject));
+        } catch (error) {
+          if (isCurrent()) setProfileError(message(error));
         }
-      } finally {
-        if (!cancelled) setOutlineLoading(false);
-      }
+        try {
+          rawNotes = await readTextOrNull(activeProject, ideaNotesPath(activeProject));
+        } catch {
+          // 灵感文件读取失败不应阻止档案和正文继续显示；视图没有独立 notesError seam。
+          rawNotes = undefined;
+        }
+        if (!isCurrent()) return;
+        const broken = typeof rawProfile === 'string' && !isProfileObject(rawProfile);
+        if (broken) setProfileError('book.json 不是有效的 JSON 对象，先在编辑器里修好');
+        profileSource.current =
+          rawProfile === undefined || broken
+            ? undefined
+            : { project: activeProject, raw: rawProfile };
+        const loaded = parseBookProfile(rawProfile ?? '');
+        setProfile(loaded);
+        notesSource.current =
+          rawNotes === undefined ? undefined : { project: activeProject, content: rawNotes };
+        setNotes(parseIdeaNotes(rawNotes ?? ''));
+        setLoading(false);
 
-      try {
-        const value = await scanManuscriptTotals(activeProject);
-        if (!cancelled) setTotals({ projectPath: activeProject, value });
-      } catch (error) {
-        if (!cancelled) setTotalsError(message(error));
-      }
-      if (!cancelled) setRefreshing(false);
-    })();
+        if (loaded.cover) {
+          const url = await readCoverDataUrl(activeProject, loaded.cover);
+          if (isCurrent()) setCoverUrl(url);
+        }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProject, active, nonce]);
+        setOutlineLoading(true);
+        try {
+          const outline = await scanOutline(activeProject);
+          if (isCurrent()) setOutlineAll(outline);
+        } catch (error) {
+          if (isCurrent()) {
+            setOutlineAll([]);
+            setOutlineError(message(error));
+          }
+        } finally {
+          if (isCurrent()) setOutlineLoading(false);
+        }
+
+        try {
+          const value = await scanManuscriptTotals(activeProject);
+          if (isCurrent()) setTotals({ projectPath: activeProject, value });
+        } catch (error) {
+          if (isCurrent()) setTotalsError(message(error));
+        }
+        if (isCurrent()) setRefreshing(false);
+      })();
+    },
+    [activeProject, active, nonce],
+  );
 
   useEffect(() => {
     const lifetime = ++saveLifetimeRef.current;
@@ -271,8 +273,7 @@ export function useBookProfile({
         const content = serializeBookProfile(next);
         // 失焦就提交：没改动的那一下不写盘。
         if (content === serializeBookProfile(parseBookProfile(source.raw ?? ''))) return;
-        const separator = project.includes('\\') ? '\\' : '/';
-        const storyforgeDir = `${project.replace(/[\\/]+$/, '')}${separator}.storyforge`;
+        const storyforgeDir = joinPath(project, '.storyforge');
         try {
           await TauriFileSystem.createDir(project, storyforgeDir, true);
           await TauriFileSystem.writeFileIfUnchanged(

@@ -1,6 +1,6 @@
-import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 
-import { Button, Field, Input, Select } from '../ui';
+import { Button, Input, PlainButton } from '../ui';
 import {
   ACCENT_CHOICES,
   baseColors,
@@ -21,7 +21,7 @@ import {
   type UiFont,
 } from '../../lib/appearance';
 import { useSystemPrefersDark } from '../app/useSystemPrefersDark';
-import { useSettingsRowVisible } from './search-context';
+import { RowShell, SelectRow } from './SettingRows';
 
 type AppearanceUpdate = <Key extends keyof AppearanceSettings>(
   key: Key,
@@ -62,8 +62,8 @@ export function AppearanceSection({
 
   return (
     <>
-      <ChoiceRow title="模式" description="跟随系统会随 Windows 的深色 / 浅色设置一起切换。">
-        {(labelId, descriptionId) => (
+      <RowShell title="模式" description="跟随系统会随 Windows 的深色 / 浅色设置一起切换。">
+        {({ labelId, descriptionId }) => (
           <ModePicker
             value={settings.theme}
             settings={settings}
@@ -72,8 +72,8 @@ export function AppearanceSection({
             describedBy={descriptionId}
           />
         )}
-      </ChoiceRow>
-      <SelectFieldRow
+      </RowShell>
+      <SelectRow
         title="主题"
         description={PALETTE_PRESETS[settings.palette].description}
         value={settings.palette}
@@ -81,8 +81,8 @@ export function AppearanceSection({
         onChange={(value) => onChange('palette', value as PalettePreset)}
         testId="appearance-palette"
       />
-      <ChoiceRow title="强调色" description="按钮和选中状态用这个颜色；紫色留给 AI。">
-        {(labelId, descriptionId) => (
+      <RowShell title="强调色" description="按钮和选中状态用这个颜色；紫色留给 AI。">
+        {({ labelId, descriptionId }) => (
           <AccentPicker
             value={settings.accent}
             mode={mode}
@@ -92,7 +92,7 @@ export function AppearanceSection({
             describedBy={descriptionId}
           />
         )}
-      </ChoiceRow>
+      </RowShell>
       <ColorRow
         title={`背景（${MODE_LABEL[mode]}）`}
         description="整体底色；面板、卡片和描边的层次会跟着自动调整。"
@@ -116,7 +116,7 @@ export function AppearanceSection({
         onReset={() => setCustom('foreground', null)}
         testId="appearance-foreground"
       />
-      <SelectFieldRow
+      <SelectRow
         title="字体"
         description="界面文字的字体；正文字体在「编辑器」里设置。"
         value={settings.uiFont}
@@ -125,78 +125,6 @@ export function AppearanceSection({
         testId="appearance-font"
       />
     </>
-  );
-}
-
-function ChoiceRow({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: (labelId: string, descriptionId: string) => ReactNode;
-}) {
-  const id = useId();
-  const visible = useSettingsRowVisible(title, description);
-  if (!visible) return null;
-  return (
-    <div className="flex min-h-[76px] items-center gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div id={`${id}-label`} className="text-sm font-medium text-foreground">
-          {title}
-        </div>
-        <div id={`${id}-description`} className="mt-1 text-xs leading-relaxed text-muted">
-          {description}
-        </div>
-      </div>
-      <div className="flex-shrink-0">{children(`${id}-label`, `${id}-description`)}</div>
-    </div>
-  );
-}
-
-function SelectFieldRow({
-  title,
-  description,
-  value,
-  options,
-  onChange,
-  testId,
-}: {
-  title: string;
-  description: string;
-  value: string;
-  options: ReadonlyArray<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-  testId: string;
-}) {
-  const visible = useSettingsRowVisible(title, description);
-  if (!visible) return null;
-  return (
-    <Field
-      id={testId}
-      label={title}
-      description={description}
-      layout="horizontal"
-      className="min-h-[76px] px-4 py-3"
-    >
-      {(control) => (
-        <Select
-          {...control}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          controlSize="sm"
-          className="w-[180px]"
-          data-testid={testId}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-      )}
-    </Field>
   );
 }
 
@@ -221,24 +149,18 @@ function ColorRow({
 }) {
   // 输入框里允许打到一半（如「#1a」），只有凑成六位十六进制才生效；失焦后回显当前生效值。
   const [draft, setDraft] = useState<string | null>(null);
-  const visible = useSettingsRowVisible(title, description);
-  if (!visible) return null;
   return (
-    <Field
-      id={testId}
-      label={title}
-      description={
-        <>
-          {description}
-          {warning && (
-            <span className="mt-1 block text-warning" data-testid={`${testId}-warning`}>
-              {warning}
-            </span>
-          )}
-        </>
+    <RowShell
+      title={title}
+      description={description}
+      note={
+        warning && (
+          <span className="mt-1 block text-warning" data-testid={`${testId}-warning`}>
+            {warning}
+          </span>
+        )
       }
-      layout="horizontal"
-      className="min-h-[76px] px-4 py-3"
+      controlId={testId}
     >
       {(control) => (
         <div className="flex items-center gap-2">
@@ -275,7 +197,7 @@ function ColorRow({
           )}
         </div>
       )}
-    </Field>
+    </RowShell>
   );
 }
 
@@ -358,9 +280,8 @@ function ModePicker({
       {MODE_OPTIONS.map((option) => {
         const selected = option.value === value;
         return (
-          <button
+          <PlainButton
             key={option.value}
-            type="button"
             role="radio"
             aria-checked={selected}
             tabIndex={selected ? 0 : -1}
@@ -388,7 +309,7 @@ function ModePicker({
               )}
             </span>
             {option.label}
-          </button>
+          </PlainButton>
         );
       })}
     </div>
@@ -423,9 +344,8 @@ function AccentPicker({
         const palette = derivePalette(mode, { ...settings, accent: key });
         const fill = rgb(palette, 'accent');
         return (
-          <button
+          <PlainButton
             key={key}
-            type="button"
             role="radio"
             aria-checked={selected}
             aria-label={ACCENT_CHOICES[key].label}
@@ -447,7 +367,7 @@ function AccentPicker({
                     : fill,
               }}
             />
-          </button>
+          </PlainButton>
         );
       })}
     </div>

@@ -7,7 +7,7 @@ import {
   PLUGINS_FILE,
   projectBasename,
 } from '@storyforge/project-core';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
 import { FsToolError, readBoundedText, resolveProjectRoot } from './fsTools';
 import {
   CODEX_DEFAULT_SKILLS_DIR,
@@ -18,7 +18,7 @@ import {
   type PluginManifest,
 } from './pluginManifest';
 import { MAX_DIRECTORY_ENTRIES, ProjectTreeError, scanProjectFiles } from './projectTree';
-import { pythonStrip } from './pythonText';
+import { clipWithEllipsis, pythonStrip } from './pythonText';
 import { redactSensitiveText, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 import { parseWritingSkill, WRITING_SKILL_DIR, type WritingSkill } from './writingSkills';
@@ -130,12 +130,6 @@ const ENTRY_NAME_MAX_CHARS = 40;
 const ENTRY_WHEN_MAX_CHARS = 80;
 const BLOCK_SCALAR = new Set(['>', '>-', '>+', '|', '|-', '|+']);
 
-/** 与 writingSkills 的截断同语义：超出按码点保留开头再加「……」。 */
-const cut = (text: string, limit: number) => {
-  const points = Array.from(text);
-  return points.length > limit ? `${points.slice(0, limit).join('')}……` : text;
-};
-
 const indentOf = (line: string) => /^\s*/.exec(line)![0].length;
 
 /** YAML 标量的最小归一：去成对引号；块标量把后面缩进更深的连续行去缩进后用空格连起来。 */
@@ -168,7 +162,7 @@ function pluginEntryFields(
   content: string,
 ): Pick<PluginEntry, 'name' | 'when' | 'body'> {
   const { body } = parseWritingSkill(namePath, content);
-  const header = /^---\n([\s\S]*?)\n---\n?/.exec(content.replace(/\r\n?/g, '\n'));
+  const header = /^---\n([\s\S]*?)\n---\n?/.exec(normalizeNewlines(content));
   const lines = header ? header[1].split('\n') : [];
   const fields: { [key: string]: string } = {};
   for (let index = 0; index < lines.length; index += 1) {
@@ -190,8 +184,8 @@ function pluginEntryFields(
     fields.description ||
     pythonStrip(firstLine.replace(/^#+\s*/, ''));
   return {
-    name: cut(name, ENTRY_NAME_MAX_CHARS),
-    when: cut(when, ENTRY_WHEN_MAX_CHARS),
+    name: clipWithEllipsis(name, ENTRY_NAME_MAX_CHARS),
+    when: clipWithEllipsis(when, ENTRY_WHEN_MAX_CHARS),
     body,
   };
 }

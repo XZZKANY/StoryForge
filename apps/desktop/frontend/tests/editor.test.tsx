@@ -16,10 +16,35 @@ import type { AppDialogApi } from '../src/components/app/AppDialog';
 //      断言源文本含关键符号，这里镜像成单元级护栏，使 C3 拆分能在 CI 早期失败。
 
 const editorSource = readFileSync('src/components/Editor.tsx', 'utf8');
-const suggestionWritebackSource = readFileSync(
-  'src/components/editor/useSuggestionWriteback.ts',
-  'utf8',
-);
+// 编辑器按职责拆成了 components/editor/ 下的一组 hook，下面的源码断言跟着代码读它搬到的文件。
+const editorPart = (name: string) => readFileSync(`src/components/editor/${name}`, 'utf8');
+const guardedWriteSource = editorPart('useGuardedSuggestionWrite.ts');
+const hunkAcceptSource = editorPart('useHunkSuggestionAccept.ts');
+const wholeAcceptSource = editorPart('useWholeSuggestionAccept.ts');
+const suggestionWritebackSources = [
+  'useSuggestionWriteback.ts',
+  'suggestion-op-state.ts',
+  'useSuggestionState.ts',
+  'useSuggestionIntake.ts',
+  'useGuardedSuggestionWrite.ts',
+  'useSuggestionUndo.ts',
+  'useWholeSuggestionAccept.ts',
+  'useHunkSuggestionAccept.ts',
+  'useSuggestionDismissal.ts',
+]
+  .map(editorPart)
+  .join('\n');
+const editorSaveSource = editorPart('useEditorSave.ts');
+const windowCommandsSource = editorPart('useEditorWindowCommands.ts');
+const versionRestoreSource = editorPart('useVersionRestore.ts');
+const editorSplitSources = [
+  'EditorLoadStatus.tsx',
+  'useEditorSave.ts',
+  'useReviewIssueMarkers.ts',
+  'useEditorCursorSync.ts',
+  'useEditorWindowCommands.ts',
+  'useVersionRestore.ts',
+].map(editorPart);
 const monacoEditorSource = readFileSync('src/components/editor/useMonacoEditor.ts', 'utf8');
 const versionHistorySource = readFileSync('src/components/editor/VersionHistory.tsx', 'utf8');
 
@@ -87,12 +112,15 @@ test('正文编辑区始终铺满：限行宽不许再变成限宽居中的中�
 });
 
 test('外部 flush 事件读取最新保存闭包，不沿用首个标签的分支状态', () => {
-  assert.match(editorSource, /const saveCurrentFileRef = useRef\(saveCurrentFile\)/);
-  assert.match(editorSource, /saveCurrentFileRef\.current = saveCurrentFile/);
+  assert.match(editorSaveSource, /const saveCurrentFileRef = useRef\(saveCurrentFile\)/);
+  assert.match(editorSaveSource, /saveCurrentFileRef\.current = saveCurrentFile/);
   assert.match(
-    editorSource,
+    windowCommandsSource,
     /REQUEST_SAVE_ACTIVE_FILE_EVENT[\s\S]*?saveCurrentFileRef\s*\.\s*current\(\)/,
   );
+  // 两边拿的必须是同一个 ref：Editor 把 useEditorSave 交出的 saveCurrentFileRef 原样转给窗口命令。
+  assert.match(editorSource, /const \{ saveCurrentFileRef, handleSave \} = useEditorSave\(/);
+  assert.match(editorSource, /useEditorWindowCommands\(\{[^}]*saveCurrentFileRef,[^}]*\}\)/);
 });
 
 test('异步文件读取期间明确显示 loading，失败后显示错误而不是旧 model', () => {
@@ -205,29 +233,27 @@ test('源文本保留已知 data-testid 标记集合（拆分时壳层引用须�
 
 test('建议写回保持整文件硬闸，并让分块接受走 hunk 级定位', () => {
   assert.ok(
-    suggestionWritebackSource.includes('旧修订不能直接写进文件'),
+    guardedWriteSource.includes('旧修订不能直接写进文件'),
     '整文件接受必须继续在当前内容偏离 suggestion.before 时拒绝旧补丁',
   );
   assert.ok(
-    suggestionWritebackSource.includes(
-      'isWholeFileDrifted(previous, suggestion.before, normalizeEol)',
-    ),
+    guardedWriteSource.includes('isWholeFileDrifted(previous, suggestion.before, normalizeEol)'),
     '整文件漂移守卫必须走已被 patch-hunks 行为测试覆盖的 isWholeFileDrifted 纯函数',
   );
   assert.match(
-    suggestionWritebackSource,
+    hunkAcceptSource,
     /planHunkAccept\(\s*currentContent,\s*matched \?\? hunk,\s*opState\?\.changeSet\.before \?\? suggestion\.before,\s*\{\s*operations: opState\.changeSet\.operations,\s*appliedOpIds: opState\.appliedOpIds\s*\},?\s*\)/,
     '分块接受必须基于当前内容定位匹配到的原始 op，使用不可变 before 和确认子集；不能使用重推导 hunk 或要求整文件等于 suggestion.before',
   );
   assert.equal(
-    suggestionWritebackSource.includes('请重新生成修订后再分块接受'),
+    suggestionWritebackSources.includes('请重新生成修订后再分块接受'),
     false,
     '分块接受不应因为其他 hunk 已写入就整补丁失效',
   );
 });
 
 test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退计划→摘页签执行', () => {
-  const restoreBlock = editorSource.match(
+  const restoreBlock = versionRestoreSource.match(
     /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,
   )?.[0];
   assert.ok(restoreBlock, '找不到 handleRestore 不存在态恢复块');
@@ -242,15 +268,15 @@ test('恢复“不存在”版本按保存脏缓冲→快照→真删除→退�
   assert.ok(unmarkAt < dropAt, '删除链完成前不得先摘页签');
   assert.match(
     restoreBlock,
-    /canRetireTarget\(\)[\s\S]*?TauriFileSystem\.pathExists\(path\)[\s\S]*?canRetireTarget\(\)/,
+    /canRetireTarget\(\)[\s\S]*?TauriFileSystem\.projectPathExists\(project, path\)[\s\S]*?canRetireTarget\(\)/,
     '清理必须先后核对原目标与是否重建',
   );
   assert.doesNotMatch(restoreBlock, /writeFile\([^)]*,\s*['"]{2}/, '不存在态不得写空串');
 });
 
 test('从节点开分支：作者确认恢复之后才建分支，取消恢复不留空分支', () => {
-  const branchBlock = editorSource.match(
-    /const handleBranchFromNode = async[\s\S]*?(?=const emptyStateHint)/,
+  const branchBlock = versionRestoreSource.match(
+    /const handleBranchFromNode = async[\s\S]*?(?=\n {2}return \{ handleRestore)/,
   )?.[0];
   assert.ok(branchBlock, '找不到 handleBranchFromNode 块');
   assert.match(
@@ -259,7 +285,7 @@ test('从节点开分支：作者确认恢复之后才建分支，取消恢复�
     '建分支必须作为恢复确认之后的动作交给 handleRestore',
   );
   assert.equal(branchBlock.match(/createBranchFromNode\(/g)?.length, 1, '不能在确认前先建分支');
-  const restoreBlock = editorSource.match(
+  const restoreBlock = versionRestoreSource.match(
     /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,
   )?.[0];
   assert.ok(restoreBlock, '找不到 handleRestore 块');
@@ -271,7 +297,7 @@ test('从节点开分支：作者确认恢复之后才建分支，取消恢复�
 });
 
 test('恢复“已存在”版本先确认、先留当前内容快照，再把旧版本灌进缓冲', () => {
-  const restoreBlock = editorSource.match(
+  const restoreBlock = versionRestoreSource.match(
     /const handleRestore = async[\s\S]*?(?=const handleCheckoutNode)/,
   )?.[0];
   assert.ok(restoreBlock, '找不到 handleRestore 块');
@@ -306,10 +332,10 @@ test('恢复“已存在”版本先确认、先留当前内容快照，再把�
 
 test('空文件写入正文也必须先取版本 tree，不得被旧空串短路', () => {
   assert.match(
-    editorSource,
+    editorSaveSource,
     /const contentChanged = expected\.kind === 'missing' \|\| expected\.content !== content/,
   );
-  assert.doesNotMatch(editorSource, /contentChanged = previous !== ['"]{2}/);
+  assert.doesNotMatch(editorSaveSource, /contentChanged = previous !== ['"]{2}/);
 });
 
 test('React 桌面入口不再调用原生 prompt/alert/confirm', () => {
@@ -321,7 +347,9 @@ test('React 桌面入口不再调用原生 prompt/alert/confirm', () => {
     'src/components/app/useProjectCommands.ts',
   ].map((path) => readFileSync(path, 'utf8'));
   const sidePanelSource = readFileSync('src/components/shell/SidePanel.tsx', 'utf8');
-  const activeSources = [...appSources, editorSource, sidePanelSource].join('\n');
+  const activeSources = [...appSources, editorSource, ...editorSplitSources, sidePanelSource].join(
+    '\n',
+  );
 
   assert.equal(activeSources.includes('window.prompt'), false);
   assert.equal(activeSources.includes('window.alert'), false);
@@ -336,7 +364,7 @@ test('新稿可能没写完的补丁：整份接受走横幅上的就地两步�
   assert.ok(panel, '找不到 PatchReviewPanel');
   assert.match(panel, /truncationArmed=\{truncationAcceptArmed\}/, '横幅要拿到武装状态');
   assert.match(panel, /onCancelTruncatedAccept=\{cancelTruncatedAccept\}/, '失焦等要能撤销武装');
-  const acceptBlock = suggestionWritebackSource.match(
+  const acceptBlock = wholeAcceptSource.match(
     /const handleAcceptSuggestion = useCallback\(async \(\) => \{[\s\S]*?beginAction\('accept'/,
   )?.[0];
   assert.ok(acceptBlock, '找不到整份接受的开头');

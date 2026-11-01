@@ -3,20 +3,16 @@ import { entitySurfaceForms } from '../../kernel/canonRebuild';
 import { consistencyScan } from '../../kernel/consistencyScan';
 import { crossChapterReview } from '../../kernel/crossChapter';
 import { FsToolError } from '../../kernel/fsTools';
-import { isJsonObject, type JsonObject, type JsonValue } from '../../kernel/json';
+import { isJsonObject, isObj, type JsonObject, type JsonValue, type Obj } from '../../kernel/json';
 import { DEFAULT_STALE_AFTER_CHAPTERS, promiseCheck } from '../../kernel/promiseScan';
 import { proseStaticScan } from '../../kernel/proseScan';
-import { pythonStrip } from '../../kernel/pythonText';
+import { optionalString, pythonStrip } from '../../kernel/pythonText';
 import { collapseScan, entityBudgetScan, type EntityBudgetOptions } from '../../kernel/sceneChecks';
 import { applyPlanUpdate } from '../../kernel/serialPlanUpdate';
-import { optionalString } from '../runPayloads';
 import type { ToolHandler, ToolResult } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { requiredString } from './runtimeArguments';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const isStrictInt = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
 const has = (payload: Obj, key: string) => Object.prototype.hasOwnProperty.call(payload, key);

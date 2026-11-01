@@ -1,23 +1,31 @@
 import type { ModelObservation } from '../llm/observation';
 import {
   dumpJson,
+  escapeControlCharsAndQuotes,
   InputDomainError,
   isJsonObject,
   JsonFloat,
   parseJson,
+  parseModelJson,
   pythonEquals,
   compareCodePoints,
   type JsonObject,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
-import { pythonStrip } from '../kernel/pythonText';
-import { stripCodeFence } from '../kernel/reviewReasoning';
+import { cpLen, pythonStrip } from '../kernel/pythonText';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { redactSensitive, type PlainJson, type SecretContext } from '../kernel/redaction';
 import { sha256Hex } from '../kernel/sha256';
 import { ChatMessage, type ChatRequest, type ChatResponse } from '../llm/contracts';
 import { checkRunInterruption, type RunControl } from '../llm/control';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import {
+  decodeUtf8,
+  normalizeNewlines,
+  ProjectReadError,
+  stripBom,
+  type ProjectReader,
+} from '../readPort';
 import { AgentOrchestrationError } from './runPayloads';
 
 export const SYSTEM_COMPACTION_ARTIFACT_KIND = 'system_compaction';
@@ -82,14 +90,12 @@ const TOOL_INTERNAL_KEYS = new Set(['generation_sources']);
 /** 对话 AI 交给 file.create 的写作指令：成稿已在文件里，指令原文每章上万字节、每轮重送，只留指纹。 */
 const FILE_CREATE_INTERNAL_KEYS = new Set([...TOOL_INTERNAL_KEYS, 'instruction']);
 
-type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' &&
   value !== null &&
   !Array.isArray(value) &&
   !(value instanceof JsonFloat) &&
   !(value instanceof Map);
-const cpLen = (text: string) => Array.from(text).length;
 const utf8Length = (text: string) => new TextEncoder().encode(text).length;
 
 /** 一个会话在存储里的事实行（P4 前：消息与工具调用来自 Python 库，run 事件与 artifact 来自引擎存储）。 */
@@ -332,8 +338,7 @@ export type WritebackDisk = { reader: ProjectReader; root: string };
 
 type TargetRead = { text: string } | { state: 'missing' | 'unreadable' };
 
-const normalizedText = (text: string) =>
-  (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text).replace(/\r\n?/g, '\n');
+const normalizedText = (text: string) => normalizeNewlines(stripBom(text));
 
 /** 补丁目标的项目内写法（只做词法归一，不读盘），用来按文件分组；Windows 根下不分大小写。 */
 function patchTarget(root: string, filePath: string): { display: string; key: string } {
@@ -366,7 +371,7 @@ async function readPatchTarget(disk: WritebackDisk, filePath: string): Promise<T
     throw error;
   }
   try {
-    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+    return { text: stripBom(decodeUtf8(bytes, { fatal: true })) };
   } catch {
     return { state: 'unreadable' };
   }
@@ -636,15 +641,12 @@ function compactionCandidate(response: ChatResponse, secrets: SecretContext): Ob
   let candidate: unknown;
   try {
     // 模型常把整段 JSON 裹进 ```json 代码块；只剥整段外壳，里面仍须是一个合法对象。
-    const text = stripCodeFence(pythonStrip(response.content));
-    let parsed: JsonValue;
-    try {
-      parsed = parseJson(text, 'compaction');
-    } catch (error) {
-      if (!(error instanceof InputDomainError)) throw error;
-      // 摘引原文时模型常把真换行或半角引号直接写进 JSON 字符串；只补转义，字符一个不改。
-      parsed = parseJson(repairJsonStrings(text), 'compaction');
-    }
+    // 摘引原文时模型常把真换行或半角引号直接写进 JSON 字符串；只补转义，字符一个不改。
+    const parsed = parseModelJson(response.content, {
+      source: 'compaction',
+      fence: 'lines',
+      repair: escapeControlCharsAndQuotes,
+    });
     candidate = redactSensitive(parsed as PlainJson, secrets);
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
@@ -653,36 +655,6 @@ function compactionCandidate(response: ChatResponse, secrets: SecretContext): Ob
   if (!isObj(candidate) || Object.keys(candidate).length !== 1 || !('entries' in candidate))
     throw new CompactionRejected('压缩候选结构无效。');
   return candidate;
-}
-
-/**
- * 修补模型常写坏的 JSON 字符串：字面量里的裸控制字符补成转义；字面量里的半角引号只有后面紧跟
- * 「, } ] :」或结尾才算收尾，否则当作内容补上转义。修出来的条目仍要逐字核验来源，修错只会被拒。
- */
-function repairJsonStrings(text: string): string {
-  let out = '';
-  let inString = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (!inString) {
-      out += char;
-      if (char === '"') inString = true;
-      continue;
-    }
-    const code = char.charCodeAt(0);
-    if (code < 0x20) out += '\\u' + code.toString(16).padStart(4, '0');
-    else if (char === '\\') {
-      out += char + (text[index + 1] ?? '');
-      index += 1;
-    } else if (char === '"') {
-      const rest = text.slice(index + 1).trimStart();
-      if (!rest || ',}]:'.includes(rest[0])) {
-        out += char;
-        inString = false;
-      } else out += '\\"';
-    } else out += char;
-  }
-  return out;
 }
 
 const FOLLOW_UP_NOTE =

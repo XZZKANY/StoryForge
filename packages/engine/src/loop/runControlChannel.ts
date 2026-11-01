@@ -1,3 +1,4 @@
+import { isObj, type Obj } from '../kernel/json';
 import { redactSensitive, type PlainJson } from '../kernel/redaction';
 import type { RunEventRecord, RunRecord, RunStore } from '../store/runs';
 import {
@@ -36,9 +37,6 @@ import {
 } from './runPayloads';
 import { buildRuntimePendingCallResumeDiagnostic } from './traces';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const isInt = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
 

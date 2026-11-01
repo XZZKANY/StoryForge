@@ -188,7 +188,7 @@ test('这一轮没读文件时给一句空状态', async () => {
 });
 
 test('长期规矩没有时「新建」：先建目录再写说明，然后在编辑器打开', async () => {
-  const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(false);
+  const exists = vi.spyOn(TauriFileSystem, 'projectPathExists').mockResolvedValue(false);
   const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();
   const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
   await renderPanel(null);
@@ -196,7 +196,7 @@ test('长期规矩没有时「新建」：先建目录再写说明，然后在�
   expect($('context-instructions-open')).toBeNull();
 
   await click($('context-instructions-create'));
-  expect(exists).toHaveBeenCalledWith(RULES);
+  expect(exists).toHaveBeenCalledWith(ROOT, RULES);
   expect(mkdir).toHaveBeenCalledWith(ROOT, `${ROOT}\\.storyforge`, true);
   expect(write).toHaveBeenCalledWith(ROOT, RULES, AUTHOR_INSTRUCTIONS_TEMPLATE);
   expect(mkdir.mock.invocationCallOrder[0]).toBeLessThan(write.mock.invocationCallOrder[0]);
@@ -204,7 +204,7 @@ test('长期规矩没有时「新建」：先建目录再写说明，然后在�
 });
 
 test('「新建」碰上已有的文件不覆盖，直接打开', async () => {
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  vi.spyOn(TauriFileSystem, 'projectPathExists').mockResolvedValue(true);
   const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
   await renderPanel(null);
   await click($('context-instructions-create'));
@@ -372,7 +372,7 @@ test('技能：插件技能带插件小标、不可点；skill.read 读过的作
 });
 
 test('技能：没有时一行说明，「新建」只给本书禁用词模板，建到 技能/<名字>.md 并打开', async () => {
-  const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(false);
+  const exists = vi.spyOn(TauriFileSystem, 'projectPathExists').mockResolvedValue(false);
   const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();
   const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
   await renderPanel(null);
@@ -390,7 +390,7 @@ test('技能：没有时一行说明，「新建」只给本书禁用词模板�
   const file = `${ROOT}\\技能\\本书禁用词.md`;
   await click(menuItems()[0]);
   expect(menuItems()).toEqual([]);
-  expect(exists).toHaveBeenCalledWith(file);
+  expect(exists).toHaveBeenCalledWith(ROOT, file);
   expect(mkdir).toHaveBeenCalledWith(ROOT, `${ROOT}\\技能`, true);
   expect(write).toHaveBeenCalledWith(ROOT, file, SKILL_TEMPLATES[0].content);
   expect(mkdir.mock.invocationCallOrder[0]).toBeLessThan(write.mock.invocationCallOrder[0]);
@@ -412,7 +412,7 @@ test('技能：没有时一行说明，「新建」只给本书禁用词模板�
 });
 
 test('技能：新建碰上同名文件不覆盖，直接打开', async () => {
-  vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  vi.spyOn(TauriFileSystem, 'projectPathExists').mockResolvedValue(true);
   const mkdir = vi.spyOn(TauriFileSystem, 'createDir').mockResolvedValue();
   const write = vi.spyOn(TauriFileSystem, 'writeFile').mockResolvedValue();
   loadSkills.mockResolvedValue([skill('审稿口径', '作者让你审稿时')]);

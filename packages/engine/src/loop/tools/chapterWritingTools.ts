@@ -5,10 +5,11 @@ import {
   draftFileContent,
   reviseFileContent,
 } from '../../assistant/service';
-import { dumpJson } from '../../kernel/json';
+import { dumpJson, type Obj } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
 import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
 import { loadAvailableWritingStyles } from '../../kernel/availableWritingStyles';
+import { cpLen } from '../../kernel/pythonText';
 import { writingSkillIndex, writingSkillsBlock } from '../../kernel/writingSkills';
 import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
 import { prepareChapterWritingContext } from '../chapterSourceGuard';
@@ -23,9 +24,6 @@ import {
 import { AgentOrchestrationError } from '../runPayloads';
 import type { ToolHandler } from './execution';
 import type { ToolDeps } from './handlerDeps';
-
-type Obj = { [key: string]: unknown };
-const cpLen = (text: string) => Array.from(text).length;
 
 /** chapter.brief / draft / check / repair：写章管线的四步，各自落证据（adapters/chapter_writing_tools）。 */
 export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {

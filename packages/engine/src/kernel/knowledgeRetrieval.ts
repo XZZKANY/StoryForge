@@ -8,7 +8,7 @@ import {
   projectKnowledgeEntryIndex,
   type ProjectKnowledgeEntryIndex,
 } from './projectKnowledgeFiles';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { cpLen, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 
 export const KNOWLEDGE_RETRIEVAL_MAX_ITEMS = 8;
 export const KNOWLEDGE_RETRIEVAL_MAX_CHARS = 4_000;
@@ -48,7 +48,6 @@ export type KnowledgeRetrievalResult = {
 const WHITESPACE = new RegExp(PYTHON_WHITESPACE, 'u');
 const WHITESPACE_RUN = new RegExp(`${PYTHON_WHITESPACE}+`, 'u');
 const words = (value: string) => value.split(WHITESPACE_RUN).filter(Boolean);
-const length = (text: string) => Array.from(text).length;
 
 function normalize(value: string): string {
   return words(pythonCasefold(value.normalize('NFKC'))).join(' ');
@@ -59,7 +58,7 @@ function ngrams(value: string): Set<string> {
   const terms = new Set<string>();
   for (let index = 0; index < Math.max(compact.length - 1, 0); index++)
     terms.add(compact[index] + compact[index + 1]);
-  for (const part of words(value)) if (length(part) >= 2) terms.add(part);
+  for (const part of words(value)) if (cpLen(part) >= 2) terms.add(part);
   return terms;
 }
 
@@ -168,7 +167,7 @@ export function materializeKnowledgeSelection(
   return {
     items,
     warnings,
-    totalChars: items.reduce((sum, item) => sum + length(item.excerpt), 0),
+    totalChars: items.reduce((sum, item) => sum + cpLen(item.excerpt), 0),
     structuredPaths: selection.structuredPaths,
     plainNotes: selection.plainNotes,
   };

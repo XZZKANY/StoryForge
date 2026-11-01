@@ -1,5 +1,5 @@
 import { splitlinesKeepends } from './polishing';
-import { pythonSplitlines } from './pythonText';
+import { codePoints, pythonSplitlines } from './pythonText';
 
 export type QuoteLocation = {
   char_start: number;
@@ -7,8 +7,6 @@ export type QuoteLocation = {
   line_start: number;
   line_end: number;
 };
-
-const points = (text: string) => Array.from(text);
 
 // 模型引用原文时常把全角标点写成半角（稿子出稿后统一成全角，模型照旧写直引号），行号也常数错。
 // 引文按「同一个标点的全角 / 半角算同一个字、空白不计」在全文里找，所报行号只在多处命中时挑最近的一处；
@@ -50,9 +48,9 @@ export function locateQuote(
   quote: string,
   line: number | null = null,
 ): QuoteLocation | null {
-  const chars = points(content);
+  const chars = codePoints(content);
   const { folded, positions } = foldForQuote(chars);
-  const needle = foldForQuote(points(quote)).folded;
+  const needle = foldForQuote(codePoints(quote)).folded;
   const starts: number[] = [];
   if (needle.length > 0)
     for (let index = 0; index + needle.length <= folded.length; index++)
@@ -60,7 +58,7 @@ export function locateQuote(
   if (starts.length === 0) return null;
   const lineOffsets = [0];
   for (const text of splitlinesKeepends(content))
-    lineOffsets.push(lineOffsets[lineOffsets.length - 1] + points(text).length);
+    lineOffsets.push(lineOffsets[lineOffsets.length - 1] + codePoints(text).length);
   const lineOf = (offset: number) => lineOffsets.filter((start) => start <= offset).length;
   let best = starts[0];
   if (line !== null) {

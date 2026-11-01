@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import { useAsyncEffect } from '../../lib/async-guards';
 import { buildProjectChapterIndex, type ProjectChapter } from '../../lib/project/chapter-index';
 import { buildProjectIndex } from '../../lib/project-context';
 import { relativePathInsideProject, resolveProjectRelativePath } from '../../lib/project-context';
@@ -54,38 +55,36 @@ export function useBookOverviewChapters({
   const [status, setStatus] = useState<BookOverviewChaptersStatus>('unavailable');
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
-  const generationRef = useRef(0);
-  const requestRef = useRef(0);
 
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
 
-  useEffect(() => {
-    generationRef.current += 1;
-    const generation = generationRef.current;
-    if (!projectPath || !active) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- project scope teardown must drop prior index immediately
-      setScope(null);
-      setStatus('unavailable');
-      setError(null);
-      return;
-    }
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath || !active) {
+        // project scope teardown must drop prior index immediately
+        setScope(null);
+        setStatus('unavailable');
+        setError(null);
+        return;
+      }
 
-    const request = ++requestRef.current;
-    setStatus('loading');
-    setError(null);
-    void buildProjectIndex(projectPath)
-      .then((index) => {
-        if (generation !== generationRef.current || request !== requestRef.current) return;
-        setScope({ projectPath, chapters: buildProjectChapterIndex(index) });
-        setStatus('available');
-      })
-      .catch((reason: unknown) => {
-        if (generation !== generationRef.current || request !== requestRef.current) return;
-        setScope({ projectPath, chapters: [] });
-        setStatus('error');
-        setError(errorMessage(reason));
-      });
-  }, [active, nonce, projectPath]);
+      setStatus('loading');
+      setError(null);
+      void buildProjectIndex(projectPath)
+        .then((index) => {
+          if (!isCurrent()) return;
+          setScope({ projectPath, chapters: buildProjectChapterIndex(index) });
+          setStatus('available');
+        })
+        .catch((reason: unknown) => {
+          if (!isCurrent()) return;
+          setScope({ projectPath, chapters: [] });
+          setStatus('error');
+          setError(errorMessage(reason));
+        });
+    },
+    [active, nonce, projectPath],
+  );
 
   useEffect(() => {
     if (!projectPath || !active) return;

@@ -3,14 +3,12 @@ import {
   isJsonObject,
   JsonFloat,
   pythonStr,
-  pythonTruthy,
+  strOr,
   type JsonObject,
   type JsonValue,
 } from '../kernel/json';
 import type { LegacyUsage } from './usage';
 
-const strOr = (value: JsonValue | undefined, fallback: string) =>
-  pythonTruthy(value) ? pythonStr(value) : fallback;
 const toInt = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : 0;
 const isInt = (value: unknown): value is number =>

@@ -74,6 +74,7 @@ fn same_identity_different_payload_is_rejected_before_mutation() {
     assert!(
         write_file_with_receipt(root, request.clone(), baseline(), None)
             .unwrap_err()
+            .message
             .contains("身份冲突")
     );
     assert_eq!(fs::read_to_string(request.path).unwrap(), "after\n");
@@ -82,11 +83,10 @@ fn same_identity_different_payload_is_rejected_before_mutation() {
 fn pre_dispatch_drift_is_definitely_not_written_and_has_no_claim() {
     let (_temp, root, request) = fixture();
     fs::write(&request.path, "external").unwrap();
-    assert!(
-        write_file_with_receipt(root.clone(), request.clone(), baseline(), Some(7))
-            .unwrap_err()
-            .contains("磁盘内容已变化")
-    );
+    let error =
+        write_file_with_receipt(root.clone(), request.clone(), baseline(), Some(7)).unwrap_err();
+    assert_eq!(error.kind, "drift", "{error:?}");
+    assert!(error.message.starts_with("磁盘内容已变化"), "{error:?}");
     assert!(inspect_writeback_receipt(root, request.clone())
         .unwrap()
         .is_none());
@@ -103,6 +103,146 @@ fn dispatch_rejection_has_distinct_persisted_not_written_outcome() {
     assert!(rejected.receipt_persisted);
     assert_eq!(apply(&root, &request).state, "not_written");
     assert_eq!(fs::read_to_string(request.path).unwrap(), "before\r\n");
+}
+fn outcome_on_disk(location: &Location) -> serde_json::Value {
+    serde_json::from_slice(&fs::read(record_path(location, "outcome")).unwrap()).unwrap()
+}
+/// 登记意图之后才撞上的漂移：回执带 detail_kind=drift，文字原样留给作者，再读回执也一样。
+#[test]
+fn drift_after_admission_is_typed_in_the_persisted_receipt() {
+    let (_temp, root, request) = fixture();
+    let location = resolve(&root, &request).unwrap();
+    let rejected = apply_with(&root, &request, baseline(), Some(7), |expected| {
+        fs::write(&request.path, "external").unwrap();
+        project_fs::write_file_if_unchanged(
+            root.clone(),
+            request.path.clone(),
+            request.content.clone(),
+            expected,
+        )
+    })
+    .unwrap();
+    assert_eq!(rejected.state, "not_written");
+    assert_eq!(rejected.detail_kind, Some(DetailKind::Drift));
+    assert!(rejected
+        .detail
+        .as_deref()
+        .unwrap()
+        .starts_with("磁盘内容已变化"));
+    let json = serde_json::to_value(&rejected).unwrap();
+    assert_eq!(json["detailKind"], "drift");
+    let outcome = outcome_on_disk(&location);
+    assert_eq!(outcome["detailKind"], "drift");
+    assert_eq!(outcome["detail"], json["detail"]);
+    let again = inspect_writeback_receipt(root, request.clone())
+        .unwrap()
+        .unwrap();
+    assert_eq!(again.state, "not_written");
+    assert_eq!(again.detail_kind, Some(DetailKind::Drift));
+    assert_eq!(fs::read_to_string(request.path).unwrap(), "external");
+}
+/// 其余失败不写类别：回执与落盘结果里都没有 detailKind 这个键，旧格式的字节不变。
+#[test]
+fn other_rejections_carry_no_detail_kind() {
+    let (_temp, root, request) = fixture();
+    let location = resolve(&root, &request).unwrap();
+    let rejected = apply_with(&root, &request, baseline(), Some(7), |_| {
+        Err(HostError::new(
+            "io",
+            "无法写入文件 chapter.md: 拒绝访问。 (os error 5)",
+        ))
+    })
+    .unwrap();
+    assert_eq!(rejected.detail_kind, None);
+    assert!(serde_json::to_value(&rejected)
+        .unwrap()
+        .get("detailKind")
+        .is_none());
+    assert!(outcome_on_disk(&location).get("detailKind").is_none());
+    assert_eq!(
+        inspect_writeback_receipt(root, request)
+            .unwrap()
+            .unwrap()
+            .detail_kind,
+        None
+    );
+}
+/// canon 派生缓存没清掉：回执带 detail_kind=canon-cache-stale；修复成功后类别随 detail 一起清掉。
+#[test]
+fn canon_cache_warning_is_typed_and_cleared_by_repair() {
+    let (_temp, root, request) = fixture();
+    let derived = Path::new(&root).join(".storyforge/canon/derived");
+    fs::create_dir_all(derived.join("presence.json")).unwrap();
+    let first = apply(&root, &request);
+    assert_eq!(first.detail_kind, Some(DetailKind::CanonCacheStale));
+    assert!(first
+        .detail
+        .as_deref()
+        .unwrap()
+        .starts_with(CANON_INVALIDATION_WARNING));
+    assert_eq!(
+        serde_json::to_value(&first).unwrap()["detailKind"],
+        "canon-cache-stale"
+    );
+    let location = resolve(&root, &request).unwrap();
+    assert_eq!(
+        outcome_on_disk(&location)["detailKind"],
+        "canon-cache-stale"
+    );
+    fs::remove_dir(derived.join("presence.json")).unwrap();
+    let repaired = repair_writeback_canon_cache(root.clone(), request.clone()).unwrap();
+    assert_eq!((repaired.detail, repaired.detail_kind), (None, None));
+    let again = inspect(&location).unwrap().unwrap();
+    assert_eq!((again.detail, again.detail_kind), (None, None));
+}
+/// 加 detail_kind 之前写下的回执没有这个字段：读回时按旧前缀认出类别，修复缓存照常可用。
+#[test]
+fn legacy_outcome_without_detail_kind_is_classified_by_its_old_prefix() {
+    let cases = [
+        (
+            "applied",
+            "canon 派生缓存未失效: 无法删除 presence.json: 拒绝访问。 (os error 5)",
+            Some(DetailKind::CanonCacheStale),
+        ),
+        (
+            "not_written",
+            "磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: D:\\book\\chapter.md",
+            Some(DetailKind::Drift),
+        ),
+        (
+            "not_written",
+            "无法写入文件 chapter.md: 拒绝访问。 (os error 5)",
+            None,
+        ),
+    ];
+    for (state, detail, expected) in cases {
+        let (_temp, root, request) = fixture();
+        apply(&root, &request);
+        let location = resolve(&root, &request).unwrap();
+        let legacy = serde_json::json!({
+            "schemaVersion": 1,
+            "operationId": location.operation_id,
+            "fingerprint": location.fingerprint,
+            "state": state,
+            "detail": detail,
+        });
+        fs::write(
+            record_path(&location, "outcome"),
+            serde_json::to_vec(&legacy).unwrap(),
+        )
+        .unwrap();
+        let receipt = inspect_writeback_receipt(root.clone(), request.clone())
+            .unwrap()
+            .unwrap();
+        assert_eq!(receipt.state, state);
+        assert_eq!(receipt.detail.as_deref(), Some(detail));
+        assert_eq!(receipt.detail_kind, expected, "{detail}");
+        if expected == Some(DetailKind::CanonCacheStale) {
+            let repaired = repair_writeback_canon_cache(root, request).unwrap();
+            assert_eq!((repaired.detail, repaired.detail_kind), (None, None));
+            assert!(record_path(&location, "canon-invalidation").exists());
+        }
+    }
 }
 #[test]
 fn concurrent_same_operation_has_one_dispatch_owner() {
@@ -163,6 +303,7 @@ fn malformed_or_unwritable_intent_never_dispatches() {
     assert!(
         write_file_with_receipt(root, request.clone(), baseline(), Some(7))
             .unwrap_err()
+            .message
             .contains("结果未知")
     );
     assert_eq!(fs::read_to_string(request.path).unwrap(), "before\r\n");
@@ -517,6 +658,7 @@ fn cache_repair_replaces_corrupt_maintenance_marker_but_never_changes_body_outco
         fingerprint: "wrong operation payload".into(),
         state: "invalidated".into(),
         detail: None,
+        detail_kind: None,
     };
     fs::write(
         record_path(&location, "canon-invalidation"),

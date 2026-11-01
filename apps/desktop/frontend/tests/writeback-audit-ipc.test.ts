@@ -70,7 +70,7 @@ it('reads an audit only through Native identity and a project-scoped read, witho
   expect(await TauriFileSystem.readWritebackAudit('D:/Book', request)).toEqual({operationId: applied.operationId, content: 'stored envelope'});
   expect(vi.mocked(invoke).mock.calls).toEqual([
     ['describe_writeback_operation', {projectRoot: 'D:/Book', request}],
-    ['path_exists', {path: `D:/Book/.storyforge/author-loop/${applied.operationId}.md`}],
+    ['project_path_exists', {projectRoot: 'D:/Book', path: `D:/Book/.storyforge/author-loop/${applied.operationId}.md`}],
     ['read_project_file', {projectRoot: 'D:/Book', path: `D:/Book/.storyforge/author-loop/${applied.operationId}.md`}],
   ]);
 });

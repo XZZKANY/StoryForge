@@ -9,6 +9,7 @@ mod fs;
 mod fs_writeback_receipts;
 mod host_close;
 mod host_close_state;
+mod host_error;
 mod llm_config;
 mod llm_config_store;
 mod llm_draft_probe;
@@ -1293,7 +1294,6 @@ fn main() {
         .manage(app_update::StagedUpdate::default())
         .invoke_handler(tauri::generate_handler![
             // 文件系统命令
-            fs::read_file,
             fs::read_project_file,
             fs::engine_reader::resolve_engine_project_path,
             fs::engine_reader::inspect_engine_project_path,
@@ -1307,11 +1307,12 @@ fn main() {
             fs_writeback_receipts::repair_writeback_canon_cache,
             managed_writeback::write_file_with_receipt,
             managed_writeback::create_writeback_audit,
-            fs::list_dir,
+            fs::list_project_dir,
             managed_writeback::delete_path,
             managed_writeback::create_dir,
             managed_writeback::rename_path,
-            fs::path_exists,
+            fs::project_path_exists,
+            fs::project_folder_exists,
             fs::reveal_in_file_manager,
             managed_writeback::copy_into_project,
             fs::read_project_file_base64,

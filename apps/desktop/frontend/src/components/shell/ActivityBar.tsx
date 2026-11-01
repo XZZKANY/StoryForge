@@ -16,6 +16,7 @@ import type { SidePanelView } from './useShellState';
 import { BookOpen, FileText, Inbox, Library, Radar, Search, Settings } from '../icons/shell-icons';
 import type { LucideIcon } from '../icons/shell-icons';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { PlainButton } from '../ui';
 
 type ViewEntry = {
   view: SidePanelView;
@@ -97,7 +98,7 @@ export function ActivityBar({
     const active = view === entry.view && !sidebarHidden;
     const Icon = entry.icon;
     return (
-      <button
+      <PlainButton
         key={entry.view}
         data-testid={`activity-${entry.view}`}
         data-active={active}
@@ -138,7 +139,7 @@ export function ActivityBar({
             {knowledgePendingCount > 99 ? '99+' : knowledgePendingCount}
           </span>
         )}
-      </button>
+      </PlainButton>
     );
   };
 
@@ -160,7 +161,7 @@ export function ActivityBar({
 
       <div className="flex-1" />
 
-      <button
+      <PlainButton
         ref={settingsButtonRef}
         data-testid="activity-settings"
         className="flex h-10 w-10 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-elevated/60 hover:text-foreground active:bg-border-strong/40"
@@ -183,7 +184,7 @@ export function ActivityBar({
         }}
       >
         <Settings size={18} strokeWidth={1.6} />
-      </button>
+      </PlainButton>
 
       {menuPos && settingsMenu && (
         <ContextMenu

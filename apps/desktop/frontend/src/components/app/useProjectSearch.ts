@@ -17,8 +17,7 @@ const DEBOUNCE_MS = 220;
 export type SearchStatus = 'idle' | 'searching' | 'done' | 'error';
 
 /**
- * 项目全文搜索。走 readProjectFile（Rust 侧带路径 containment 校验，见 PR #118），
- * 不用无校验的 read_file。
+ * 项目全文搜索。走 readProjectFile（Rust 侧带路径 containment 校验，见 PR #118）。
  *
  * 取消语义与观测扫描同一纪律：每次搜索递增 seq，过期响应一律丢弃 ——
  * 否则打字快一点就会看到上一次查询的结果盖住这一次的。
@@ -52,7 +51,7 @@ export function useProjectSearch(projectPath: string | null) {
       setSkippedFiles(0);
 
       try {
-        const entries = await TauriFileSystem.listDir(projectPath, true);
+        const entries = await TauriFileSystem.listProjectDir(projectPath, projectPath, true);
         if (seq !== seqRef.current) return;
         const files = entries
           .filter(isVisibleProjectTreeEntry)

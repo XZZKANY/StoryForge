@@ -1,4 +1,5 @@
 import { dumpJson, type JsonObject } from '../kernel/json';
+import { cpLen } from '../kernel/pythonText';
 import {
   ChatMessage,
   ToolCall,
@@ -14,7 +15,6 @@ import {
   type ToolRegistry,
 } from './sdkTools';
 
-const cpLen = (text: string) => Array.from(text).length;
 type MaybePromise<T> = T | Promise<T>;
 
 export type RuntimeTraceEvent = {

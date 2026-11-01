@@ -3,19 +3,18 @@ import {
   InputDomainError,
   isJsonObject,
   JsonFloat,
-  parseJson,
+  parseModelJson,
   pythonFloatRepr,
   pythonTruthy,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
-import { pythonSplitlines, pythonStrip } from '../kernel/pythonText';
+import { codePoints, pythonStrip } from '../kernel/pythonText';
 import { envValue, providerFamily, type LlmSource } from '../llm/config';
 import { RunInterrupted } from '../llm/control';
 import { pythonStrRepr } from '../llm/pythonRepr';
 import { RequestEvidenceError } from '../loop/requestEvidence';
 import { JUDGE_FEW_SHOT, JUDGE_SYSTEM_PROMPT } from './prompts';
-
-type Obj = { [key: string]: unknown };
 
 /** 语义评审入参（judge.schemas.SemanticJudgeInput，不落 judge 实体）。 */
 export type SemanticJudgeInput = {
@@ -90,71 +89,14 @@ export function pythonInt(value: unknown): number {
   );
 }
 
-const points = (text: string) => Array.from(text);
-
 /** 从模型响应里取 JSON：纯 JSON、代码块包裹、夹在说明文字里的第一个数组。 */
 function decodeSemanticJudgeContent(rawContent: string): unknown {
-  const stripped = pythonStrip(rawContent);
-  const tryParse = (text: string) => {
-    try {
-      return { ok: true as const, value: parseJson(text, 'judge') as unknown };
-    } catch (error) {
-      if (!(error instanceof InputDomainError)) throw error;
-      return { ok: false as const };
-    }
-  };
-  const direct = tryParse(stripped);
-  if (direct.ok) return direct.value;
-  const fenced = stripJsonMarkdownFence(stripped);
-  if (fenced !== stripped) {
-    const parsed = tryParse(fenced);
-    if (parsed.ok) return parsed.value;
+  try {
+    return parseModelJson(rawContent, { source: 'judge', fence: 'strictLines' });
+  } catch (error) {
+    if (!(error instanceof InputDomainError)) throw error;
   }
-  const fragment = firstJsonArrayFragment(stripped);
-  if (fragment !== null) return parseJson(fragment, 'judge');
-  return parseJson(stripped, 'judge');
-}
-
-function stripJsonMarkdownFence(content: string): string {
-  const lines = pythonSplitlines(content);
-  if (
-    lines.length >= 2 &&
-    ['```json', '```'].includes(pythonStrip(lines[0]).toLowerCase()) &&
-    pythonStrip(lines[lines.length - 1]) === '```'
-  )
-    return pythonStrip(lines.slice(1, -1).join('\n'));
-  return content;
-}
-
-/** 文本里的第一个 JSON 数组片段（认得字符串里的转义与括号）。 */
-function firstJsonArrayFragment(content: string): string | null {
-  const start = content.indexOf('[');
-  if (start < 0) return null;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let index = start; index < content.length; index++) {
-    const char = content[index];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === '\\') {
-      escaped = true;
-      continue;
-    }
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (char === '[') depth += 1;
-    else if (char === ']') {
-      depth -= 1;
-      if (depth === 0) return content.slice(start, index + 1);
-    }
-  }
-  return null;
+  return parseModelJson(rawContent, { source: 'judge', locate: 'balancedArray' });
 }
 
 /** 以 matched_text 反查正文真实偏移；多处命中取离模型自报位置最近的一处（码点下标）。 */
@@ -163,7 +105,7 @@ function locateMatchedSpan(
   matchedText: string,
   hintStart: number,
 ): [number, number] | null {
-  const needle = points(pythonStrip(matchedText));
+  const needle = codePoints(pythonStrip(matchedText));
   if (!needle.length) return null;
   let best: [number, number] | null = null;
   for (let index = 0; index + needle.length <= content.length; index++) {
@@ -176,7 +118,7 @@ function locateMatchedSpan(
 
 /** 模型条目规整成内部问题，越界位置一律夹回正文范围。 */
 function issueFromLlmItem(item: Obj, content: string): DetectedIssue {
-  const chars = points(content);
+  const chars = codePoints(content);
   const has = (key: string) => Object.prototype.hasOwnProperty.call(item, key);
   let spanStart = Math.max(
     0,

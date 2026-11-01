@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 import type { Observation } from '../shell/ObsPanel';
 import { emitLocateInEditor } from '../../lib/assistant-events';
+import { joinPath } from '../../lib/fs-path-ops';
 import type { ObservationAnchor } from '../../lib/observations';
 
 type EditorNavigationOptions = {
@@ -45,9 +46,7 @@ export function useEditorNavigation({
       if (!project) return;
       // 定位原文要落在中栏编辑器；对话聚焦态隐藏中栏时先落回 balanced，否则定位落空。
       showEditor();
-      const separator = project.includes('\\') ? '\\' : '/';
-      const relativePath = anchor.path.split('/').join(separator);
-      const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath}`;
+      const absolutePath = joinPath(project, anchor.path);
       if (displayedFile !== absolutePath) void openFile(absolutePath, '定位观测');
       emitLocateInEditor({ filePath: absolutePath, line: anchor.line, snippet: anchor.snippet });
     },
@@ -68,10 +67,7 @@ export function useEditorNavigation({
       const project = activeProject;
       if (!project) return;
       showEditor();
-      const separator = project.includes('\\') ? '\\' : '/';
-      const absolutePath = `${project.replace(/[\\/]+$/, '')}${separator}${relativePath
-        .split('/')
-        .join(separator)}`;
+      const absolutePath = joinPath(project, relativePath);
       if (displayedFile !== absolutePath) void openFile(absolutePath, '打开章节');
     },
     [showEditor, displayedFile, openFile, activeProject],

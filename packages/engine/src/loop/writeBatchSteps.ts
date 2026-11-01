@@ -1,13 +1,13 @@
+import { countProseChars } from '@storyforge/project-core';
 import { chapterHeadingTitle } from '../kernel/bookBreakdown';
 import { chapterOrdinals } from '../kernel/canonRebuild';
 import { FACTS_LEDGER_PATH } from '../kernel/factLedger';
 import { resolveProjectRoot } from '../kernel/fsTools';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { sha256Hex } from '../kernel/sha256';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { ProjectReadError, readProjectText, stripBom, type ProjectReader } from '../readPort';
 import type { ArtifactRecord } from '../store/runs';
 import type { ProjectWriter } from '../writePort';
-import { chapterChars } from './chapterCheckProtocol';
 import {
   CHAPTER_BRIEF_ARTIFACT_KIND,
   CHAPTER_CHECK_ARTIFACT_KIND,
@@ -390,12 +390,9 @@ async function fileFingerprint(
 ): Promise<{ sha256: string; chars: number } | null> {
   try {
     if ((await reader.inspectProjectPath(root, relative)).targetKind !== 'file') return null;
-    const read = await reader.readProjectBytes(root, relative, MAX_READ_BYTES);
-    if (read.exceeded) throw new WriteBatchError(`${relative} 超过 2 MiB，不像一章正文。`);
-    return {
-      sha256: sha256Hex(read.bytes),
-      chars: chapterChars(new TextDecoder('utf-8').decode(read.bytes)),
-    };
+    const read = await readProjectText(reader, root, relative, MAX_READ_BYTES);
+    if (read === null) throw new WriteBatchError(`${relative} 超过 2 MiB，不像一章正文。`);
+    return { sha256: sha256Hex(read.bytes), chars: countProseChars(read.text) };
   } catch (error) {
     if (error instanceof ProjectReadError) return null;
     throw error;
@@ -410,9 +407,8 @@ async function headingTitleOnDisk(
 ): Promise<string | null> {
   try {
     if ((await reader.inspectProjectPath(root, relative)).targetKind !== 'file') return null;
-    const read = await reader.readProjectBytes(root, relative, MAX_READ_BYTES);
-    if (read.exceeded) return null;
-    return chapterHeadingTitle(new TextDecoder('utf-8').decode(read.bytes));
+    const read = await readProjectText(reader, root, relative, MAX_READ_BYTES);
+    return read === null ? null : chapterHeadingTitle(stripBom(read.text));
   } catch (error) {
     if (error instanceof ProjectReadError) return null;
     throw error;

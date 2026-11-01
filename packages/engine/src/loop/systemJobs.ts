@@ -1,4 +1,11 @@
-import { compactText, PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { isObj, type Obj } from '../kernel/json';
+import {
+  compactText,
+  cpLen,
+  optionalString,
+  PYTHON_WHITESPACE,
+  pythonStrip,
+} from '../kernel/pythonText';
 import type { SecretContext } from '../kernel/redaction';
 import type { ChatResponse } from '../llm/contracts';
 import { RunInterrupted, type RunControl } from '../llm/control';
@@ -21,11 +28,6 @@ import {
   type ConversationSources,
   type MessageRow,
 } from './conversationHistory';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
 
 export const TITLE_JOB_NAME = 'conversation.title.generate';
 export const SUMMARY_JOB_NAME = 'conversation.summary.update';
@@ -68,9 +70,6 @@ function shouldUpdateTitle(title: string): boolean {
   return !stripped || stripped === DEFAULT_TITLE || stripped.startsWith('IDE Agent:');
 }
 
-const strippedText = (value: unknown): string | null =>
-  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
-
 function messageRecords(messages: readonly MessageRow[]): MessageRecord[] {
   return messages
     .filter((message) => typeof message.role === 'string' && typeof message.content === 'string')
@@ -95,7 +94,7 @@ function lastRoleMessage(records: MessageRecord[], role: string): string | null 
 
 function titleJob(sessionId: number, currentTitle: string, records: MessageRecord[], result: Obj) {
   const first = firstUserMessage(records);
-  const sourceText = first ?? strippedText(result.user_message) ?? currentTitle;
+  const sourceText = first ?? optionalString(result.user_message) ?? currentTitle;
   const output: Obj = {
     job_name: TITLE_JOB_NAME,
     actor: 'system-title-agent',
@@ -124,7 +123,7 @@ function summaryJob(sessionId: number, records: MessageRecord[], result: Obj): S
   const toolTrace = Array.isArray(result.tool_trace) ? result.tool_trace : [];
   const report = isObj(agent.review_report) ? agent.review_report : {};
   const issues = Array.isArray(report.issues) ? report.issues : [];
-  const summary = strippedText(agent.summary) ?? 'AI 已完成。';
+  const summary = optionalString(agent.summary) ?? 'AI 已完成。';
   const payload: Obj = {
     kind: SYSTEM_SUMMARY_ARTIFACT_KIND,
     job_name: SUMMARY_JOB_NAME,

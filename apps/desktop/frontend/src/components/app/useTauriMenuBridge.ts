@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { isTauriRuntime } from '../../lib/tauri-env';
+import { useAsyncEffect } from '../../lib/async-guards';
+import { isTauriRuntime, loadHostEventListen, type HostEventListen } from '../../lib/tauri-env';
 
 /**
  * Tauri 事件通道就绪探针 + 冒烟复位钩子。
@@ -23,23 +24,22 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     callbacksRef.current = { onRestoreFullLayout };
   });
 
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     if (!isTauriRuntime()) return;
 
-    let isCancelled = false;
     const unlistenFns: Array<() => void> = [];
 
     const registerMenuListeners = async () => {
-      let listen: typeof import('@tauri-apps/api/event').listen;
+      let listen: HostEventListen;
       try {
-        ({ listen } = await import('@tauri-apps/api/event'));
+        listen = await loadHostEventListen();
       } catch (error) {
         setTauriMenuError(
           error instanceof Error ? error.message : 'Failed to import Tauri event API',
         );
         return;
       }
-      if (isCancelled) return;
+      if (!isCurrent()) return;
 
       setIsDesktopRuntime(true);
 
@@ -60,7 +60,6 @@ export function useTauriMenuBridge({ onRestoreFullLayout }: { onRestoreFullLayou
     void registerMenuListeners();
 
     return () => {
-      isCancelled = true;
       setIsDesktopRuntime(false);
       setTauriMenuReady(false);
       setTauriMenuError('');

@@ -28,3 +28,33 @@ export function compactText(value: unknown, limit: number): string {
   if (points.length <= limit) return text;
   return points.slice(0, limit).join('').replace(TRAILING_WHITESPACE, '') + '...';
 }
+
+/** Python `len(str)` 按码点计。 */
+export const cpLen = (text: string) => Array.from(text).length;
+export const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
+export const codePoints = (text: string) => Array.from(text);
+
+/** _text.string_arg_list：只取非空字符串并去空白。 */
+export const stringArgList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string' && Boolean(pythonStrip(item)))
+        .map(pythonStrip)
+    : [];
+
+export const orderedUnique = (values: readonly string[]): string[] => [...new Set(values)];
+
+/** 字符串去空白后非空就返回去空白后的值，否则 null。 */
+export const optionalString = (value: unknown): string | null =>
+  typeof value === 'string' && pythonStrip(value) ? pythonStrip(value) : null;
+
+export const countOf = (text: string, part: string) => text.split(part).length - 1;
+
+/** Python `text.strip('\n')`。 */
+export const stripNewlines = (text: string) => text.replace(/^\n+|\n+$/g, '');
+
+/** 超出 limit 个码点就保留开头、再加「……」。 */
+export const clipWithEllipsis = (text: string, limit: number) => {
+  const points = Array.from(text);
+  return points.length > limit ? `${points.slice(0, limit).join('')}……` : text;
+};

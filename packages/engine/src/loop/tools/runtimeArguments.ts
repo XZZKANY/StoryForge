@@ -1,22 +1,14 @@
-import { compareCodePoints, JsonFloat } from '../../kernel/json';
+import { compareCodePoints, isObj, isPyInt, JsonFloat, type Obj } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
-import { compactText, pythonStrip } from '../../kernel/pythonText';
+import { compactText, cpLen, optionalString, pythonStrip } from '../../kernel/pythonText';
 import {
   isSensitiveKey,
   REDACTED,
   redactSensitiveText,
   type SecretContext,
 } from '../../kernel/redaction';
-import { AgentOrchestrationError, optionalString } from '../runPayloads';
+import { AgentOrchestrationError } from '../runPayloads';
 import { listLoopToolSpecs } from './catalog';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
-/** Python 的 int 包含 bool；非整数的 number 视为 float。 */
-const isPyInt = (value: unknown): value is number | boolean =>
-  typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
 
 /** 后端独占的参数：模型给了也在进执行与证据之前丢掉。 */
 export const PROTECTED_LOOP_TOOL_ARGUMENT_KEYS = new Set([
@@ -174,13 +166,6 @@ export function llmContextInputSummary(snapshot: unknown): Obj {
     },
   };
 }
-
-export const stringList = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value
-        .filter((item): item is string => typeof item === 'string' && Boolean(pythonStrip(item)))
-        .map(pythonStrip)
-    : [];
 
 export const dictList = (value: unknown): Obj[] =>
   Array.isArray(value) ? value.filter(isObj) : [];

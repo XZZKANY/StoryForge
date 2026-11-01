@@ -1,4 +1,5 @@
-import { cloneJson, type JsonValue } from '../kernel/json';
+import { cloneJson, isObj, type JsonValue, type Obj } from '../kernel/json';
+import { optionalString } from '../kernel/pythonText';
 import { normalizeAgentRoleInputs } from '../kernel/roleCatalog';
 import {
   redactSensitive,
@@ -26,13 +27,11 @@ import {
   AGENT_RUN_INTERRUPTED,
   AGENT_RUN_STARTED,
   AGENT_RUNTIME_PROGRESS,
-  AgentOrchestrationError,
   budgetSummary,
   currentPlanStep,
   executionResultPayload,
   messageInputSummary,
   optionalPositiveInt,
-  optionalString,
   payloadMessageText,
   PERMISSION_REQUIRED,
   scopeSummary,
@@ -52,9 +51,6 @@ import {
   type AgentToolTrace,
 } from './traces';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const deepCopy = <T>(value: T): T => cloneJson(value as JsonValue) as T;
 /** 整数列：Python 的 True 是 int 1，落库后读回就是 1。 */
 const sessionColumn = (value: unknown): number | null => {
@@ -737,5 +733,3 @@ export class AgentRunEventSink {
     return buildRuntimeInterruptionPayload(await this.services.store.getRun(run.id), boundary);
   }
 }
-
-export { AgentOrchestrationError };

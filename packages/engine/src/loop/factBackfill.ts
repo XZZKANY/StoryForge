@@ -7,10 +7,10 @@ import {
   type FactCandidate,
 } from '../kernel/factLedger';
 import { resolveProjectRoot } from '../kernel/fsTools';
-import { isJsonObject, type JsonObject } from '../kernel/json';
+import { isJsonObject, type JsonObject, type Obj } from '../kernel/json';
 import { MAX_READ_BYTES } from '../kernel/projectTree';
 import { pythonStrip } from '../kernel/pythonText';
-import { ProjectReadError, type ProjectReader } from '../readPort';
+import { readOptionalProjectText, type ProjectReader } from '../readPort';
 import {
   FACT_EXTRACTION_SYSTEM_PROMPT,
   factExtractionPrompt,
@@ -18,8 +18,6 @@ import {
   parseFactExtraction,
 } from './chapterCheckProtocol';
 import { canonicalNames, conflictSummaries } from './factRecord';
-
-type Obj = { [key: string]: unknown };
 
 /** 一次补录最多几章：每章一次模型调用，书长了不能一点就几百次。 */
 export const MAX_BACKFILL_CHAPTERS = 20;
@@ -36,21 +34,6 @@ export type FactBackfillDeps = {
   readonly newHex: () => string;
   readonly callModel: FactModel;
 };
-
-async function chapterContent(
-  reader: ProjectReader,
-  root: string,
-  path: string,
-): Promise<string | null> {
-  try {
-    const read = await reader.readProjectBytes(root, path, MAX_READ_BYTES);
-    if (read.exceeded) return null;
-    return new TextDecoder('utf-8', { ignoreBOM: true }).decode(read.bytes);
-  } catch (error) {
-    if (error instanceof ProjectReadError) return null;
-    throw error;
-  }
-}
 
 /**
  * 还没记账的章（按阅读序，前面的在前）：台账里一条都没有出自它、也没记过「抽过了」、正文不是空的。
@@ -72,7 +55,7 @@ export async function unrecordedChapters(
   const chapters: Obj[] = [];
   for (const [path, ordinal] of await chapterOrdinals(reader, root, '*.md', platform)) {
     if (recorded.has(path)) continue;
-    const content = await chapterContent(reader, root, path);
+    const content = await readOptionalProjectText(reader, root, path, MAX_READ_BYTES);
     if (content !== null && pythonStrip(content)) chapters.push({ path, ordinal });
   }
   return chapters;
@@ -110,7 +93,7 @@ export async function prepareFactBackfill(
   for (const [index, path] of paths.entries()) {
     onProgress?.(index, paths.length, path);
     const base = { path, ordinal: ordinal(path) };
-    const content = await chapterContent(reader, root, path);
+    const content = await readOptionalProjectText(reader, root, path, MAX_READ_BYTES);
     if (content === null) {
       chapters.push({ ...base, status: 'failed', message: '读不到这章正文。' });
       continue;

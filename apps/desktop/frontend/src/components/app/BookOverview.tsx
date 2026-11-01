@@ -19,6 +19,7 @@ import { useChapterHandoff } from './useChapterHandoff';
 import type { ObservatoryPromises } from '../../lib/observations';
 import { BookOpen, ChevronRight, FileText, RefreshCw, Sparkles } from '../icons/shell-icons';
 import { LiveStatus } from '../shell/LiveStatus';
+import { Button, PlainButton, Spinner } from '../ui';
 
 const OVERVIEW_CHAPTER_LIMIT = 8;
 
@@ -82,15 +83,14 @@ function ContextStatus({
     >
       <span className="min-w-0 flex-1">{text}</span>
       {availability === 'error' && onRefresh ? (
-        <button
-          type="button"
+        <Button
+          size="compact"
           onClick={onRefresh}
-          className="inline-flex h-6 items-center gap-1 rounded-md border border-border-strong px-2 text-2xs text-foreground hover:bg-elevated"
+          leadingIcon={<Spinner icon={RefreshCw} spinning={refreshing} size={11} />}
           data-testid="book-overview-refresh-context"
         >
-          <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />
           重试
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -213,8 +213,7 @@ export function BookOverview({
         />
 
         {pendingPatchCount > 0 && onOpenPendingPatches ? (
-          <button
-            type="button"
+          <PlainButton
             onClick={onOpenPendingPatches}
             className="flex w-full items-center gap-3 rounded-lg border border-agent/40 bg-agent/10 px-4 py-3.5 text-left transition-colors hover:bg-agent/15"
             data-testid="book-overview-pending-patches"
@@ -226,12 +225,11 @@ export function BookOverview({
               有 {pendingPatchCount} 个待确认修订
             </span>
             <ChevronRight size={16} className="text-muted" aria-hidden="true" />
-          </button>
+          </PlainButton>
         ) : null}
 
         {agentRun && onOpenAgentRun ? (
-          <button
-            type="button"
+          <PlainButton
             onClick={onOpenAgentRun}
             className="flex w-full items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3.5 text-left transition-colors hover:bg-warning/15"
             data-testid="book-overview-agent-run"
@@ -269,7 +267,7 @@ export function BookOverview({
               </span>
             </span>
             <ChevronRight size={16} className="mt-1 flex-shrink-0 text-muted" aria-hidden="true" />
-          </button>
+          </PlainButton>
         ) : null}
 
         {!chapterIndex ? (
@@ -288,13 +286,9 @@ export function BookOverview({
             <span className="min-w-0 flex-1">
               章节索引读取失败：{chapterIndex.error ?? '未知错误'}
             </span>
-            <button
-              type="button"
-              onClick={chapterIndex.refresh}
-              className="rounded-md border border-error/40 px-2 py-1 text-2xs hover:bg-error/10"
-            >
+            <Button onClick={chapterIndex.refresh} size="xs">
               重试
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -328,8 +322,7 @@ export function BookOverview({
               <ul className="space-y-1 pb-2">
                 {recentChapters.map((chapter) => (
                   <li key={chapter.relativePath} className="stagger-item">
-                    <button
-                      type="button"
+                    <PlainButton
                       disabled={!onOpenChapter}
                       onClick={() => onOpenChapter?.(chapter.relativePath)}
                       className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
@@ -344,7 +337,7 @@ export function BookOverview({
                       <span className="text-2xs tabular-nums text-subtle">
                         {rowCharsLabel(chapter)}
                       </span>
-                    </button>
+                    </PlainButton>
                   </li>
                 ))}
               </ul>
@@ -366,8 +359,7 @@ export function BookOverview({
             )}
             {hasMoreChapters ? (
               <div className="px-4 py-3">
-                <button
-                  type="button"
+                <PlainButton
                   onClick={() => (onOpenAllChapters ?? onContinueWriting)()}
                   className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-muted transition-colors hover:bg-elevated hover:text-foreground"
                   data-testid="book-overview-view-all-chapters"
@@ -377,15 +369,14 @@ export function BookOverview({
                     打开手稿视图
                     <ChevronRight size={13} aria-hidden="true" />
                   </span>
-                </button>
+                </PlainButton>
               </div>
             ) : null}
             {onDraftNextChapter &&
             recentChapters.length > 0 &&
             chapterIndex?.status !== 'loading' ? (
               <div className="px-4 pb-3">
-                <button
-                  type="button"
+                <PlainButton
                   onClick={onDraftNextChapter}
                   className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs text-agent transition-colors hover:bg-agent/10"
                   data-testid="book-overview-draft-next"
@@ -395,7 +386,7 @@ export function BookOverview({
                     AI 起草下一章 · 第 {nextChapterOrdinal} 章
                   </span>
                   <ChevronRight size={13} className="text-subtle" aria-hidden="true" />
-                </button>
+                </PlainButton>
               </div>
             ) : null}
           </div>
@@ -422,22 +413,21 @@ export function BookOverview({
             ) : profile.outlineError ? (
               <div role="alert" className="p-4 text-xs text-error">
                 <p className="break-words">大纲读取失败：{profile.outlineError}</p>
-                <button
-                  type="button"
+                <Button
                   onClick={onRefresh}
                   disabled={profile.refreshing}
-                  className="mt-3 rounded-md border border-error/40 px-2 py-1 hover:bg-error/10 disabled:opacity-50"
+                  size="xs"
+                  className="mt-3"
                   data-testid="book-overview-retry-outline"
                 >
                   重新读取大纲
-                </button>
+                </Button>
               </div>
             ) : outlineItems.length > 0 ? (
               <ul className="space-y-1 pb-2">
                 {outlineItems.map((entry) => (
                   <li key={`${entry.path}:${entry.line}`} className="stagger-item">
-                    <button
-                      type="button"
+                    <PlainButton
                       disabled={!onOpenOutline}
                       onClick={() => onOpenOutline?.(entry.path, entry.line)}
                       className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors hover:bg-elevated disabled:cursor-default"
@@ -451,7 +441,7 @@ export function BookOverview({
                         className="flex-shrink-0 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
                         aria-hidden="true"
                       />
-                    </button>
+                    </PlainButton>
                   </li>
                 ))}
               </ul>

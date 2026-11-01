@@ -1,16 +1,12 @@
 import { MAX_CONTEXT_FILES } from '../kernel/contextValues';
 import { FsToolError, nativeProjectPath, resolveScopedPath } from '../kernel/fsTools';
 import { MAX_MANIFEST_BYTES, selectionSha256 } from '../kernel/generationSources';
-import { dumpJson, pythonEquals, type JsonValue } from '../kernel/json';
+import { dumpJson, isObj, pythonEquals, type JsonValue } from '../kernel/json';
 import { projectKnowledgeRecoveryReceipt } from '../kernel/knowledgeContext';
 import { retrieveProjectKnowledge } from '../kernel/knowledgeRetrieval';
 import { collectOrdinaryContext } from '../kernel/ordinaryContext';
 import type { SecretContext } from '../kernel/redaction';
 import { ProjectReadError, type ProjectReader } from '../readPort';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 type RecoveryDeps = {
   readonly reader: ProjectReader;

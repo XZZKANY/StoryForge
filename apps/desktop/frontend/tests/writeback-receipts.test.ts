@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { DiskDriftError } from '../src/lib/host-file-errors';
 import { performReceiptedWriteback } from '../src/lib/writeback-receipts';
-import type { WritebackReceipt } from '../src/lib/writeback-receipt-types';
+import { decodeWritebackReceipt, type WritebackReceipt } from '../src/lib/writeback-receipt-types';
 
 const applied: WritebackReceipt = {
   operationId: 'a'.repeat(64),
@@ -120,5 +121,68 @@ describe('已写入正文的缓存专用恢复', () => {
     expect(result.receipt.detail).toContain('canon 派生缓存未失效');
     expect(fx.write).not.toHaveBeenCalled();
     expect(fx.record).toHaveBeenCalledOnce();
+  });
+  it('按 detailKind 认缓存未失效，不看 detail 文字', async () => {
+    const fx = {
+      ...effects({ ...applied, detail: 'locked', detailKind: 'canon-cache-stale' }),
+      repairCaches: vi.fn(async () => applied),
+    };
+    const result = await performReceiptedWriteback(true, fx);
+    expect(fx.repairCaches).toHaveBeenCalledOnce();
+    expect(result.receipt).toEqual(applied);
+  });
+});
+
+describe('回执里的失败类别', () => {
+  const notWritten: WritebackReceipt = {
+    ...applied,
+    state: 'not_written',
+    current: 'diverged',
+    detail: 'drift before rename',
+  };
+  const rejection = (fx: ReturnType<typeof effects>) =>
+    performReceiptedWriteback(true, fx).then(
+      () => {
+        throw new Error('应当被拒');
+      },
+      (error: unknown) => error,
+    );
+
+  it('新写入当场返回漂移回执：翻成 DiskDriftError，文字照旧带上', async () => {
+    const fx = effects();
+    fx.write.mockResolvedValueOnce({ ...notWritten, detailKind: 'drift' });
+    const error = await rejection(fx);
+    expect(error).toBeInstanceOf(DiskDriftError);
+    expect((error as Error).message).toBe(
+      '上次写入被拒绝，文件没有改动；请重新读取并生成修订。drift before rename',
+    );
+    expect(fx.record).not.toHaveBeenCalled();
+  });
+  it('恢复出落盘的漂移回执：同样是 DiskDriftError，不再写', async () => {
+    const fx = effects({ ...notWritten, detailKind: 'drift' });
+    expect(await rejection(fx)).toBeInstanceOf(DiskDriftError);
+    expect(fx.write).not.toHaveBeenCalled();
+  });
+  it('其余被拒（没有类别）仍是普通错误', async () => {
+    const error = await rejection(effects(notWritten));
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(DiskDriftError);
+  });
+  it('旧回执没有 detailKind：读回执时按旧前缀认一次', () => {
+    const drift = '磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: D:\\book\\chapter.md';
+    expect(decodeWritebackReceipt({ ...notWritten, detail: drift }).detailKind).toBe('drift');
+    expect(
+      decodeWritebackReceipt({ ...applied, detail: 'canon 派生缓存未失效: locked' }).detailKind,
+    ).toBe('canon-cache-stale');
+    expect(decodeWritebackReceipt(notWritten).detailKind).toBeUndefined();
+  });
+  it('没有要补的类别时原样返回同一个回执', () => {
+    for (const receipt of [applied, notWritten, { ...notWritten, detailKind: 'drift' as const }])
+      expect(decodeWritebackReceipt(receipt)).toBe(receipt);
+  });
+  it('认不出的 detailKind 当回执无效', async () => {
+    const fx = effects({ ...applied, detailKind: 'future' } as unknown as WritebackReceipt);
+    await expect(performReceiptedWriteback(true, fx)).rejects.toThrow(/回执/);
+    expect(fx.record).not.toHaveBeenCalled();
   });
 });

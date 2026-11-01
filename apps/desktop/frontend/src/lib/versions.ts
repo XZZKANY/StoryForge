@@ -5,6 +5,7 @@
  * app-local 影子 Git tree 内容寻址保存。旧 .snapshot.md 继续读取，不做破坏性迁移。
  */
 
+import { joinPath } from './fs-path-ops';
 import type { FileEntry } from './tauri-fs';
 import { TauriFileSystem } from './tauri-fs';
 import { relativePathInsideProject } from './project/path';
@@ -76,14 +77,6 @@ type StoredVersionMetadata = VersionSnapshotMetadata & {
   recordId?: string;
 };
 
-function sep(projectPath: string): string {
-  return projectPath.includes('\\') ? '\\' : '/';
-}
-
-function normalizeRoot(projectPath: string): string {
-  return projectPath.replace(/[/\\]+$/, '');
-}
-
 /** 某个文件的版本目录。剧情分支画布的分支清单也落在这里。 */
 export function versionDirFor(projectPath: string, filePath: string): string | null {
   const relative = relativePathInsideProject(projectPath, filePath);
@@ -92,15 +85,13 @@ export function versionDirFor(projectPath: string, filePath: string): string | n
 }
 
 function versionDirForRelative(projectPath: string, relative: string): string {
-  const s = sep(projectPath);
-  const safeRelative = relative.split(/[/\\]/).join(s);
-  return [normalizeRoot(projectPath), ...VERSION_ROOT.split('/'), safeRelative].join(s);
+  return joinPath(projectPath, VERSION_ROOT, relative);
 }
 
 async function readLineage(projectPath: string, dir: string): Promise<string[]> {
   try {
     const parsed = JSON.parse(
-      await TauriFileSystem.readFile(`${dir}${sep(projectPath)}${LINEAGE_FILE}`),
+      await TauriFileSystem.readProjectFile(projectPath, joinPath(dir, LINEAGE_FILE)),
     ) as { previous?: unknown };
     return Array.isArray(parsed.previous)
       ? parsed.previous.filter((name): name is string => typeof name === 'string')
@@ -131,15 +122,15 @@ export async function recordRenameLineage(
     const unique = [...new Map(previous.map((name) => [normalizeRelative(name), name])).values()];
     await TauriFileSystem.writeFile(
       projectPath,
-      `${toDir}${sep(projectPath)}${LINEAGE_FILE}`,
+      joinPath(toDir, LINEAGE_FILE),
       `${JSON.stringify({ previous: unique }, null, 2)}\n`,
     );
   }
 }
 
-async function targetFileExists(filePath: string): Promise<boolean> {
+async function targetFileExists(projectPath: string, filePath: string): Promise<boolean> {
   try {
-    return await TauriFileSystem.pathExists(filePath);
+    return await TauriFileSystem.projectPathExists(projectPath, filePath);
   } catch {
     // 是否存在决定恢复时会不会删除，探测失败时保守地视为已存在。
     return true;
@@ -174,7 +165,7 @@ export async function snapshotBeforeWrite(
 ): Promise<{ path: string; timestamp: number; created: boolean } | null> {
   if (!projectPath) return null;
   if (!versionDirFor(projectPath, filePath)) return null;
-  const created = !(await targetFileExists(filePath));
+  const created = !(await targetFileExists(projectPath, filePath));
   const snapshot = await createShadowSnapshot(projectPath, deliveryTicket);
   return await recordShadowVersion(
     projectPath,
@@ -216,11 +207,10 @@ async function recordShadowVersion(
   const relativeFile = relativePathInsideProject(projectPath, filePath);
   if (!dir || !relativeFile) return null;
   const checkpoint = metadata.checkpoint === true;
-  const s = sep(projectPath);
-  const targetDir = checkpoint ? `${dir}${s}${CHECKPOINT_DIR}` : dir;
+  const targetDir = checkpoint ? joinPath(dir, CHECKPOINT_DIR) : dir;
   const timestamp = nextTimestamp();
   const recordId = nextRecordId(timestamp);
-  const metaPath = `${targetDir}${s}${timestamp}${META_SUFFIX}`;
+  const metaPath = joinPath(targetDir, `${timestamp}${META_SUFFIX}`);
   const stored: StoredVersionMetadata = {
     schemaVersion: 2,
     storage: 'shadow-git',
@@ -267,7 +257,6 @@ export async function listVersions(
   const dir = versionDirFor(projectPath, filePath);
   const relativeFile = relativePathInsideProject(projectPath, filePath);
   if (!dir || !relativeFile) return [];
-  const s = sep(projectPath);
   // 改过名的文件：以前的名字下记的版本一并列出，内容仍按当时的路径从影子树里取。
   const previous = (await readLineage(projectPath, dir)).filter(
     (name) => normalizeRelative(name) !== normalizeRelative(relativeFile),
@@ -277,8 +266,8 @@ export async function listVersions(
       { dir, file: relativeFile },
       ...previous.map((name) => ({ dir: versionDirForRelative(projectPath, name), file: name })),
     ].flatMap((source) => [
-      readVersionDir(source.dir, source.file, false),
-      readVersionDir(`${source.dir}${s}${CHECKPOINT_DIR}`, source.file, true),
+      readVersionDir(projectPath, source.dir, source.file, false),
+      readVersionDir(projectPath, joinPath(source.dir, CHECKPOINT_DIR), source.file, true),
     ]),
   );
   const versions = lists.flat().sort((a, b) => b.timestamp - a.timestamp);
@@ -316,13 +305,14 @@ export async function listVersions(
 }
 
 async function readVersionDir(
+  projectPath: string,
   dir: string,
   expectedFile: string,
   checkpoint: boolean,
 ): Promise<VersionEntry[]> {
   let entries: FileEntry[];
   try {
-    entries = await TauriFileSystem.listDir(dir, false);
+    entries = await TauriFileSystem.listProjectDir(projectPath, dir, false);
   } catch {
     return [];
   }
@@ -332,7 +322,7 @@ async function readVersionDir(
   const legacy = await Promise.all(
     files
       .filter((entry) => entry.name.endsWith(SNAPSHOT_SUFFIX))
-      .map((entry) => readLegacyEntry(entry, checkpoint)),
+      .map((entry) => readLegacyEntry(projectPath, entry, checkpoint)),
   );
   const treeBacked = await Promise.all(
     files
@@ -341,19 +331,20 @@ async function readVersionDir(
           entry.name.endsWith(META_SUFFIX) &&
           !names.has(entry.name.slice(0, -META_SUFFIX.length) + SNAPSHOT_SUFFIX),
       )
-      .map((entry) => readTreeEntry(entry, expectedFile, checkpoint)),
+      .map((entry) => readTreeEntry(projectPath, entry, expectedFile, checkpoint)),
   );
   return [...legacy, ...treeBacked].filter((entry): entry is VersionEntry => entry !== null);
 }
 
 async function readLegacyEntry(
+  projectPath: string,
   entry: FileEntry,
   checkpoint: boolean,
 ): Promise<VersionEntry | null> {
   const timestamp = timestampFromName(entry.name, SNAPSHOT_SUFFIX);
   if (timestamp === null) return null;
   const metaPath = entry.path.slice(0, -SNAPSHOT_SUFFIX.length) + META_SUFFIX;
-  const metadata = await readMetadata(metaPath);
+  const metadata = await readMetadata(projectPath, metaPath);
   return entryFromMetadata(
     entry.path,
     { kind: 'legacy-file', path: entry.path },
@@ -364,13 +355,14 @@ async function readLegacyEntry(
 }
 
 async function readTreeEntry(
+  projectPath: string,
   entry: FileEntry,
   expectedFile: string,
   checkpoint: boolean,
 ): Promise<VersionEntry | null> {
   const timestamp = timestampFromName(entry.name, META_SUFFIX);
   if (timestamp === null) return null;
-  const metadata = await readMetadata(entry.path);
+  const metadata = await readMetadata(projectPath, entry.path);
   const treeHash = metadata.treeHash ?? '';
   const storedFile = metadata.file ?? expectedFile;
   let unavailableReason: string | undefined;
@@ -432,9 +424,9 @@ function normalizeRelative(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
 }
 
-async function readMetadata(path: string): Promise<StoredVersionMetadata> {
+async function readMetadata(projectPath: string, path: string): Promise<StoredVersionMetadata> {
   try {
-    return decodeMetadata(JSON.parse(await TauriFileSystem.readFile(path)));
+    return decodeMetadata(JSON.parse(await TauriFileSystem.readProjectFile(projectPath, path)));
   } catch {
     return {};
   }
@@ -495,7 +487,10 @@ export async function readVersionState(
   if (entry.unavailableReason) throw new Error(entry.unavailableReason);
   if (entry.contentRef.kind === 'legacy-file') {
     if (entry.created === true) return { exists: false, content: '' };
-    return { exists: true, content: await TauriFileSystem.readFile(entry.contentRef.path) };
+    return {
+      exists: true,
+      content: await TauriFileSystem.readProjectFile(projectPath, entry.contentRef.path),
+    };
   }
   const state = await readShadowSnapshotFile(
     projectPath,

@@ -1,4 +1,4 @@
-import type { ProjectReader } from '../readPort';
+import { decodeUtf8, stripBom, type ProjectReader } from '../readPort';
 import { platformTextBytes, type ProjectWriter } from '../writePort';
 import { DocxReadError, readDocxText } from './docx';
 import { iterProjectFiles, resolveProjectRoot } from './fsTools';
@@ -8,13 +8,16 @@ import {
   InputDomainError,
   isJsonObject,
   JsonFloat,
+  ModelJsonNotFound,
   parseJson,
   parseJsonBytes,
+  parseModelJson,
   pythonFloatRepr,
   pythonTruthy,
   type JsonValue,
 } from './json';
-import { PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
+import type { LlmPort } from './llmPort';
+import { cpLen, PYTHON_WHITESPACE, pythonSplitlines, pythonStrip } from './pythonText';
 import { sha256Hex } from './sha256';
 import {
   BREAKDOWN_SKILLS_PATH,
@@ -90,11 +93,6 @@ export class BreakdownCancellations {
   }
 }
 
-export type BreakdownLlmPort = (request: {
-  systemPrompt: string;
-  userPrompt: string;
-}) => Promise<{ content: unknown }>;
-
 export type Chapter = {
   chapter_id: string;
   ordinal: number;
@@ -121,7 +119,6 @@ type AnalysisField = {
   confidence: string;
 };
 
-const length = (text: string) => Array.from(text).length;
 const normalizeText = (raw: string) => pythonStrip(raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
 
 /** PurePath.suffix（保留原大小写）。 */
@@ -190,8 +187,6 @@ function hasPythonOnlyLiteral(text: string): boolean {
   return false;
 }
 
-const DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
-
 export async function readBreakdownSource(
   reader: ProjectReader,
   root: string,
@@ -225,7 +220,7 @@ export async function readBreakdownSource(
   }
   if (raw.subarray(0, 1024).includes(0))
     throw new BookBreakdownError(`文件不是可解析文本：${name}`);
-  let text = DECODER.decode(raw);
+  let text = decodeUtf8(raw);
   if (suffix === '.json') {
     try {
       JSON.parse(text);
@@ -299,7 +294,7 @@ const TITLE_SEPARATORS = new RegExp(`^(?:${PYTHON_WHITESPACE}|[:：、，,.．·
  * 再去掉章号后的分隔符。第一个非空行不是 Markdown 标题、或去掉章号后什么都不剩，为 null。
  */
 export function chapterHeadingTitle(text: string): string | null {
-  const first = pythonSplitlines(text.replace(/^\uFEFF/u, '')).find((line) => pythonStrip(line));
+  const first = pythonSplitlines(stripBom(text)).find((line) => pythonStrip(line));
   const line = pythonStrip(first ?? '');
   if (!HEADING_LINE.test(line)) return null;
   const heading = pythonStrip(line.replace(/^#+/u, '').replace(CLOSING_HASHES, ''));
@@ -331,7 +326,7 @@ export async function loadProjectChapters(
     sources.push({
       path: relative,
       sha256: sha256Hex(text),
-      chars: length(text),
+      chars: cpLen(text),
       chapter_count: parsed.length,
     });
     chapters.push(...parsed);
@@ -475,34 +470,18 @@ export function renderBreakdownMarkdown(report: { [key: string]: unknown }): str
   return lines.join('\n');
 }
 
-function stripJsonFence(raw: string): string {
-  let text = pythonStrip(raw);
-  if (text.startsWith('```')) {
-    let lines = pythonSplitlines(text);
-    if (lines.length && lines[0].startsWith('```')) lines = lines.slice(1);
-    if (lines.length && pythonStrip(lines[lines.length - 1]).startsWith('```'))
-      lines = lines.slice(0, -1);
-    text = pythonStrip(lines.join('\n'));
-  }
-  return text;
-}
-
 export function parseModelAnalysis(
   raw: unknown,
   selected: readonly SelectedChapter[],
 ): Record<string, AnalysisField> {
   if (typeof raw !== 'string' || !pythonStrip(raw))
     throw new BookBreakdownError('模型分析返回为空。');
-  const text = stripJsonFence(raw);
   let parsed: JsonValue;
   try {
-    parsed = parseJson(text, 'model output');
+    parsed = parseModelJson(raw, { source: 'model output', fence: 'lines', locate: 'objectSpan' });
   } catch (error) {
-    if (!(error instanceof InputDomainError)) throw error;
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new BookBreakdownError('模型分析不是有效 JSON。');
-    parsed = parseJson(text.slice(start, end + 1), 'model output');
+    if (error instanceof ModelJsonNotFound) throw new BookBreakdownError('模型分析不是有效 JSON。');
+    throw error;
   }
   if (!isJsonObject(parsed)) throw new BookBreakdownError('模型分析顶层必须是 JSON 对象。');
   const refs = selected.map((item) => item.chapter_id);
@@ -563,9 +542,9 @@ export async function selectedContext(
     if (!content) continue;
     const block = `### ${chapter.title ?? '未命名'} [${chapter.reason ?? '结构锚点'}]\n${content}\n`;
     // 放不进预算的章跳过，后面短的章照样带上。
-    if (used + length(block) > maxChars) continue;
+    if (used + cpLen(block) > maxChars) continue;
     chunks.push(block);
-    used += length(block);
+    used += cpLen(block);
   }
   return chunks.join('\n---\n');
 }
@@ -573,7 +552,7 @@ export async function selectedContext(
 export type BreakdownModel = {
   provider: string | null;
   model: string | null;
-  callLlm: BreakdownLlmPort;
+  callLlm: LlmPort;
 };
 
 async function modelAnalysis(

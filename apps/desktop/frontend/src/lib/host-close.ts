@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { useAsyncEffect } from './async-guards';
 import { isTauriRuntime } from './tauri-env';
 import { emitToast } from './toast';
 
@@ -9,20 +10,18 @@ import { emitToast } from './toast';
  * 写回交付票据另由 `native-delivery` 收结；回声失败也不阻塞，宿主的期限独立生效。
  */
 export function useAcknowledgeHostClosing() {
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     if (!isTauriRuntime()) return;
-    let disposed = false;
     let unlisten: (() => void) | undefined;
     void listen('storyforge:host-closing', () => {
       void invoke('acknowledge_host_closing').catch(() => {});
     })
       .then((stop) => {
-        if (disposed) stop();
+        if (!isCurrent()) stop();
         else unlisten = stop;
       })
       .catch(() => {});
     return () => {
-      disposed = true;
       unlisten?.();
     };
   }, []);
@@ -38,9 +37,8 @@ export function useHostCloseGuard(confirm: () => Promise<boolean>) {
   useLayoutEffect(() => {
     confirmRef.current = confirm;
   }, [confirm]);
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     if (!isTauriRuntime()) return;
-    let disposed = false;
     let asking = false;
     let unlisten: (() => void) | undefined;
     void listen<number>('storyforge:close-requested', (event) => {
@@ -59,13 +57,12 @@ export function useHostCloseGuard(confirm: () => Promise<boolean>) {
         });
     })
       .then((stop) => {
-        if (disposed) return stop();
+        if (!isCurrent()) return stop();
         unlisten = stop;
         void invoke('arm_close_guard', { armed: true }).catch(() => {});
       })
       .catch(() => {});
     return () => {
-      disposed = true;
       if (!unlisten) return;
       unlisten();
       void invoke('arm_close_guard', { armed: false }).catch(() => {});
@@ -79,12 +76,11 @@ export function useHostCloseGuard(confirm: () => Promise<boolean>) {
  * 要在挂着 ToastHost 的外壳之上调用：父组件的 effect 晚于子树，通知监听已经就位。
  */
 export function useHostCloseNotice() {
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     if (!isTauriRuntime()) return;
-    let disposed = false;
     void invoke<unknown>('read_host_close_diagnostic')
       .then((value) => {
-        if (disposed || value === null) return;
+        if (!isCurrent() || value === null) return;
         if (!value || typeof value !== 'object' || Array.isArray(value))
           throw new Error('invalid close diagnostic');
         const row = value as Record<string, unknown>;
@@ -103,13 +99,10 @@ export function useHostCloseNotice() {
         );
       })
       .catch(() => {
-        if (!disposed)
+        if (isCurrent())
           emitToast(
             '没读到上次关闭时的记录，请核对最近改过的文件；StoryForge 不会自动重做任何操作。',
           );
       });
-    return () => {
-      disposed = true;
-    };
   }, []);
 }

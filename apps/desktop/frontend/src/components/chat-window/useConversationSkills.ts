@@ -5,6 +5,7 @@ import {
   loadConversationSkills,
   type ConversationSkillItem,
 } from '../../lib/api/conversation-skills';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { PLUGINS_CHANGED_EVENT } from '../../lib/plugin-events';
@@ -40,7 +41,7 @@ export async function createConversationSkillFile(
     `${CONVERSATION_SKILL_DIR}/${skill.name}.md`,
   );
   if (dir === null || file === null) throw new Error('技能的路径不在当前作品里');
-  if (await TauriFileSystem.pathExists(file)) return file;
+  if (await TauriFileSystem.projectPathExists(projectRoot, file)) return file;
   await TauriFileSystem.createDir(projectRoot, dir, true);
   await TauriFileSystem.writeFile(projectRoot, file, skill.content);
   return file;
@@ -88,20 +89,19 @@ export function useConversationSkills(projectPath: string | null) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!projectPath) return;
-    let cancelled = false;
-    const settle = (view: ConversationSkillsView) => {
-      if (!cancelled) setLoaded({ projectPath, view });
-    };
-    loadConversationSkills(projectPath).then(
-      (skills) => settle({ status: 'ready', skills }),
-      (error: unknown) => settle({ status: 'error', message: errorText(error) }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, version]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) return;
+      const settle = (view: ConversationSkillsView) => {
+        if (isCurrent()) setLoaded({ projectPath, view });
+      };
+      loadConversationSkills(projectPath).then(
+        (skills) => settle({ status: 'ready', skills }),
+        (error: unknown) => settle({ status: 'error', message: errorText(error) }),
+      );
+    },
+    [projectPath, version],
+  );
 
   const create = useCallback(
     async (skill: SkillTemplate) => {

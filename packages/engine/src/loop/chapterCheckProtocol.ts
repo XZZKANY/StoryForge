@@ -1,18 +1,17 @@
+import { countProseChars } from '@storyforge/project-core';
 import { FACT_KINDS } from '../kernel/factLedger';
 import {
   dumpJson,
   escapeStrayQuotes,
   InputDomainError,
   isJsonObject,
-  parseJson,
+  parseModelJson,
   type JsonValue,
+  type Obj,
 } from '../kernel/json';
-import { pythonStrip } from '../kernel/pythonText';
-import { locateQuote, QUOTE_WHITESPACE } from '../kernel/quoteLocation';
+import { codePoints, pythonStrip } from '../kernel/pythonText';
+import { locateQuote } from '../kernel/quoteLocation';
 import { sha256Hex } from '../kernel/sha256';
-
-type Obj = { [key: string]: unknown };
-const points = (text: string) => Array.from(text);
 
 /** 带版本、失败即关闭的章节检查：只对确切的草稿与 brief 下结论（chapter_check_protocol）。 */
 export const CHECK_PROTOCOL_VERSION = 2;
@@ -158,43 +157,29 @@ function chapterNumberAdvisories(content: string): Obj[] {
   return found;
 }
 
-const isPyInt = (value: unknown): value is number =>
+// 布尔不算，与 json.ts 的 isPyInt 不同。
+const isIntNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value);
-const CHECK_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 
 function decode(raw: unknown): Obj {
   if (isJsonObject(raw as JsonValue)) return { ...(raw as Obj) };
   if (typeof raw !== 'string') throw new InvalidCheck('检查结果不是有限 JSON。');
-  if (points(raw).length > 256_000) throw new IncompleteCheck('检查结果超过字符预算。');
-  const text = pythonStrip(raw);
-  const fence = CHECK_FENCE.exec(text);
-  const body = fence ? fence[1] : text;
-  const parse = (json: string) => parseJson(json, 'chapter check', { uniqueKeys: true });
+  if (codePoints(raw).length > 256_000) throw new IncompleteCheck('检查结果超过字符预算。');
   let parsed: JsonValue;
   try {
-    try {
-      parsed = parse(body);
-    } catch (error) {
-      if (!(error instanceof InputDomainError)) throw error;
-      // 检查器引用了直引号写的对白却没转义；修过的回复照样走下面每一道校验，猜错只会解析失败。
-      parsed = parse(escapeStrayQuotes(body));
-    }
+    // 检查器引用了直引号写的对白却没转义；修过的回复照样走下面每一道校验，猜错只会解析失败。
+    parsed = parseModelJson(raw, {
+      source: 'chapter check',
+      fence: 'block',
+      uniqueKeys: true,
+      repair: escapeStrayQuotes,
+    });
   } catch (error) {
     if (error instanceof InputDomainError) throw new InvalidCheck(error.message);
     throw error;
   }
   if (!isJsonObject(parsed)) throw new InvalidCheck('检查结果不是对象。');
   return parsed as Obj;
-}
-
-/**
- * 正文字数：空白以外的每个字。把换行也算进去，短段落的稿子会被虚抬一成以上
- * （10-16 真书第 6 章：2826 个汉字算成 3547）。
- */
-export function chapterChars(text: string): number {
-  let count = 0;
-  for (const char of text) if (!QUOTE_WHITESPACE.has(char)) count += 1;
-  return count;
 }
 
 /** 引用必须真在正文里；原文里没有这句判无效。 */
@@ -215,12 +200,12 @@ function validateFinding(item: unknown, content: string, index: number): Obj {
     !['hard', 'advisory'].includes(severity as string)
   )
     throw new InvalidCheck('未知规则或严重性。');
-  if (typeof message !== 'string' || !pythonStrip(message) || points(message).length > 2000)
+  if (typeof message !== 'string' || !pythonStrip(message) || codePoints(message).length > 2000)
     throw new InvalidCheck('问题描述无效。');
-  if (line !== null && (!isPyInt(line) || line < 1)) throw new InvalidCheck('引用行号无效。');
+  if (line !== null && (!isIntNumber(line) || line < 1)) throw new InvalidCheck('引用行号无效。');
   if (
     evidence !== null &&
-    (typeof evidence !== 'string' || !pythonStrip(evidence) || points(evidence).length > 4096)
+    (typeof evidence !== 'string' || !pythonStrip(evidence) || codePoints(evidence).length > 4096)
   )
     throw new InvalidCheck('引用无效。');
   // 改个严重性不能让建议性规则拿到写回权。
@@ -242,11 +227,11 @@ function validateFinding(item: unknown, content: string, index: number): Obj {
 }
 
 const factText = (value: unknown, max: number): value is string =>
-  typeof value === 'string' && pythonStrip(value) !== '' && points(value).length <= max;
+  typeof value === 'string' && pythonStrip(value) !== '' && codePoints(value).length <= max;
 const optionalFactText = (value: unknown) =>
   value === null ||
   value === undefined ||
-  (typeof value === 'string' && points(value).length <= MAX_FACT_FIELD_CHARS);
+  (typeof value === 'string' && codePoints(value).length <= MAX_FACT_FIELD_CHARS);
 
 /** 一条事实：字段齐、类别在词表里、原句真在正文里；任何一处不合格只丢这一条。 */
 function verifiedFact(item: unknown, content: string): Obj | null {
@@ -304,11 +289,11 @@ export function buildCheck(
   const providerFailed = options.providerFailed ?? false;
   const source = checkSource(content, brief);
   const findings: Obj[] = [];
-  const length = points(content).length;
+  const length = codePoints(content).length;
   if (!pythonStrip(content)) findings.push(failure('draft_empty', '正文为空。'));
   const minimum = Math.trunc(Number(brief.target_chars_min));
   const maximum = Math.trunc(Number(brief.target_chars_max));
-  const chars = chapterChars(content);
+  const chars = countProseChars(content);
   // 字数偏离只提示不拦稿：为它整章重写，写出来的往往还是偏（作者 10-25：「不能全重新生成」）。
   // 短到不足下限三成多半是生成坏了（截断、只回了一句），仍当硬失败去修。
   if (chars < Math.trunc(minimum * 0.7) || chars > Math.trunc(maximum * 1.3)) {
@@ -338,7 +323,7 @@ export function buildCheck(
     if (providerFailed) throw new InvalidCheck('检查 provider 未返回结果。');
     const payload = decode(raw);
     if (
-      !isPyInt(payload.protocol_version) ||
+      !isIntNumber(payload.protocol_version) ||
       Object.entries(source).some(([key, value]) => payload[key] !== value)
     )
       throw new InvalidCheck('检查源版本或摘要不匹配，请重新检查当前正文和 brief。');
@@ -393,7 +378,7 @@ export function buildCheck(
     findings,
     checker_reply_excerpt:
       executionStatus !== 'completed' && typeof raw === 'string'
-        ? points(raw).slice(0, MAX_CHECKER_REPLY_EXCERPT).join('')
+        ? codePoints(raw).slice(0, MAX_CHECKER_REPLY_EXCERPT).join('')
         : null,
     ...newFacts,
   };

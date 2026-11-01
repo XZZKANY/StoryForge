@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { FloatingSurface } from '../ui';
+import { MenuItem, MenuSeparator, MenuSurface } from '../ui';
 export type ContextMenuItem =
   | { type: 'separator' }
   | { type?: 'item'; label: string; onSelect: () => void; danger?: boolean; disabled?: boolean };
@@ -19,30 +19,24 @@ export function ContextMenu({
   triggerRef?: RefObject<HTMLElement | null>;
 }) {
   return (
-    <FloatingSurface
+    <MenuSurface
+      frosted
       point={{ x, y }}
       triggerRef={triggerRef}
-      role="menu"
       aria-label="操作菜单"
       onDismiss={onClose}
       data-testid="context-menu"
-      className="min-w-[172px] animate-fade-in rounded-lg border border-border/60 bg-surface/[0.92] p-1 shadow-dropdown"
-      style={{
-        backdropFilter: 'blur(40px) saturate(1.5)',
-        WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
-      }}
+      className="min-w-[172px]"
       onContextMenu={(event) => event.preventDefault()}
     >
       {items.map((item, index) =>
         item.type === 'separator' ? (
-          <div key={`sep-${index}`} role="separator" className="my-1 mx-1.5 h-px bg-border" />
+          <MenuSeparator key={`sep-${index}`} />
         ) : (
-          <button
+          <MenuItem
             key={item.label}
-            type="button"
-            role="menuitem"
             disabled={item.disabled}
-            className={`flex w-full items-center rounded-sm px-2.5 py-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-40 ${item.danger ? 'text-error hover:bg-error/10 focus:bg-error/10' : 'text-muted hover:bg-elevated hover:text-foreground focus:bg-elevated focus:text-foreground'}`}
+            danger={item.danger}
             onClick={() => {
               if (item.disabled) return;
               onClose();
@@ -50,9 +44,9 @@ export function ContextMenu({
             }}
           >
             {item.label}
-          </button>
+          </MenuItem>
         ),
       )}
-    </FloatingSurface>
+    </MenuSurface>
   );
 }

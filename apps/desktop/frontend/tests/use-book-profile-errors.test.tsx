@@ -5,6 +5,12 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useBookProfile } from '../src/components/app/useBookProfile';
 import { BookOverview } from '../src/components/app/BookOverview';
+import {
+  DiskDriftError,
+  HostFileError,
+  ProjectFileMissingError,
+  ProjectPathOutsideError,
+} from '../src/lib/host-file-errors';
 import { buildProjectIndex } from '../src/lib/project-context';
 import { TauriFileSystem } from '../src/lib/tauri-fs';
 import { scanManuscriptTotals } from '../src/lib/manuscript-stats';
@@ -16,7 +22,7 @@ vi.mock('../src/lib/project-context', async (importOriginal) => {
 vi.mock('../src/lib/manuscript-stats', () => ({ scanManuscriptTotals: vi.fn() }));
 vi.mock('../src/lib/tauri-fs', () => ({
   TauriFileSystem: {
-    readFile: vi.fn(),
+    readProjectFile: vi.fn(),
     writeFile: vi.fn(),
     writeFileIfUnchanged: vi.fn(),
     createDir: vi.fn(),
@@ -25,7 +31,7 @@ vi.mock('../src/lib/tauri-fs', () => ({
 vi.mock('../src/lib/toast', () => ({ emitToast: vi.fn() }));
 
 const mockedBuild = vi.mocked(buildProjectIndex);
-const mockedRead = vi.mocked(TauriFileSystem.readFile);
+const mockedRead = vi.mocked(TauriFileSystem.readProjectFile);
 const mockedWrite = vi.mocked(TauriFileSystem.writeFile);
 const mockedCondWrite = vi.mocked(TauriFileSystem.writeFileIfUnchanged);
 const mockedCreateDir = vi.mocked(TauriFileSystem.createDir);
@@ -97,7 +103,7 @@ afterEach(() => {
 
 beforeEach(() => {
   mockedBuild.mockResolvedValue(emptyIndex('D:/book'));
-  mockedRead.mockImplementation(async (path) =>
+  mockedRead.mockImplementation(async (_root, path) =>
     path.endsWith('book.json') ? '{"title":"旧标题"}' : '',
   );
   mockedCreateDir.mockResolvedValue(undefined);
@@ -187,7 +193,7 @@ test('总览通过真实读取 hook 重试恢复，成功的空档案才显示�
 });
 
 test('档案读取失败：保存不写盘，原档案不被默认值盖掉', async () => {
-  mockedRead.mockImplementation(async (path) => {
+  mockedRead.mockImplementation(async (_root, path) => {
     if (path.endsWith('book.json')) throw new Error('permission denied');
     return '';
   });
@@ -202,7 +208,7 @@ test('档案读取失败：保存不写盘，原档案不被默认值盖掉', as
 });
 
 test('book.json 不是有效的 JSON：如实报出，保存也不写盘', async () => {
-  mockedRead.mockImplementation(async (path) =>
+  mockedRead.mockImplementation(async (_root, path) =>
     path.endsWith('book.json') ? '{"title":"旧标题",}' : '',
   );
   await render();
@@ -214,8 +220,55 @@ test('book.json 不是有效的 JSON：如实报出，保存也不写盘', async
   assert.equal(mockedCondWrite.mock.calls.length, 0);
 });
 
+test('宿主报文件还没有（missing）：当作档案还没建，保存以「不存在」为基线新建', async () => {
+  mockedRead.mockImplementation(async (_root, path) => {
+    if (path.endsWith('book.json')) throw new ProjectFileMissingError(`作品文件不存在: ${path}`);
+    return '';
+  });
+  await render();
+  assert.equal(
+    container!.querySelector('[data-profile-error]')?.getAttribute('data-profile-error'),
+    '',
+  );
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.deepEqual(mockedCondWrite.mock.calls[0]?.[3], { kind: 'missing' });
+  assert.ok(mockedRead.mock.calls.length > 0);
+  assert.ok(mockedRead.mock.calls.every(([projectRoot]) => projectRoot === 'D:/book'));
+});
+
+test('宿主报越出作品（outside-project）：不当成还没建，如实报出且不写盘', async () => {
+  mockedRead.mockImplementation(async (_root, path) => {
+    if (path.endsWith('book.json'))
+      throw new ProjectPathOutsideError(`路径不在当前作品内: ${path}`);
+    return '';
+  });
+  await render();
+  assert.match(
+    container!.querySelector('[data-profile-error]')?.getAttribute('data-profile-error') ?? '',
+    /路径不在当前作品内/,
+  );
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.equal(mockedCondWrite.mock.calls.length, 0);
+});
+
+test('作品目录本身读不了（io，中文 Windows 系统原话带「找不到」）：不当成档案还没建，如实报出且不写盘', async () => {
+  const detail = '无法解析作品目录 D:/book: 系统找不到指定的路径。 (os error 3)';
+  mockedRead.mockImplementation(async (_root, path) => {
+    if (path.endsWith('book.json')) throw new HostFileError(detail);
+    return '';
+  });
+  await render();
+  assert.equal(
+    container!.querySelector('[data-profile-error]')?.getAttribute('data-profile-error'),
+    detail,
+  );
+  await act(async () => (container!.querySelector('button') as HTMLButtonElement).click());
+  assert.equal(mockedCondWrite.mock.calls.length, 0);
+  assert.equal(mockedWrite.mock.calls.length, 0);
+});
+
 test('没改动的保存不写盘', async () => {
-  mockedRead.mockImplementation(async (path) =>
+  mockedRead.mockImplementation(async (_root, path) =>
     path.endsWith('book.json') ? '{"title":"新标题"}' : '',
   );
   await render();
@@ -226,11 +279,11 @@ test('没改动的保存不写盘', async () => {
 
 test('连着两次保存排队写：第二次以第一次写下的内容为基线，不被当成别处改过', async () => {
   let disk = '{"title":"旧标题"}';
-  mockedRead.mockImplementation(async (path) => (path.endsWith('book.json') ? disk : ''));
+  mockedRead.mockImplementation(async (_root, path) => (path.endsWith('book.json') ? disk : ''));
   mockedCondWrite.mockImplementation(async (_root, _path, content, expected) => {
     await Promise.resolve();
     if (expected.kind !== 'content' || expected.content !== disk)
-      throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+      throw new DiskDriftError('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
     disk = content;
   });
   function TwoSaves() {

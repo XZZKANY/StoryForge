@@ -14,6 +14,7 @@
  * 写盘本身走 `canon-write.ts`（确认 → 快照 → 写 → 可撤销），这里只放纯改动与读取。
  */
 
+import { joinPath } from './fs-path-ops';
 import { TauriFileSystem } from './tauri-fs';
 
 const CANON_RELATIVE = ['.storyforge', 'canon', 'canon.json'];
@@ -31,8 +32,7 @@ export type CanonMergeTarget =
   | { kind: 'claim'; invariant: string; entry: Record<string, unknown> };
 
 export function canonDeclarationPathFor(projectPath: string): string {
-  const s = projectPath.includes('\\') ? '\\' : '/';
-  return [projectPath.replace(/[/\\]+$/, ''), ...CANON_RELATIVE].join(s);
+  return joinPath(projectPath, ...CANON_RELATIVE);
 }
 
 // 与 promise_scan._promise_id 的 Python str.strip 保持一致；不改写声明原值。
@@ -115,10 +115,10 @@ export type CanonDeclaration = {
 /** 读作者的 canon.json：不存在就从空骨架起头；存在但不是合法 JSON 对象就拒绝。 */
 export async function readCanonDeclaration(projectPath: string): Promise<CanonDeclaration> {
   const path = canonDeclarationPathFor(projectPath);
-  if (!(await TauriFileSystem.pathExists(path))) {
+  if (!(await TauriFileSystem.projectPathExists(projectPath, path))) {
     return { path, raw: null, canon: { version: 1, entities: [], invariants: {} } };
   }
-  const raw = await TauriFileSystem.readFile(path);
+  const raw = await TauriFileSystem.readProjectFile(projectPath, path);
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);

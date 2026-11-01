@@ -8,6 +8,7 @@ import {
   readEnabledPlugins,
   type PluginDescription,
 } from '../../lib/api/plugins';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { PLUGINS_CHANGED_EVENT } from '../../lib/plugin-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { normalizePathForMatch } from '../../lib/project/path';
@@ -57,7 +58,8 @@ export async function writePluginChoice(
   const key = name.toLowerCase();
   const rest = enabled.filter((item) => item.toLowerCase() !== key);
   const next = !enable ? rest : rest.length < enabled.length ? enabled : [...enabled, name];
-  if (!(await TauriFileSystem.pathExists(dir))) await TauriFileSystem.createDir(projectRoot, dir);
+  if (!(await TauriFileSystem.projectPathExists(projectRoot, dir)))
+    await TauriFileSystem.createDir(projectRoot, dir);
   await TauriFileSystem.writeFile(projectRoot, file, serializePluginsFile(next));
   return next;
 }
@@ -86,21 +88,20 @@ function usePluginChoices(projectPath: string | null) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!projectPath) return;
-    let cancelled = false;
-    const settle = (view: PluginChoicesView) => {
-      if (!cancelled) setLoaded({ projectPath, view });
-    };
-    Promise.all([listPlugins(), readEnabledPlugins(projectPath)]).then(
-      ([installed, { enabled, problem }]) =>
-        settle({ status: 'ready', installed, enabled, problem }),
-      (error: unknown) => settle({ status: 'error', message: errorText(error) }),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, version]);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) return;
+      const settle = (view: PluginChoicesView) => {
+        if (isCurrent()) setLoaded({ projectPath, view });
+      };
+      Promise.all([listPlugins(), readEnabledPlugins(projectPath)]).then(
+        ([installed, { enabled, problem }]) =>
+          settle({ status: 'ready', installed, enabled, problem }),
+        (error: unknown) => settle({ status: 'error', message: errorText(error) }),
+      );
+    },
+    [projectPath, version],
+  );
 
   const toggle = useCallback(
     (name: string, enable: boolean) => {

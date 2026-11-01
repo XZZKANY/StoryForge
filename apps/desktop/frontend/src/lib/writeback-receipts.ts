@@ -1,3 +1,4 @@
+import { DiskDriftError } from './host-file-errors';
 import { decodeWritebackReceipt, type WritebackReceipt } from './writeback-receipt-types';
 import { performGuardedWriteback, type WritebackSnapshot } from './writeback';
 
@@ -18,14 +19,17 @@ export type ReceiptedWritebackResult<T> = {
   auditError: string | null;
 };
 
-function requireApplied(receipt: WritebackReceipt): void {
-  decodeWritebackReceipt(receipt);
+function requireApplied(value: WritebackReceipt): WritebackReceipt {
+  const receipt = decodeWritebackReceipt(value);
   if (receipt.state === 'outcome_unknown') {
     throw new Error('上次写入结果未知，已禁止重复写入；请核对本地文件与写前版本后重新生成修订');
   }
   if (receipt.state === 'not_written') {
-    throw new Error(`上次写入被拒绝，文件没有改动；请重新读取并生成修订。${receipt.detail ?? ''}`);
+    const message = `上次写入被拒绝，文件没有改动；请重新读取并生成修订。${receipt.detail ?? ''}`;
+    // 回执里的漂移拒写与宿主当场报的是同一种错，下游只按 DiskDriftError 判断。
+    throw receipt.detailKind === 'drift' ? new DiskDriftError(message) : new Error(message);
   }
+  return receipt;
 }
 
 /** A persistent native claim, not an in-memory set, owns permission to mutate once. */
@@ -68,11 +72,10 @@ export async function performReceiptedWriteback<T>(
       },
     });
   }
-  requireApplied(receipt);
-  if (restored && receipt.detail?.startsWith('canon 派生缓存未失效: ') && effects.repairCaches) {
+  receipt = requireApplied(receipt);
+  if (restored && receipt.detailKind === 'canon-cache-stale' && effects.repairCaches) {
     try {
-      const repaired = await effects.repairCaches();
-      requireApplied(repaired);
+      const repaired = requireApplied(await effects.repairCaches());
       if (repaired.operationId !== receipt.operationId) throw new Error('缓存修复回执身份不匹配');
       receipt = repaired;
     } catch {

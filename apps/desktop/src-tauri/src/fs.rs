@@ -3,6 +3,7 @@
 // 前端统一 path helper 负责字符串级 containment；Rust 对项目读写再做
 // canonicalize 真实路径校验，目录枚举也不会跟随 symlink。
 
+use crate::host_error::HostError;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -53,26 +54,32 @@ pub struct FileEntry {
     pub extension: Option<String>,
 }
 
-/// 读取文件内容
-#[tauri::command]
-pub fn read_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| format!("无法读取文件 {}: {}", path, e))
-}
-
 /// 读取项目文件前解析真实路径，阻止项目内 symlink 指向项目外部文件。
+/// 作品内但还不存在的文件报 `missing`，前端据此认出「还没建」；越出作品报 `outside-project`，
+/// 其余（含作品目录本身解析不了）报 `io`。
 #[tauri::command]
-pub fn read_project_file(project_root: String, path: String) -> Result<String, String> {
-    let root = fs::canonicalize(&project_root)
-        .map_err(|e| format!("无法解析作品目录 {}: {}", project_root, e))?;
-    let candidate =
-        fs::canonicalize(&path).map_err(|e| format!("无法解析作品文件 {}: {}", path, e))?;
-    if candidate == root || !candidate.starts_with(&root) {
-        return Err(format!("文件不在当前作品内: {}", path));
-    }
+pub fn read_project_file(project_root: String, path: String) -> Result<String, HostError> {
+    let root = canonical_project_root(&project_root)?;
+    let target = Path::new(&path);
+    let candidate = match fs::canonicalize(target) {
+        Ok(candidate) => candidate,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // 先确认落在作品内再报不存在，作品外的路径不能借报错探出有没有。
+            let ancestor = canonicalize_existing_ancestor(target)?;
+            ensure_canonical_path_inside_project(&root, &ancestor, target, true)
+                .map_err(outside)?;
+            return Err(HostError::new(
+                "missing",
+                format!("作品文件不存在: {}", path),
+            ));
+        }
+        Err(error) => return Err(format!("无法解析作品文件 {}: {}", path, error).into()),
+    };
+    ensure_canonical_path_inside_project(&root, &candidate, target, false).map_err(outside)?;
     if !candidate.is_file() {
-        return Err(format!("路径不是作品文件: {}", path));
+        return Err(format!("路径不是作品文件: {}", path).into());
     }
-    fs::read_to_string(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))
+    Ok(fs::read_to_string(&candidate).map_err(|e| format!("无法读取文件 {}: {}", path, e))?)
 }
 
 fn canonical_project_root(project_root: &str) -> Result<PathBuf, String> {
@@ -82,6 +89,10 @@ fn canonical_project_root(project_root: &str) -> Result<PathBuf, String> {
         return Err(format!("作品根路径不是目录: {}", project_root));
     }
     Ok(root)
+}
+
+fn outside(message: impl Into<String>) -> HostError {
+    HostError::new("outside-project", message)
 }
 
 fn ensure_canonical_path_inside_project(
@@ -105,6 +116,23 @@ fn canonicalize_existing_ancestor(path: &Path) -> Result<PathBuf, String> {
     }
     fs::canonicalize(ancestor)
         .map_err(|e| format!("无法解析路径 {}: {}", ancestor.display(), e))
+}
+
+/// 解析作品内路径（作品根本身也算）的真实位置，作品外的一律拒绝；不存在时返回 None，
+/// 但先确认最近一级存在的父目录在作品内——作品外的路径不能借「不存在」被探出来。
+fn resolve_inside_project(root: &Path, target: &Path) -> Result<Option<PathBuf>, String> {
+    match fs::canonicalize(target) {
+        Ok(candidate) => {
+            ensure_canonical_path_inside_project(root, &candidate, target, true)?;
+            Ok(Some(candidate))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let ancestor = canonicalize_existing_ancestor(target)?;
+            ensure_canonical_path_inside_project(root, &ancestor, target, true)?;
+            Ok(None)
+        }
+        Err(error) => Err(format!("无法解析作品路径 {}: {}", target.display(), error)),
+    }
 }
 
 fn validate_existing_mutation_path(project_root: &str, path: &Path) -> Result<(), String> {
@@ -166,7 +194,7 @@ pub fn write_file_if_unchanged(
     path: String,
     content: String,
     expected: DiskBaseline,
-) -> Result<(), String> {
+) -> Result<(), HostError> {
     let target = Path::new(&path);
     let root = validate_pending_mutation_path(&project_root, target)?;
     check_disk_baseline(target, &expected)?;
@@ -176,11 +204,14 @@ pub fn write_file_if_unchanged(
     commit_staged_write_if_unchanged(&root, target, &staged, &expected)
 }
 
-pub(crate) fn check_disk_baseline(target: &Path, expected: &DiskBaseline) -> Result<(), String> {
+/// 磁盘与基线不符报 `drift`：前端据此不提示「可重试」（再点结果一样）。
+pub(crate) fn check_disk_baseline(target: &Path, expected: &DiskBaseline) -> Result<(), HostError> {
     let metadata = match fs::symlink_metadata(target) {
         Ok(metadata) => Some(metadata),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(format!("无法检查磁盘文件 {}: {}", target.display(), error)),
+        Err(error) => {
+            return Err(format!("无法检查磁盘文件 {}: {}", target.display(), error).into())
+        }
     };
     let matches = match (expected, metadata) {
         (DiskBaseline::Missing {}, None) => true,
@@ -192,9 +223,12 @@ pub(crate) fn check_disk_baseline(target: &Path, expected: &DiskBaseline) -> Res
         _ => false,
     };
     if !matches {
-        return Err(format!(
-            "磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: {}",
-            target.display()
+        return Err(HostError::new(
+            "drift",
+            format!(
+                "磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突: {}",
+                target.display()
+            ),
         ));
     }
     Ok(())
@@ -207,12 +241,12 @@ fn commit_staged_write_if_unchanged(
     target: &Path,
     staged: &Path,
     expected: &DiskBaseline,
-) -> Result<(), String> {
-    let commit = || {
+) -> Result<(), HostError> {
+    let commit = || -> Result<(), HostError> {
         validate_pending_mutation_path(&root.to_string_lossy(), target)?;
         check_disk_baseline(target, expected)?;
-        fs::rename(staged, target)
-            .map_err(|e| format!("无法写入文件 {}: {}", target.display(), e))
+        Ok(fs::rename(staged, target)
+            .map_err(|e| format!("无法写入文件 {}: {}", target.display(), e))?)
     };
     let result = commit();
     if result.is_err()
@@ -326,19 +360,26 @@ pub fn read_project_file_base64(project_root: String, path: String) -> Result<St
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
-/// 列出目录内容
+/// 列作品内的目录，作品根本身也能列。作品外的路径、经 symlink 指到作品外的路径一律拒绝；
+/// 作品内还不存在的目录报「路径不存在」。
 #[tauri::command]
-pub fn list_dir(path: String, recursive: bool) -> Result<Vec<FileEntry>, String> {
+pub fn list_project_dir(
+    project_root: String,
+    path: String,
+    recursive: bool,
+) -> Result<Vec<FileEntry>, String> {
+    let root = canonical_project_root(&project_root)?;
     let path = Path::new(&path);
-
-    if !path.exists() {
-        return Err(format!("路径不存在: {}", path.display()));
+    match resolve_inside_project(&root, path)? {
+        None => return Err(format!("路径不存在: {}", path.display())),
+        Some(candidate) if !candidate.is_dir() => {
+            return Err(format!("路径不是目录: {}", path.display()));
+        }
+        Some(_) => {}
     }
 
-    if !path.is_dir() {
-        return Err(format!("路径不是目录: {}", path.display()));
-    }
-
+    // 照传进来的路径遍历而不是真实路径：条目路径要与界面手里的作品路径同一种写法
+    // （canonicalize 在 Windows 上会加长路径前缀）。
     let mut entries = Vec::new();
 
     if recursive {
@@ -466,10 +507,20 @@ fn open_file_manager(target: &Path) -> Result<(), String> {
         .map_err(|e| format!("无法打开文件管理器: {}", e))
 }
 
-/// 检查路径是否存在
+/// 作品内的路径在不在（作品根本身算在）。作品外的路径、经 symlink 指到作品外的路径报错而不是回答 false，
+/// 免得拿它探作品外有没有某个文件。
 #[tauri::command]
-pub fn path_exists(path: String) -> bool {
-    Path::new(&path).exists()
+pub fn project_path_exists(project_root: String, path: String) -> Result<bool, String> {
+    let root = canonical_project_root(&project_root)?;
+    Ok(resolve_inside_project(&root, Path::new(&path))?.is_some())
+}
+
+/// 打开作品前核对作品文件夹还在不在（最近作品、恢复上次现场）。只回答「是不是一个现存的文件夹」，
+/// 不看里面有什么；作品里的路径一律走 project_path_exists。
+#[tauri::command]
+pub fn project_folder_exists(path: String) -> bool {
+    let path = Path::new(&path);
+    path.is_absolute() && path.is_dir()
 }
 
 // ==================== 辅助函数 ====================
@@ -553,7 +604,7 @@ mod tests {
     }
 
     #[test]
-    fn write_file_creates_parent_dirs_and_read_file_returns_content() {
+    fn write_file_creates_parent_dirs_and_read_project_file_returns_content() {
         let temp = TempDir::new("read-write");
         let file_path = temp.join("chapters/chapter-001.md");
 
@@ -564,7 +615,7 @@ mod tests {
         )
             .expect("write should succeed");
 
-        let content = read_file(file_path).expect("read should succeed");
+        let content = read_project_file(temp.root(), file_path).expect("read should succeed");
         assert_eq!(content, "# Chapter 1\n\nOpening.");
     }
 
@@ -678,7 +729,8 @@ mod tests {
         let error = read_project_file(project.path.to_string_lossy().to_string(), outside_file)
             .expect_err("external file must be rejected");
 
-        assert!(error.contains("文件不在当前作品内"));
+        assert_eq!(error.kind, "outside-project", "{:?}", error);
+        assert!(error.message.contains("路径不在当前作品内"));
     }
 
     #[test]
@@ -703,7 +755,101 @@ mod tests {
         )
         .expect_err("symlink escape must be rejected");
 
-        assert!(error.contains("文件不在当前作品内"));
+        assert_eq!(error.kind, "outside-project", "{:?}", error);
+        assert!(error.message.contains("路径不在当前作品内"));
+    }
+
+    #[test]
+    fn read_project_file_rejects_project_root_itself() {
+        let project = TempDir::new("project-read-root-itself");
+
+        let error = read_project_file(project.root(), project.root())
+            .expect_err("project root must not be read as a file");
+
+        assert_eq!(error.kind, "outside-project", "{:?}", error);
+        assert!(error.message.contains("路径不在当前作品内"), "{:?}", error);
+    }
+
+    #[test]
+    fn read_project_file_reports_missing_inside_file_as_not_found() {
+        let project = TempDir::new("project-read-missing");
+
+        for missing in [project.join("book.md"), project.join(".storyforge/book.json")] {
+            let error = read_project_file(project.root(), missing.clone())
+                .expect_err("missing file must be reported");
+            assert_eq!(
+                error,
+                HostError::new("missing", format!("作品文件不存在: {}", missing))
+            );
+        }
+    }
+
+    // 中文 Windows 下作品目录没了，系统原话是「系统找不到指定的路径」；这不是「档案还没建」。
+    #[test]
+    fn read_project_file_reports_an_unresolvable_project_root_as_io_not_missing() {
+        let parent = TempDir::new("project-read-gone-root");
+        let gone = parent.path.join("已删除的作品");
+
+        let error = read_project_file(
+            gone.to_string_lossy().to_string(),
+            gone.join(".storyforge")
+                .join("book.json")
+                .to_string_lossy()
+                .to_string(),
+        )
+        .expect_err("unresolvable project root must be reported");
+
+        assert_eq!(error.kind, "io", "{:?}", error);
+        assert!(error.message.starts_with("无法解析作品目录"), "{:?}", error);
+    }
+
+    #[test]
+    fn read_project_file_reports_a_directory_as_io() {
+        let project = TempDir::new("project-read-dir");
+        fs::create_dir_all(project.path.join("正文")).expect("chapter dir");
+
+        let error = read_project_file(project.root(), project.join("正文"))
+            .expect_err("a directory is not a project file");
+
+        assert_eq!(error.kind, "io", "{:?}", error);
+        assert!(error.message.contains("路径不是作品文件"), "{:?}", error);
+    }
+
+    #[test]
+    fn read_project_file_fences_missing_external_paths_before_reporting_missing() {
+        let project = TempDir::new("project-read-missing-root");
+        let outside = TempDir::new("project-read-missing-outside");
+
+        let error = read_project_file(project.root(), outside.join("nested/secret.md"))
+            .expect_err("missing external file must be rejected");
+
+        assert_eq!(error.kind, "outside-project", "{:?}", error);
+        assert!(error.message.contains("路径不在当前作品内"), "{:?}", error);
+        assert!(!error.message.contains("不存在"), "{:?}", error);
+    }
+
+    #[test]
+    fn read_project_file_fences_missing_paths_under_symlinked_dir() {
+        let project = TempDir::new("project-read-missing-link-root");
+        let outside = TempDir::new("project-read-missing-link-outside");
+        let link = project.path.join("linked-dir");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside.path, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_dir(&outside.path, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let error = read_project_file(
+            project.root(),
+            link.join("missing.md").to_string_lossy().to_string(),
+        )
+        .expect_err("missing file behind a symlinked dir must be rejected");
+
+        assert_eq!(error.kind, "outside-project", "{:?}", error);
+        assert!(error.message.contains("路径不在当前作品内"), "{:?}", error);
     }
 
     #[test]
@@ -719,7 +865,7 @@ mod tests {
         assert!(staged.exists(), "临时文件应已写好");
         assert_ne!(staged, target.to_path_buf(), "临时文件不能就是目标本身");
         assert_eq!(
-            read_file(file_path.clone()).expect("target should stay readable"),
+            read_project_file(temp.root(), file_path.clone()).expect("target should stay readable"),
             "committed-v1",
             "暂存阶段绝不能改动目标文件（原子性不变量）"
         );
@@ -740,7 +886,7 @@ mod tests {
             .expect("overwrite should succeed");
 
         assert_eq!(
-            read_file(file_path).expect("read should succeed"),
+            read_project_file(temp.root(), file_path).expect("read should succeed"),
             "v2-longer-body"
         );
         // rename 提交后临时文件必须已被消费，目录里不留 .tmp 残渣。
@@ -754,7 +900,7 @@ mod tests {
     }
 
     #[test]
-    fn list_dir_orders_directories_before_files_and_sorts_by_name() {
+    fn list_project_dir_orders_directories_before_files_and_sorts_by_name() {
         let temp = TempDir::new("list-dir");
         create_dir(temp.root(), temp.join("b-dir"), true).expect("b-dir should be created");
         create_dir(temp.root(), temp.join("a-dir"), true).expect("a-dir should be created");
@@ -763,15 +909,15 @@ mod tests {
         write_file(temp.root(), temp.join("a.md"), "a".to_string())
             .expect("a.md should be written");
 
-        let entries = list_dir(temp.path.to_string_lossy().to_string(), false)
-            .expect("list_dir should succeed");
+        let entries = list_project_dir(temp.root(), temp.root(), false)
+            .expect("list_project_dir should succeed");
         let names: Vec<String> = entries.into_iter().map(|entry| entry.name).collect();
 
         assert_eq!(names, vec!["a-dir", "b-dir", "a.md", "b.md"]);
     }
 
     #[test]
-    fn recursive_list_dir_includes_nested_files() {
+    fn recursive_list_project_dir_includes_nested_files() {
         let temp = TempDir::new("recursive-list");
         write_file(
             temp.root(),
@@ -780,14 +926,14 @@ mod tests {
         )
             .expect("nested file should be written");
 
-        let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
-            .expect("recursive list_dir should succeed");
+        let entries = list_project_dir(temp.root(), temp.root(), true)
+            .expect("recursive list_project_dir should succeed");
 
         assert!(entries.iter().any(|entry| entry.name == "chapter-002.md"));
     }
 
     #[test]
-    fn recursive_list_dir_skips_heavy_dirs_but_keeps_dot_content() {
+    fn recursive_list_project_dir_skips_heavy_dirs_but_keeps_dot_content() {
         let temp = TempDir::new("skip-heavy");
         write_file(temp.root(), temp.join(".git/objects/aa/blob"), "x".to_string())
             .expect(".git file should be written");
@@ -806,7 +952,7 @@ mod tests {
         write_file(temp.root(), temp.join("drafts/chapter.md"), "正文".to_string())
             .expect("chapter should be written");
 
-        let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
+        let entries = list_project_dir(temp.root(), temp.root(), true)
             .expect("recursive list should succeed");
         let names: Vec<&str> = entries.iter().map(|entry| entry.name.as_str()).collect();
 
@@ -818,13 +964,13 @@ mod tests {
         assert!(!names.contains(&"index.js"));
 
         // 非递归是原始目录列举原语，不做隐藏——跳过只属于递归索引语义。
-        let top = list_dir(temp.path.to_string_lossy().to_string(), false)
+        let top = list_project_dir(temp.root(), temp.root(), false)
             .expect("flat list should succeed");
         assert!(top.iter().any(|entry| entry.name == ".git"));
     }
 
     #[test]
-    fn rename_path_moves_file_and_path_exists_tracks_it() {
+    fn rename_path_moves_file_and_project_path_exists_tracks_it() {
         let temp = TempDir::new("rename");
         let from = temp.join("old.md");
         let to = temp.join("new.md");
@@ -833,10 +979,10 @@ mod tests {
 
         rename_path(temp.root(), from.clone(), to.clone()).expect("rename should succeed");
 
-        assert!(!path_exists(from));
-        assert!(path_exists(to.clone()));
+        assert!(!project_path_exists(temp.root(), from).expect("inside path should be checked"));
+        assert!(project_path_exists(temp.root(), to.clone()).expect("inside path should be checked"));
         assert_eq!(
-            read_file(to).expect("renamed file should be readable"),
+            read_project_file(temp.root(), to).expect("renamed file should be readable"),
             "draft"
         );
     }
@@ -859,18 +1005,19 @@ mod tests {
         delete_path(temp.root(), dir_path.clone(), true)
             .expect("recursive dir delete should succeed");
 
-        assert!(!path_exists(file_path));
-        assert!(!path_exists(dir_path));
+        assert!(!project_path_exists(temp.root(), file_path).expect("inside path should be checked"));
+        assert!(!project_path_exists(temp.root(), dir_path).expect("inside path should be checked"));
     }
 
     #[test]
-    fn list_dir_reports_file_metadata() {
+    fn list_project_dir_reports_file_metadata() {
         let temp = TempDir::new("list-metadata");
         let file_path = temp.join("chapter.markdown");
         write_file(temp.root(), file_path.clone(), "hello".to_string())
             .expect("file should be written");
 
-        let entries = list_dir(temp.root(), false).expect("directory should be listed");
+        let entries =
+            list_project_dir(temp.root(), temp.root(), false).expect("directory should be listed");
         let info = entries
             .iter()
             .find(|entry| entry.path == file_path)
@@ -884,22 +1031,22 @@ mod tests {
     }
 
     #[test]
-    fn list_dir_rejects_missing_paths_and_files() {
+    fn list_project_dir_rejects_missing_paths_and_files() {
         let temp = TempDir::new("list-errors");
         let file_path = temp.join("not-a-dir.md");
         write_file(temp.root(), file_path.clone(), "file".to_string())
             .expect("file should be written");
 
-        assert!(list_dir(temp.join("missing"), false)
+        assert!(list_project_dir(temp.root(), temp.join("missing"), false)
             .expect_err("missing path should fail")
             .contains("路径不存在"));
-        assert!(list_dir(file_path, false)
+        assert!(list_project_dir(temp.root(), file_path, false)
             .expect_err("file path should fail")
             .contains("路径不是目录"));
     }
 
     #[test]
-    fn list_dir_does_not_follow_symlink_entries() {
+    fn list_project_dir_does_not_follow_symlink_entries() {
         let temp = TempDir::new("symlink-skip");
         let outside = TempDir::new("symlink-outside");
         let outside_file = outside.path.join("secret.md");
@@ -919,13 +1066,105 @@ mod tests {
             }
         }
 
-        let entries = list_dir(temp.path.to_string_lossy().to_string(), true)
+        let entries = list_project_dir(temp.root(), temp.root(), true)
             .expect("recursive list should succeed");
 
         assert!(
             entries.iter().all(|entry| entry.name != "linked-secret.md"),
             "project index must not expose symlink targets"
         );
+    }
+
+    #[test]
+    fn list_project_dir_lists_project_root_but_rejects_outside_paths() {
+        let project = TempDir::new("list-fence-root");
+        let outside = TempDir::new("list-fence-outside");
+        fs::write(project.path.join("chapter.md"), "inside").expect("inside file");
+        fs::write(outside.path.join("secret.md"), "secret").expect("outside file");
+
+        let entries =
+            list_project_dir(project.root(), project.root(), false).expect("root should be listed");
+        assert!(entries.iter().any(|entry| entry.name == "chapter.md"));
+
+        for path in [outside.root(), outside.join("missing-dir")] {
+            let error = list_project_dir(project.root(), path, true)
+                .expect_err("outside directory must be rejected");
+            assert!(error.contains("路径不在当前作品内"), "{}", error);
+            assert!(!error.contains("不存在"), "{}", error);
+        }
+    }
+
+    #[test]
+    fn list_project_dir_rejects_symlinked_dir_escaping_project() {
+        let project = TempDir::new("list-fence-link-root");
+        let outside = TempDir::new("list-fence-link-outside");
+        fs::write(outside.path.join("secret.md"), "secret").expect("outside file");
+        let link = project.path.join("linked-dir");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside.path, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_dir(&outside.path, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let error = list_project_dir(project.root(), link.to_string_lossy().to_string(), true)
+            .expect_err("symlinked directory escaping the project must be rejected");
+        assert!(error.contains("路径不在当前作品内"), "{}", error);
+    }
+
+    #[test]
+    fn project_path_exists_answers_inside_paths_and_rejects_outside_ones() {
+        let project = TempDir::new("exists-fence-root");
+        let outside = TempDir::new("exists-fence-outside");
+        fs::write(project.path.join("chapter.md"), "inside").expect("inside file");
+        fs::write(outside.path.join("secret.md"), "secret").expect("outside file");
+
+        assert!(project_path_exists(project.root(), project.root()).expect("root is inside"));
+        assert!(project_path_exists(project.root(), project.join("chapter.md")).expect("inside"));
+        for missing in [project.join("missing.md"), project.join(".storyforge/canon/facts.json")] {
+            assert!(!project_path_exists(project.root(), missing).expect("missing inside is false"));
+        }
+
+        for path in [outside.join("secret.md"), outside.join("nested/missing.md")] {
+            let error = project_path_exists(project.root(), path)
+                .expect_err("outside path must be rejected instead of answered");
+            assert!(error.contains("路径不在当前作品内"), "{}", error);
+            assert!(!error.contains("不存在"), "{}", error);
+        }
+    }
+
+    #[test]
+    fn project_path_exists_rejects_symlink_escaping_project() {
+        let project = TempDir::new("exists-fence-link-root");
+        let outside = TempDir::new("exists-fence-link-outside");
+        let outside_file = outside.path.join("secret.md");
+        fs::write(&outside_file, "secret").expect("outside file");
+        let link = project.path.join("linked-secret.md");
+
+        #[cfg(unix)]
+        let link_result = std::os::unix::fs::symlink(&outside_file, &link);
+        #[cfg(windows)]
+        let link_result = std::os::windows::fs::symlink_file(&outside_file, &link);
+        if link_result.is_err() {
+            return;
+        }
+
+        let error = project_path_exists(project.root(), link.to_string_lossy().to_string())
+            .expect_err("symlink escaping the project must be rejected");
+        assert!(error.contains("路径不在当前作品内"), "{}", error);
+    }
+
+    #[test]
+    fn project_folder_exists_only_answers_for_existing_absolute_folders() {
+        let temp = TempDir::new("folder-exists");
+        fs::write(temp.path.join("note.md"), "file").expect("file");
+
+        assert!(project_folder_exists(temp.root()));
+        assert!(!project_folder_exists(temp.join("note.md")));
+        assert!(!project_folder_exists(temp.join("missing")));
+        assert!(!project_folder_exists(".".to_string()));
     }
 
     #[test]

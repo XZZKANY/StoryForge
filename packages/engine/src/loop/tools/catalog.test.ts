@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../../../golden/p3-tool-catalog.json';
 import { dumpJson } from '../../kernel/json';
+import { stringArgList } from '../../kernel/pythonText';
 import { AgentOrchestrationError } from '../runPayloads';
 import {
   AGENT_RUNTIME_TOOL_SPECS,
@@ -31,7 +32,7 @@ const CALLS: Record<string, (a: Args) => unknown> = {
   trim_prose_instruction: (a) => ra.trimProseInstruction(a.percent),
   safe_summary: (a) => ra.safeSummary(a.payload, secrets),
   sanitize_loop_tool_arguments: (a) => ra.sanitizeLoopToolArguments(a.args),
-  string_list: (a) => ra.stringList(a.value),
+  string_list: (a) => stringArgList(a.value),
   dict_list: (a) => ra.dictList(a.value),
   payload_list: (a) => ra.payloadList(a.value),
   style_rules: (a) => ra.styleRules(a.value),

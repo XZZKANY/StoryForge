@@ -5,7 +5,7 @@ import { buildSceneConstraintBlock } from '../kernel/canonContext';
 import { FsToolError } from '../kernel/fsTools';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import { GenerationSourceBudgetError, GenerationSourceCapture } from '../kernel/generationSources';
-import { InputDomainError } from '../kernel/json';
+import { InputDomainError, type Obj } from '../kernel/json';
 import {
   PREVIOUS_FULL_MAX_CHARS,
   previousChapterPassage,
@@ -14,7 +14,7 @@ import {
 import { fullwidthCjkPunctuation } from '../kernel/punctuation';
 import { collectSettingSources } from '../kernel/settingSources';
 import { ProjectTreeError } from '../kernel/projectTree';
-import { pythonStrip } from '../kernel/pythonText';
+import { cpLen, cpSlice, pythonStrip } from '../kernel/pythonText';
 import type { PlainJson, SecretContext } from '../kernel/redaction';
 import {
   admitWritingRequest,
@@ -46,7 +46,6 @@ import {
 } from './prompts';
 import { REVISION_SYSTEM_PROMPT, reviseText, RevisionQualityRejected } from './revision';
 
-type Obj = { [key: string]: unknown };
 type Platform = 'windows' | 'posix';
 
 // ---- 错误：状态码与文本照 Python 的 DomainError 子类 ----
@@ -183,8 +182,6 @@ async function configuredLlm(deps: AssistantDeps): Promise<AssistantLlm> {
 }
 
 const modelOf = (llm: AssistantLlm) => envValue(llm.source, 'STORYFORGE_LLM_MODEL');
-const cpLen = (text: string) => Array.from(text).length;
-const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 /** 会话归属必须与当前项目一致；无项目的会话保持无项目。 */
 export function assertSessionProjectMatches(

@@ -1,5 +1,5 @@
 /**
- * 文件树右键操作用的纯路径工具：保持项目内 `\` 与 `/` 分隔符风格，不接触磁盘。
+ * 纯路径工具：保持项目内 `\` 与 `/` 分隔符风格，不接触磁盘。
  * 抽成纯函数便于单测（新建 / 改名要在正确的目录里拼路径，混合分隔符易错）。
  */
 
@@ -16,15 +16,21 @@ export function parentDir(path: string): string {
   return idx <= 0 ? trimmed : trimmed.slice(0, idx);
 }
 
-/** 在 dir 下拼子项，沿用 dir 的分隔符风格。 */
-export function joinChild(dir: string, name: string): string {
-  const sep = dir.includes('\\') ? '\\' : '/';
-  return `${dir.replace(/[\\/]+$/, '')}${sep}${name}`;
+/**
+ * 在 base 下拼路径，只做字符串拼接：分隔符跟着 base 走，base 里有 `\` 就用 `\`，否则用 `/`
+ * （作者机上作品路径是反斜杠）。base 只去掉末尾的分隔符、中间不改写；后面各段按 `\` `/` 拆开、
+ * 丢掉空段，再用这一种分隔符接上。
+ * 不查项目边界——要围栏用 project-core 的 joinProjectPath。
+ */
+export function joinPath(base: string, ...parts: string[]): string {
+  const separator = base.includes('\\') ? '\\' : '/';
+  const segments = parts.flatMap((part) => part.split(/[\\/]+/)).filter(Boolean);
+  return [base.replace(/[\\/]+$/, ''), ...segments].join(separator);
 }
 
 /** 同目录改名：用 from 的父目录 + 新名。 */
 export function siblingPath(from: string, newName: string): string {
-  return joinChild(parentDir(from), newName);
+  return joinPath(parentDir(from), newName);
 }
 
 /**

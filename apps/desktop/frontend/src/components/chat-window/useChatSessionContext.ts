@@ -5,6 +5,7 @@ import {
   getAssistantSessionFailedTurns,
   listAssistantSessions,
 } from '../../lib/api-client';
+import { useAsyncEffect } from '../../lib/async-guards';
 import {
   buildProjectIndex,
   normalizeProjectKnowledgePath,
@@ -134,136 +135,133 @@ export function useChatSessionContext(
     setSessionLoadError,
   ]);
 
-  useEffect(() => {
-    if (!assistantSessionId) return;
-    let cancelled = false;
-    const originalRunId = agentRunIdRef.current;
-    const originalTextRevision = textStream.revision();
-    setSessionLoadError(null);
-    // 失败轮只是补充显示：另读、读到再补插；读不到就照旧只显示消息表，不挡会话加载。
-    const failedTurns = Promise.resolve()
-      .then(() => getAssistantSessionFailedTurns(assistantSessionId))
-      .catch(() => []);
-    void getAssistantSession(assistantSessionId)
-      .then((session) => {
-        if (cancelled || agentRunIdRef.current !== originalRunId) return;
-        if (session.id !== assistantSessionId) throw new Error('返回的会话归属不匹配');
-        setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
-        // 本页还在流式的一轮不能被冷历史覆盖。
-        const showHistory = (failed: Parameters<typeof mergeFailedTurns>[1]) => {
-          if (
-            textStream.hasPending(originalRunId) ||
-            originalTextRevision !== textStream.revision()
-          )
-            return;
-          setMessages((current) =>
-            // A same-batch settlement may precede this GET. Keep the current
-            // page's projection (including an unpersisted interrupted fragment).
-            // Navigation clears messages, so cold history remains authoritative.
-            current.some((message) => message.stream?.runId === originalRunId)
-              ? current
-              : mergeFailedTurns(session.messages, failed),
-          );
-        };
-        showHistory([]);
-        void failedTurns.then((failed) => {
-          if (cancelled || agentRunIdRef.current !== originalRunId || !failed.length) return;
-          showHistory(failed);
-        });
-      })
-      .catch((error) => {
-        if (cancelled || agentRunIdRef.current !== originalRunId) return;
-        const detail = error instanceof Error ? error.message : String(error);
-        setSessionLoadError(`会话 #${assistantSessionId} 加载失败：${detail}`);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    assistantSessionId,
-    agentRunIdRef,
-    sessionLoadRetry,
-    textStream,
-    setConversationTitle,
-    setMessages,
-    setSessionLoadError,
-  ]);
-
-  useEffect(() => {
-    if (!projectPath) return;
-    let cancelled = false;
-    void listAssistantSessions({ projectPath, limit: 100 })
-      .then((records) => {
-        if (!cancelled) setAssistantSessions(records);
-      })
-      .catch(() => {
-        if (!cancelled) setAssistantSessions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [assistantSessionId, projectPath, setAssistantSessions]);
-
-  useEffect(() => {
-    if (!projectPath) {
-      setExplicitContextPaths([]);
-      setContextCandidates([]);
-      setContextCandidatesLoading(false);
-      setContextCandidatesError(null);
-      setLastContextBundle(null);
-      setMissingContextPaths([]);
-      setContextPickerOpen(false);
-      return;
-    }
-    let cancelled = false;
-    setContextCandidates([]);
-    setContextCandidatesLoading(true);
-    setContextCandidatesError(null);
-    void buildProjectIndex(projectPath)
-      .then((index) => {
-        if (cancelled) return;
-        const candidates = index.files.filter(
-          (file) => file.kind !== 'export' && file.kind !== 'quality',
-        );
-        const storedKnowledge = readProjectKnowledgeSelection(projectPath);
-        const restoredKnowledge = reconcileProjectKnowledgeSelection(storedKnowledge, candidates);
-        writeProjectKnowledgeSelection(projectPath, restoredKnowledge.selected);
-        setContextCandidates(candidates);
-        setExplicitContextPaths((current) => {
-          const kindByPath = new Map(
-            candidates.map((file) => [file.relativePath.toLocaleLowerCase(), file.kind]),
-          );
-          const storedKeys = new Set(storedKnowledge.map((path) => path.toLocaleLowerCase()));
-          const temporary = current.filter((path) => {
-            const key = path.replace(/\\/g, '/').toLocaleLowerCase();
-            return kindByPath.get(key) !== 'knowledge' && !storedKeys.has(key);
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!assistantSessionId) return;
+      const originalRunId = agentRunIdRef.current;
+      const originalTextRevision = textStream.revision();
+      setSessionLoadError(null);
+      // 失败轮只是补充显示：另读、读到再补插；读不到就照旧只显示消息表，不挡会话加载。
+      const failedTurns = Promise.resolve()
+        .then(() => getAssistantSessionFailedTurns(assistantSessionId))
+        .catch(() => []);
+      void getAssistantSession(assistantSessionId)
+        .then((session) => {
+          if (!isCurrent() || agentRunIdRef.current !== originalRunId) return;
+          if (session.id !== assistantSessionId) throw new Error('返回的会话归属不匹配');
+          setConversationTitle(session.title.replace(/^IDE Agent:\s*/, '') || '新的创作会话');
+          // 本页还在流式的一轮不能被冷历史覆盖。
+          const showHistory = (failed: Parameters<typeof mergeFailedTurns>[1]) => {
+            if (
+              textStream.hasPending(originalRunId) ||
+              originalTextRevision !== textStream.revision()
+            )
+              return;
+            setMessages((current) =>
+              // A same-batch settlement may precede this GET. Keep the current
+              // page's projection (including an unpersisted interrupted fragment).
+              // Navigation clears messages, so cold history remains authoritative.
+              current.some((message) => message.stream?.runId === originalRunId)
+                ? current
+                : mergeFailedTurns(session.messages, failed),
+            );
+          };
+          showHistory([]);
+          void failedTurns.then((failed) => {
+            if (!isCurrent() || agentRunIdRef.current !== originalRunId || !failed.length) return;
+            showHistory(failed);
           });
-          return [...temporary, ...restoredKnowledge.selected].slice(-12);
+        })
+        .catch((error) => {
+          if (!isCurrent() || agentRunIdRef.current !== originalRunId) return;
+          const detail = error instanceof Error ? error.message : String(error);
+          setSessionLoadError(`会话 #${assistantSessionId} 加载失败：${detail}`);
         });
-        setMissingContextPaths(restoredKnowledge.missing);
+    },
+    [
+      assistantSessionId,
+      agentRunIdRef,
+      sessionLoadRetry,
+      textStream,
+      setConversationTitle,
+      setMessages,
+      setSessionLoadError,
+    ],
+  );
+
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) return;
+      void listAssistantSessions({ projectPath, limit: 100 })
+        .then((records) => {
+          if (isCurrent()) setAssistantSessions(records);
+        })
+        .catch(() => {
+          if (isCurrent()) setAssistantSessions([]);
+        });
+    },
+    [assistantSessionId, projectPath, setAssistantSessions],
+  );
+
+  useAsyncEffect(
+    (isCurrent) => {
+      if (!projectPath) {
+        setExplicitContextPaths([]);
+        setContextCandidates([]);
         setContextCandidatesLoading(false);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        const detail = error instanceof Error ? error.message : String(error);
-        setContextCandidatesError(`上下文索引读取失败：${detail}`);
-        setContextCandidatesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    contextCandidatesRetry,
-    assistantSessionId,
-    projectPath,
-    setContextCandidates,
-    setContextCandidatesError,
-    setContextCandidatesLoading,
-    setExplicitContextPaths,
-    setContextPickerOpen,
-    setLastContextBundle,
-    setMissingContextPaths,
-  ]);
+        setContextCandidatesError(null);
+        setLastContextBundle(null);
+        setMissingContextPaths([]);
+        setContextPickerOpen(false);
+        return;
+      }
+      setContextCandidates([]);
+      setContextCandidatesLoading(true);
+      setContextCandidatesError(null);
+      void buildProjectIndex(projectPath)
+        .then((index) => {
+          if (!isCurrent()) return;
+          const candidates = index.files.filter(
+            (file) => file.kind !== 'export' && file.kind !== 'quality',
+          );
+          const storedKnowledge = readProjectKnowledgeSelection(projectPath);
+          const restoredKnowledge = reconcileProjectKnowledgeSelection(storedKnowledge, candidates);
+          writeProjectKnowledgeSelection(projectPath, restoredKnowledge.selected);
+          setContextCandidates(candidates);
+          setExplicitContextPaths((current) => {
+            const kindByPath = new Map(
+              candidates.map((file) => [file.relativePath.toLocaleLowerCase(), file.kind]),
+            );
+            const storedKeys = new Set(storedKnowledge.map((path) => path.toLocaleLowerCase()));
+            const temporary = current.filter((path) => {
+              const key = path.replace(/\\/g, '/').toLocaleLowerCase();
+              return kindByPath.get(key) !== 'knowledge' && !storedKeys.has(key);
+            });
+            return [...temporary, ...restoredKnowledge.selected].slice(-12);
+          });
+          setMissingContextPaths(restoredKnowledge.missing);
+          setContextCandidatesLoading(false);
+        })
+        .catch((error) => {
+          if (!isCurrent()) return;
+          const detail = error instanceof Error ? error.message : String(error);
+          setContextCandidatesError(`上下文索引读取失败：${detail}`);
+          setContextCandidatesLoading(false);
+        });
+    },
+    [
+      contextCandidatesRetry,
+      assistantSessionId,
+      projectPath,
+      setContextCandidates,
+      setContextCandidatesError,
+      setContextCandidatesLoading,
+      setExplicitContextPaths,
+      setContextPickerOpen,
+      setLastContextBundle,
+      setMissingContextPaths,
+    ],
+  );
 
   useEffect(() => {
     setLastContextBundle(null);

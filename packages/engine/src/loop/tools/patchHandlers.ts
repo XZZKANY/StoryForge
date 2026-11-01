@@ -8,9 +8,10 @@ import {
   reviseFileContent,
 } from '../../assistant/service';
 import { FsToolError, resolveProjectRoot, resolveScopedPath } from '../../kernel/fsTools';
-import { pythonFloatRepr } from '../../kernel/json';
+import { isObj, pythonFloatRepr, type Obj } from '../../kernel/json';
 import { isManuscriptPath } from '../../kernel/manuscript';
 import { pythonFixed } from '../../kernel/math';
+import { cpLen, cpSlice, optionalString } from '../../kernel/pythonText';
 import {
   heuristicReviewReasoner,
   llmReviewReasoner,
@@ -37,7 +38,7 @@ import { authorViewFromPayload } from '../authorView';
 import { PatchProposal } from '../chatLoopTypes';
 import { patchRequiresConfirmation } from '../permission';
 import { revisionTargetLength, targetLengthHint } from '../reviseTargetLength';
-import { AgentOrchestrationError, optionalString, roleHints, roleMentions } from '../runPayloads';
+import { AgentOrchestrationError, roleHints, roleMentions } from '../runPayloads';
 import {
   SubagentExecutor,
   type ToolExecutionContext,
@@ -53,12 +54,6 @@ import {
   requiredText,
   trimProseInstruction,
 } from './runtimeArguments';
-
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
-const cpSlice = (text: string, end: number) => Array.from(text).slice(0, end).join('');
 
 const TARGET_CHARS_MIN = 80;
 const TARGET_CHARS_MAX = 1200;

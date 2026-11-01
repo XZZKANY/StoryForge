@@ -1,4 +1,6 @@
+import { isObj, isPyInt, type Obj } from '../kernel/json';
 import { KNOWLEDGE_PROPOSAL_ARTIFACT_KIND } from '../kernel/knowledgeProposals';
+import { codePoints } from '../kernel/pythonText';
 import { redactSensitive, redactSensitiveText, type PlainJson } from '../kernel/redaction';
 import type { SecretContext } from '../kernel/redaction';
 import type { ProjectReader } from '../readPort';
@@ -31,16 +33,9 @@ import {
   RUNTIME_PENDING_CALL_RESOLUTION_ARTIFACT_KIND,
 } from './traces';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const objectOf = (value: unknown): Obj => (isObj(value) ? value : {});
-/** Python `isinstance(value, int)`：布尔也算。 */
-const pyInt = (value: unknown): value is number | boolean =>
-  typeof value === 'boolean' || (typeof value === 'number' && Number.isInteger(value));
 const nonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value !== '';
-const points = (text: string) => Array.from(text);
 
 /** 列表与快照里看不见的系统 artifact（Python `HIDDEN_SYSTEM_ARTIFACT_KINDS`）。 */
 const HIDDEN_SYSTEM_ARTIFACT_KINDS = new Set([
@@ -58,7 +53,7 @@ function copyStrings(target: Obj, source: Obj, keys: readonly string[]) {
 }
 
 function copyInts(target: Obj, source: Obj, keys: readonly string[]) {
-  for (const key of keys) if (pyInt(source[key])) target[key] = source[key];
+  for (const key of keys) if (isPyInt(source[key])) target[key] = source[key];
 }
 
 function copyBools(target: Obj, source: Obj, keys: readonly string[]) {
@@ -99,7 +94,7 @@ function toolTraceSummary(event: RunEventRecord): Obj {
   const trace = objectOf(payload.trace);
   const summary: Obj = {};
   copyStrings(summary, trace, ['tool_name', 'status', 'audit_event_id']);
-  if (pyInt(payload.index)) summary.index = payload.index;
+  if (isPyInt(payload.index)) summary.index = payload.index;
   return summary;
 }
 
@@ -127,7 +122,7 @@ function executionMarkerSummary(recovery: Obj): Obj | null {
     'resume_strategy',
     'reason',
   ]);
-  if (pyInt(marker.tool_index)) summary.tool_index = marker.tool_index;
+  if (isPyInt(marker.tool_index)) summary.tool_index = marker.tool_index;
   if (typeof marker.replay_safe === 'boolean') summary.replay_safe = marker.replay_safe;
   return Object.keys(summary).length ? summary : null;
 }
@@ -203,14 +198,15 @@ function artifactSummary(artifact: ArtifactRecord): Obj {
   const summary: Obj = {};
   for (const key of ARTIFACT_SUMMARY_KEYS) {
     const value = payload[key];
-    if (typeof value === 'string' || pyInt(value)) summary[key] = value;
+    if (typeof value === 'string' || isPyInt(value)) summary[key] = value;
   }
-  if (pyInt(payload.pending_artifact_id)) summary.pending_artifact_id = payload.pending_artifact_id;
+  if (isPyInt(payload.pending_artifact_id))
+    summary.pending_artifact_id = payload.pending_artifact_id;
   const contextOutput = objectOf(payload.context_output);
   if (Object.keys(contextOutput).length) {
     if (nonEmptyString(contextOutput.file_path)) summary.file_path = contextOutput.file_path;
     if (typeof contextOutput.content === 'string')
-      summary.content_chars = points(contextOutput.content).length;
+      summary.content_chars = codePoints(contextOutput.content).length;
   }
   return summary;
 }
@@ -280,10 +276,10 @@ function markerReference(marker: Obj): Obj {
     'reason',
   ]) {
     const value = marker[key];
-    if (typeof value === 'string' || pyInt(value)) reference[key] = value;
+    if (typeof value === 'string' || isPyInt(value)) reference[key] = value;
   }
   if (typeof marker.replay_safe === 'boolean') reference.replay_safe = marker.replay_safe;
-  if (pyInt(marker.tool_index)) reference.tool_index = marker.tool_index;
+  if (isPyInt(marker.tool_index)) reference.tool_index = marker.tool_index;
   return reference;
 }
 
@@ -296,7 +292,7 @@ function latestRuntimeFailure(event: RunEventRecord | null, latestMarker: Obj | 
     manual_restart_required: true,
     resume_strategy: 'manual_restart_required',
   };
-  if (event.message) summary.message = points(event.message).slice(0, 500).join('');
+  if (event.message) summary.message = codePoints(event.message).slice(0, 500).join('');
   if (latestMarker !== null) summary.latest_execution_marker = markerReference(latestMarker);
   return summary;
 }

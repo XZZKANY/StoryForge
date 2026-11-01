@@ -2,7 +2,7 @@ import type { ProjectReader } from '../readPort';
 import { FsToolError, readBoundedText, resolveProjectRoot, resolveScopedPath } from './fsTools';
 import { checkParagraphPatterns, type StaticProseIssue } from './paragraphPatterns';
 import { DIALOGUE_PATTERN } from './punctuation';
-import { PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import { codePoints, countOf, cpLen, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 
 const MAX_FILE_BYTES = 512_000;
 const CONTENT_CHAR_BUDGET = 24_000;
@@ -35,11 +35,8 @@ const WHITESPACE_RUN = new RegExp(`${PYTHON_WHITESPACE}+`, 'gu');
 const SENTENCE_SPLIT = /[。！？!?\n]+/u;
 const KEY_TERM_SPLIT = new RegExp(`[，。、“”/${PYTHON_WHITESPACE.slice(1, -1)}]+`, 'u');
 
-const points = (text: string) => Array.from(text);
-const length = (text: string) => points(text).length;
 const slice = (text: string, start: number, end?: number) =>
-  points(text).slice(start, end).join('');
-const countOf = (text: string, part: string) => text.split(part).length - 1;
+  codePoints(text).slice(start, end).join('');
 
 function issue(
   dimension: string,
@@ -123,10 +120,10 @@ function checkExposition(prose: string): StaticProseIssue[] {
 }
 
 function checkDialogueDensity(prose: string): StaticProseIssue[] {
-  const visible = length(prose.replace(WHITESPACE_RUN, ''));
+  const visible = cpLen(prose.replace(WHITESPACE_RUN, ''));
   if (visible < 40) return [];
   let quoted = 0;
-  for (const match of prose.matchAll(DIALOGUE_PATTERN)) quoted += length(match[0]);
+  for (const match of prose.matchAll(DIALOGUE_PATTERN)) quoted += cpLen(match[0]);
   const ratio = quoted / Math.max(visible, 1);
   if (ratio < 0.08 && visible >= 80)
     return [
@@ -156,7 +153,7 @@ function checkDialogueDensity(prose: string): StaticProseIssue[] {
 function checkSentenceLength(prose: string): StaticProseIssue[] {
   const sentences = prose.split(SENTENCE_SPLIT).filter((item) => pythonStrip(item));
   if (!sentences.length) return [];
-  const longSentence = sentences.find((item) => length(item) > 90) ?? '';
+  const longSentence = sentences.find((item) => cpLen(item) > 90) ?? '';
   if (longSentence)
     return [
       issue(
@@ -169,7 +166,7 @@ function checkSentenceLength(prose: string): StaticProseIssue[] {
     ];
   if (
     sentences.length >= 6 &&
-    sentences.filter((item) => length(item) <= 8).length / sentences.length > 0.75
+    sentences.filter((item) => cpLen(item) <= 8).length / sentences.length > 0.75
   )
     return [
       issue(
@@ -185,14 +182,14 @@ function checkSentenceLength(prose: string): StaticProseIssue[] {
 }
 
 function checkRepetition(prose: string): StaticProseIssue[] {
-  const chars = points(prose);
+  const chars = codePoints(prose);
   const counts = new Map<string, number>();
   for (let index = 0; index < Math.max(chars.length - 3, 0); index++) {
     const chunk = chars.slice(index, index + 4).join('');
     counts.set(chunk, (counts.get(chunk) ?? 0) + 1);
   }
   const repeated = [...counts].find(
-    ([chunk, count]) => count >= 3 && new Set(points(chunk)).size > 1,
+    ([chunk, count]) => count >= 3 && new Set(codePoints(chunk)).size > 1,
   );
   if (!repeated) return [];
   return [
@@ -233,7 +230,7 @@ function checkCharacterConsistency(
 }
 
 function keyTerms(text: string): string[] {
-  const terms = text.split(KEY_TERM_SPLIT).filter((part) => length(part) >= 2);
+  const terms = text.split(KEY_TERM_SPLIT).filter((part) => cpLen(part) >= 2);
   if (terms.length) return terms;
   return text ? [text] : [];
 }
@@ -293,7 +290,7 @@ function checkProgression(
       );
   }
   const actionCount = ACTION_MARKERS.reduce((sum, marker) => sum + countOf(prose, marker), 0);
-  if (length(prose) >= 45 && actionCount <= 2)
+  if (cpLen(prose) >= 45 && actionCount <= 2)
     issues.push(
       issue(
         '节奏',
@@ -375,8 +372,8 @@ export async function proseStaticScan(reader: ProjectReader, root: string, path:
   const issues = checkProseStaticQuality(content);
   return {
     path: target,
-    content_chars: length(content),
-    content_truncated: length(rawContent) > CONTENT_CHAR_BUDGET,
+    content_chars: cpLen(content),
+    content_truncated: cpLen(rawContent) > CONTENT_CHAR_BUDGET,
     issue_count: issues.length,
     issues,
     dimension_counts: counter(issues.map((item) => item.dimension)),

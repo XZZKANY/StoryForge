@@ -24,7 +24,7 @@ export async function scanManuscriptTotals(projectPath: string): Promise<Manuscr
   let unreadable = 0;
   for (const draft of drafts) {
     try {
-      chars += countProseChars(await TauriFileSystem.readFile(draft.path));
+      chars += countProseChars(await TauriFileSystem.readProjectFile(projectPath, draft.path));
     } catch {
       unreadable += 1;
     }

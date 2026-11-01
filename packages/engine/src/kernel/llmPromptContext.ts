@@ -1,8 +1,6 @@
 import {
   MAX_PROMPT_CONTEXT_FILES,
   MAX_STORY_MEMORY_ITEMS,
-  cpLen,
-  cpSlice,
   firstString,
   get,
   getOr,
@@ -10,18 +8,18 @@ import {
   isObj,
   pythonInt,
   pythonStrValue,
-  type Obj,
+  type PlainJsonObject,
 } from './contextValues';
 import { dumpJson, pythonTruthy } from './json';
 import { PROMPT_EXCERPT_TEXT_LIMIT } from './ordinaryContext';
-import { pythonSplitlines } from './pythonText';
+import { cpLen, cpSlice, pythonSplitlines } from './pythonText';
 import { redactSensitiveText, type PlainJson, type SecretContext } from './redaction';
 import { sha256Hex } from './sha256';
 
 export { MAX_PROMPT_CONTEXT_FILES };
 
 /** 送进旧版 Assistant 提示的上下文文件（含内部标记，交付前剥离）。 */
-type PromptFile = Obj & {
+type PromptFile = PlainJsonObject & {
   path: string;
   relative_path: string;
   kind: string;
@@ -33,8 +31,8 @@ type Projected = {
   truncated: boolean;
   deliveredCount?: number;
   deliveredActionCount?: number;
-  selectedItems?: Obj[];
-  selectedValues?: Obj;
+  selectedItems?: PlainJsonObject[];
+  selectedValues?: PlainJsonObject;
 };
 
 function syntheticPromptFile(
@@ -56,7 +54,7 @@ function syntheticPromptFile(
   };
 }
 
-function promptContextFile(item: Obj, secrets: SecretContext): Projected {
+function promptContextFile(item: PlainJsonObject, secrets: SecretContext): Projected {
   const relativePath = firstString(item, 'relative_path') ?? 'unknown';
   const redacted = redactSensitiveText(firstString(item, 'excerpt') ?? '', secrets);
   return {
@@ -79,7 +77,7 @@ function storyMemoryPromptFile(
   const items = get(storyMemory, 'items');
   if (!Array.isArray(items) || !items.length) return null;
   const lines: string[] = [];
-  const selected: Obj[] = [];
+  const selected: PlainJsonObject[] = [];
   for (const item of items.slice(0, MAX_STORY_MEMORY_ITEMS)) {
     if (!isObj(item) || get(item, 'text_truncated') === true) continue;
     const label = [firstString(item, 'entity'), firstString(item, 'kind')]
@@ -110,7 +108,7 @@ function chapterContextPromptFile(
 ): Projected | null {
   if (!isObj(chapterContext) || !Object.keys(chapterContext).length) return null;
   const lines: string[] = [];
-  const selected: Obj = {};
+  const selected: PlainJsonObject = {};
   for (const [key, value] of Object.entries(chapterContext)) {
     if (value === null || (typeof value === 'object' && !Array.isArray(value))) continue;
     const line = `- ${key}: ${pythonStrValue(value)}`;
@@ -129,7 +127,7 @@ function chapterContextPromptFile(
   };
 }
 
-function reviewReportPromptFile(report: Obj, secrets: SecretContext): Projected {
+function reviewReportPromptFile(report: PlainJsonObject, secrets: SecretContext): Projected {
   // 删整条问题 / 建议，而不是交出截断的 JSON 或半句证据；计数让写手看见省略了多少。
   const issues = [
     ...((pythonTruthy(get(report, 'issues')) ? get(report, 'issues') : []) as PlainJson[]),
@@ -138,7 +136,7 @@ function reviewReportPromptFile(report: Obj, secrets: SecretContext): Projected 
     pythonTruthy(get(report, 'suggested_actions')) ? get(report, 'suggested_actions') : []
   ) as PlainJson[];
   const actions = [...originalActions];
-  const delivered: Obj = { ...report, issues, suggested_actions: actions };
+  const delivered: PlainJsonObject = { ...report, issues, suggested_actions: actions };
   let omitted = false;
   let encoded: string;
   for (;;) {
@@ -178,14 +176,14 @@ const CHANNEL_PATHS: Record<string, string> = {
  * 注入值没有正文版本证明；元数据里不含原文。旧快照缺请求记账时照样可读。
  */
 export function syntheticContextDelivery(
-  snapshot: Obj,
+  snapshot: PlainJsonObject,
   secrets: SecretContext,
-): [PromptFile[], Obj[]] {
+): [PromptFile[], PlainJsonObject[]] {
   const rawRequests = get(snapshot, 'channel_requests');
-  const requests: Obj = isObj(rawRequests) ? rawRequests : {};
+  const requests: PlainJsonObject = isObj(rawRequests) ? rawRequests : {};
   let report = get(snapshot, 'review_report');
   const reportRequestValue = get(requests, 'review_report');
-  const reportRequest: Obj =
+  const reportRequest: PlainJsonObject =
     isObj(reportRequestValue) && pythonTruthy(reportRequestValue) ? reportRequestValue : {};
   if (isObj(report) && pythonTruthy(report)) {
     const actions = get(report, 'suggested_actions');
@@ -209,10 +207,11 @@ export function syntheticContextDelivery(
     ],
   ];
   const files: PromptFile[] = [];
-  const refs: Obj[] = [];
+  const refs: PlainJsonObject[] = [];
   for (const [kind, item] of projected) {
     const requestValue = get(requests, kind);
-    const request: Obj = isObj(requestValue) && pythonTruthy(requestValue) ? requestValue : {};
+    const request: PlainJsonObject =
+      isObj(requestValue) && pythonTruthy(requestValue) ? requestValue : {};
     if (item === null && !Object.keys(request).length) continue;
     const chapterContext = get(snapshot, 'chapter_context');
     let fallbackCount =
@@ -252,7 +251,7 @@ export function syntheticContextDelivery(
       (item !== null && item.truncated),
     );
     const excerpt = item === null ? '' : item.file.excerpt;
-    const ref: Obj = {
+    const ref: PlainJsonObject = {
       relative_path: item === null ? CHANNEL_PATHS[kind] : item.file.relative_path,
       purpose: kind,
       selection_source: 'supplied_channel',
@@ -293,14 +292,14 @@ export function syntheticContextDelivery(
 
 /** 取值方（润色守卫）拿不回送达时被省略的条目。 */
 export function syntheticContextSelectedValues(
-  snapshot: Obj,
+  snapshot: PlainJsonObject,
   secrets: SecretContext,
-): [Obj[], Obj] {
+): [PlainJsonObject[], PlainJsonObject] {
   const memory = storyMemoryPromptFile(get(snapshot, 'story_memory'), secrets);
   const chapter = chapterContextPromptFile(get(snapshot, 'chapter_context'), secrets);
   return [
-    memory === null ? [] : (JSON.parse(JSON.stringify(memory.selectedItems)) as Obj[]),
-    chapter === null ? {} : (JSON.parse(JSON.stringify(chapter.selectedValues)) as Obj),
+    memory === null ? [] : (JSON.parse(JSON.stringify(memory.selectedItems)) as PlainJsonObject[]),
+    chapter === null ? {} : (JSON.parse(JSON.stringify(chapter.selectedValues)) as PlainJsonObject),
   ];
 }
 
@@ -319,13 +318,13 @@ const KNOWLEDGE_FIELDS = [
 
 /** 把快照还原成现有提示使用的旧版 context_bundle 形状。 */
 export function llmContextSnapshotToPromptContextBundle(
-  snapshot: Obj,
+  snapshot: PlainJsonObject,
   secrets: SecretContext,
-): Obj {
+): PlainJsonObject {
   const selectedValue = get(snapshot, 'selected_file');
-  const selectedFile: Obj = isObj(selectedValue) ? selectedValue : {};
+  const selectedFile: PlainJsonObject = isObj(selectedValue) ? selectedValue : {};
   const projectValue = get(snapshot, 'project');
-  const project: Obj = isObj(projectValue) ? projectValue : {};
+  const project: PlainJsonObject = isObj(projectValue) ? projectValue : {};
   const contextValue = get(snapshot, 'context_files');
   const contextFiles = (Array.isArray(contextValue) ? contextValue : []).filter(isObj);
   const projected: { file: PromptFile; truncated: boolean }[] = contextFiles.map((item) =>
@@ -366,7 +365,7 @@ export function llmContextSnapshotToPromptContextBundle(
   }
   const currentFile =
     firstString(project, 'current_file') ?? firstString(selectedFile, 'file_path') ?? 'unknown';
-  const summary: Obj = {};
+  const summary: PlainJsonObject = {};
   const counts = get(project, 'counts');
   if (isObj(counts)) summary.counts = { ...counts };
   const hasStoryStructure = get(project, 'has_story_structure');

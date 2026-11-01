@@ -417,14 +417,16 @@ it.each(['typing', 'typing-undo', 'model-replacement', 'navigate'] as const)(
     await propose('', AFTER);
     const model = __getLastEditor()!.getModel()!;
     const gate = deferred<boolean>();
-    const originalExists = TauriFileSystem.pathExists;
+    const originalExists = TauriFileSystem.projectPathExists;
     const exists = vi
-      .spyOn(TauriFileSystem, 'pathExists')
-      .mockImplementation((path) => (path === FILE ? gate.promise : originalExists(path)));
+      .spyOn(TauriFileSystem, 'projectPathExists')
+      .mockImplementation((root, path) =>
+        path === FILE ? gate.promise : originalExists(root, path),
+      );
     try {
       await click('suggestion-reject');
       await click('patch-reject-confirm');
-      await observe(() => expect(exists).toHaveBeenCalledWith(FILE));
+      await observe(() => expect(exists).toHaveBeenCalledWith(PROJECT, FILE));
       if (mode === 'navigate') await navigate(OTHER, '另一个文档');
       else
         await act(async () => {

@@ -9,11 +9,18 @@ import {
   resolveProjectFile,
   resolveProjectRoot,
 } from '../../kernel/fsTools';
-import { pythonStrip } from '../../kernel/pythonText';
+import { isObj, type Obj } from '../../kernel/json';
+import {
+  cpLen,
+  optionalString,
+  orderedUnique,
+  pythonStrip,
+  stringArgList,
+} from '../../kernel/pythonText';
 import { ProjectReadError } from '../../readPort';
 import { PatchProposal } from '../chatLoopTypes';
 import { patchRequiresConfirmation } from '../permission';
-import { AgentOrchestrationError, optionalString } from '../runPayloads';
+import { AgentOrchestrationError } from '../runPayloads';
 import type { ToolHandler } from './execution';
 import type { ToolDeps } from './handlerDeps';
 import { prepareRuntimeWritingContext } from './patchContext';
@@ -27,18 +34,8 @@ import {
   runControlledPolish,
   validatePolishablePath,
 } from './polishService';
-import {
-  llmContextInputSummary,
-  requiredString,
-  requiredText,
-  stringList,
-} from './runtimeArguments';
+import { llmContextInputSummary, requiredString, requiredText } from './runtimeArguments';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const cpLen = (text: string) => Array.from(text).length;
-const unique = (values: readonly string[]) => [...new Set(values)];
 const TARGET_REFUSED = '润色目标必须是作品内现有的 Markdown 或 TXT 正文，不能是结构化或派生文件。';
 
 /** chapter.polish：保守润色一章正文，通过相对原文质量门禁才产补丁（patches/runtime_tools）。 */
@@ -93,9 +90,9 @@ export function polishToolHandlers(deps: ToolDeps): Record<string, ToolHandler> 
     await prepareRuntimeWritingContext(contextDeps, context, payload, 'chapter.polish');
     const styleInstruction = optionalString(payload.style_instruction) ?? context.userMessage;
     const trusted = polishConstraintsFromContextSnapshot(payload.llm_context_snapshot, secrets);
-    const protectedEntities = unique([
+    const protectedEntities = orderedUnique([
       ...trusted.protected_entities,
-      ...stringList(payload.protected_entities),
+      ...stringArgList(payload.protected_entities),
     ]);
     const characterConstraints = [
       ...trusted.character_constraints,
@@ -107,9 +104,9 @@ export function polishToolHandlers(deps: ToolDeps): Record<string, ToolHandler> 
       ...trusted.continuity_facts,
       ...(Array.isArray(payload.continuity_facts) ? payload.continuity_facts : []),
     ];
-    const requiredFacts = unique([
+    const requiredFacts = orderedUnique([
       ...trusted.required_facts,
-      ...stringList(payload.required_facts),
+      ...stringArgList(payload.required_facts),
     ]);
     const constraintCounts = {
       protected_entities: protectedEntities.length,

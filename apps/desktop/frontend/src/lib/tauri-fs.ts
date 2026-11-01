@@ -3,7 +3,15 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import type { DialogFilter } from '@tauri-apps/plugin-dialog';
 import type { FileEntry } from '@storyforge/project-core';
+import { joinPath } from './fs-path-ops';
+import {
+  DiskDriftError,
+  HostFileError,
+  ProjectFileMissingError,
+  ProjectPathOutsideError,
+} from './host-file-errors';
 import { assertTauriRuntime } from './tauri-env';
 import {
   decodeWritebackIdentity,
@@ -74,8 +82,9 @@ function normalizeFsPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-function listDirCacheKey(path: string, recursive: boolean): string {
-  return `${recursive ? 'recursive' : 'direct'}\u0000${normalizeFsPath(path)}`;
+// 作品根也进键：同一路径换个作品根，宿主的围栏结论可能不同。失效按第二段（路径）匹配。
+function listDirCacheKey(projectRoot: string, path: string, recursive: boolean): string {
+  return `${recursive ? 'recursive' : 'direct'}\u0000${normalizeFsPath(path)}\u0000${normalizeFsPath(projectRoot)}`;
 }
 
 function cloneEntries(entries: FileEntry[]): FileEntry[] {
@@ -109,19 +118,31 @@ export function invalidateFileSystemCache(path?: string): void {
   invalidateListDirCache(path);
 }
 
-export class TauriFileSystem {
-  static async readFile(path: string): Promise<string> {
-    const mock = mockFs();
-    if (mock?.readFile) return await mock.readFile(path);
-    assertTauriRuntime('TauriFileSystem.readFile');
-    return await invoke<string>('read_file', { path });
+// 读作品文件、按基线写入两类命令报 `{ kind, message }`，照引擎读作品口（lib/engine/reader.ts）
+// 的做法按 kind 翻成错误类；浏览器替身也按同一形状报。
+function hostFileFailure(error: unknown): unknown {
+  if (typeof error === 'string') return new HostFileError(error);
+  if (error === null || typeof error !== 'object' || error instanceof Error) return error;
+  const { kind, message } = error as { kind?: unknown; message?: unknown };
+  if (typeof message === 'string') {
+    if (kind === 'missing') return new ProjectFileMissingError(message);
+    if (kind === 'outside-project') return new ProjectPathOutsideError(message);
+    if (kind === 'drift') return new DiskDriftError(message);
+    if (kind === 'io') return new HostFileError(message);
   }
+  return Object.assign(new TypeError('Invalid Native file error'), { cause: error });
+}
 
+export class TauriFileSystem {
   static async readProjectFile(projectRoot: string, path: string): Promise<string> {
     const mock = mockFs();
-    if (mock?.readFile) return await mock.readFile(path);
-    assertTauriRuntime('TauriFileSystem.readProjectFile');
-    return await invoke<string>('read_project_file', { projectRoot, path });
+    try {
+      if (mock?.readFile) return await mock.readFile(path);
+      assertTauriRuntime('TauriFileSystem.readProjectFile');
+      return await invoke<string>('read_project_file', { projectRoot, path });
+    } catch (error) {
+      throw hostFileFailure(error);
+    }
   }
 
   static async writeFile(
@@ -163,7 +184,7 @@ export class TauriFileSystem {
         const current = exists ? await mock.readFile(path) : null;
         const matches =
           expected.kind === 'missing' ? !exists : exists && current === expected.content;
-        if (!matches) throw new Error('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
+        if (!matches) throw new DiskDriftError('磁盘内容已变化，已拒绝覆盖；请重新读取并处理冲突');
         await mock.writeFile(path, content);
         return;
       }
@@ -175,6 +196,8 @@ export class TauriFileSystem {
         content,
         expected,
       });
+    } catch (error) {
+      throw hostFileFailure(error);
     } finally {
       invalidateListDirCache(path);
     }
@@ -243,6 +266,8 @@ export class TauriFileSystem {
           checkpointTimestamp,
         }),
       );
+    } catch (error) {
+      throw hostFileFailure(error);
     } finally {
       invalidateListDirCache(request.path);
     }
@@ -256,14 +281,8 @@ export class TauriFileSystem {
     const mock = mockFs();
     if (mock) return readFixtureAudit(mock, projectRoot, request);
     const { operationId } = await this.describeWritebackOperation(projectRoot, request);
-    const separator = projectRoot.includes('\\') ? '\\' : '/';
-    const path = [
-      projectRoot.replace(/[/\\]+$/, ''),
-      '.storyforge',
-      'author-loop',
-      `${operationId}.md`,
-    ].join(separator);
-    return (await this.pathExists(path))
+    const path = joinPath(projectRoot, '.storyforge', 'author-loop', `${operationId}.md`);
+    return (await this.projectPathExists(projectRoot, path))
       ? { operationId, content: await this.readProjectFile(projectRoot, path) }
       : null;
   }
@@ -287,8 +306,13 @@ export class TauriFileSystem {
     invalidateListDirCache(projectRoot);
   }
 
-  static async listDir(path: string, recursive = false): Promise<FileEntry[]> {
-    const cacheKey = listDirCacheKey(path, recursive);
+  /** 列作品内的目录（作品根本身也能列）；作品外的路径宿主直接拒绝。 */
+  static async listProjectDir(
+    projectRoot: string,
+    path: string,
+    recursive = false,
+  ): Promise<FileEntry[]> {
+    const cacheKey = listDirCacheKey(projectRoot, path, recursive);
     const cached = listDirCache.get(cacheKey);
     if (cached && Date.now() - cached.createdAt < LIST_DIR_CACHE_TTL_MS) {
       return cloneEntries(cached.entries);
@@ -301,8 +325,8 @@ export class TauriFileSystem {
     const requestVersion = fsCacheVersion;
     const request = (async () => {
       if (mock?.listDir) return await mock.listDir(path, recursive);
-      assertTauriRuntime('TauriFileSystem.listDir');
-      return await invoke<FileEntry[]>('list_dir', { path, recursive });
+      assertTauriRuntime('TauriFileSystem.listProjectDir');
+      return await invoke<FileEntry[]>('list_project_dir', { projectRoot, path, recursive });
     })();
     pendingListDirReads.set(cacheKey, request);
     try {
@@ -362,10 +386,36 @@ export class TauriFileSystem {
     await invoke('reveal_in_file_manager', { projectRoot, path });
   }
 
-  static async pathExists(path: string): Promise<boolean> {
+  /** 作品内的路径在不在；作品外的路径宿主直接报错，不回答在不在。 */
+  static async projectPathExists(projectRoot: string, path: string): Promise<boolean> {
     const mock = mockFs();
     if (mock?.pathExists) return await mock.pathExists(path);
-    assertTauriRuntime('TauriFileSystem.pathExists');
-    return await invoke<boolean>('path_exists', { path });
+    assertTauriRuntime('TauriFileSystem.projectPathExists');
+    return await invoke<boolean>('project_path_exists', { projectRoot, path });
   }
+
+  /**
+   * 打开作品前核对作品文件夹还在不在（最近作品、恢复上次现场），只回答「是不是一个现存的文件夹」。
+   * 作品里的路径一律用 projectPathExists；允许调它的文件列在 tests/tauri-fs.test.ts。
+   */
+  static async projectFolderExists(path: string): Promise<boolean> {
+    const mock = mockFs();
+    if (mock?.pathExists) return await mock.pathExists(path);
+    assertTauriRuntime('TauriFileSystem.projectFolderExists');
+    return await invoke<boolean>('project_folder_exists', { path });
+  }
+}
+
+/** 系统对话框里选一个文件夹；作者取消返回 null。 */
+export async function pickDirectory(title: string): Promise<string | null> {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({ directory: true, multiple: false, title });
+  return typeof selected === 'string' ? selected : null;
+}
+
+/** 系统对话框里选一个文件；作者取消返回 null。 */
+export async function pickFile(title: string, filters: DialogFilter[]): Promise<string | null> {
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({ multiple: false, directory: false, filters, title });
+  return typeof selected === 'string' ? selected : null;
 }

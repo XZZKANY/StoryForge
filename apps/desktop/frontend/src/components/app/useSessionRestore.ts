@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { useMountedRef } from '../../lib/async-guards';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import {
   loadWorkspaceSession,
@@ -43,17 +44,15 @@ export function useSessionRestore({
   const pendingApplyRef = useRef<WorkspaceSession | null>(null);
   const openingRef = useRef<string | null>(null);
   const restoreGenerationRef = useRef(0);
-  const mountedRef = useRef(false);
   const canPersistRef = useRef(false);
   const selectProjectRef = useRef(selectProject);
 
   useLayoutEffect(() => {
     selectProjectRef.current = selectProject;
   });
+  const mountedRef = useMountedRef();
   useLayoutEffect(() => {
-    mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
       restoreGenerationRef.current += 1;
       canPersistRef.current = false;
       workspaceSnapshotRef.current = null;
@@ -78,13 +77,15 @@ export function useSessionRestore({
       changePhase('idle');
       void (async () => {
         const [projectCheck, fileChecks] = await Promise.all([
-          TauriFileSystem.pathExists(session.project)
+          TauriFileSystem.projectFolderExists(session.project)
             .then((exists) => ({ exists, failed: false }))
             .catch(() => ({ exists: true, failed: true })),
           Promise.all(
             session.openFiles.map(async (path) => {
               try {
-                return (await TauriFileSystem.pathExists(path)) ? path : null;
+                return (await TauriFileSystem.projectPathExists(session.project, path))
+                  ? path
+                  : null;
               } catch {
                 // 瞬时文件 IO 失败不应吃掉作者的页签与光标。
                 return path;
@@ -132,7 +133,7 @@ export function useSessionRestore({
         selectProjectRef.current(restoreTarget.project);
       })();
     },
-    [changePhase],
+    [changePhase, mountedRef],
   );
 
   useEffect(() => {
@@ -158,7 +159,7 @@ export function useSessionRestore({
       return;
     pendingApplyRef.current = null;
     changePhase('done');
-  }, [changePhase, pendingRestore]);
+  }, [changePhase, mountedRef, pendingRestore]);
 
   /** 显式回库/打开新建流程只撤销在途导航；保留快照供后续重试，不触碰已恢复现场。 */
   const cancelPendingNavigation = useCallback(() => {
@@ -167,7 +168,7 @@ export function useSessionRestore({
     openingRef.current = null;
     setOpeningProject(null);
     changePhase('awaiting-selection');
-  }, [changePhase]);
+  }, [changePhase, mountedRef]);
 
   /** 仅在目录/脏稿确认通过后调用；取消目录选择不能消耗存档快照。 */
   const selectProjectManually = useCallback(
@@ -190,20 +191,27 @@ export function useSessionRestore({
       changePhase('done');
       selectProjectRef.current(path);
     },
-    [changePhase, restoreSession],
+    [changePhase, mountedRef, restoreSession],
   );
 
-  const recordCursor = useCallback((filePath: string, cursor: FileCursor) => {
-    const snapshot = workspaceSnapshotRef.current;
-    if (!mountedRef.current || !canPersistRef.current || !snapshot?.openFiles.includes(filePath)) {
-      return;
-    }
-    cursorsRef.current = { ...cursorsRef.current, [filePath]: cursor };
-    // Editor 已去抖；不等文件/页签变化，也不为光标移动重渲染整个 App。
-    const next = { ...snapshot, cursors: pruneCursors(cursorsRef.current, snapshot.openFiles) };
-    workspaceSnapshotRef.current = next;
-    saveWorkspaceSession(next);
-  }, []);
+  const recordCursor = useCallback(
+    (filePath: string, cursor: FileCursor) => {
+      const snapshot = workspaceSnapshotRef.current;
+      if (
+        !mountedRef.current ||
+        !canPersistRef.current ||
+        !snapshot?.openFiles.includes(filePath)
+      ) {
+        return;
+      }
+      cursorsRef.current = { ...cursorsRef.current, [filePath]: cursor };
+      // Editor 已去抖；不等文件/页签变化，也不为光标移动重渲染整个 App。
+      const next = { ...snapshot, cursors: pruneCursors(cursorsRef.current, snapshot.openFiles) };
+      workspaceSnapshotRef.current = next;
+      saveWorkspaceSession(next);
+    },
+    [mountedRef],
+  );
 
   /** 页签归独立 owner，App 在其落地后回写；phase 与同步闸门共同防止空现场覆盖。 */
   const persistSession = useCallback(

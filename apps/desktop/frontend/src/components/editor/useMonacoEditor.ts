@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'reac
 import * as monaco from 'monaco-editor';
 
 import type { DiskBaseline } from '../../lib/tauri-fs';
+import { useAsyncEffect } from '../../lib/async-guards';
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme, ensureMonacoThemes } from '../../lib/theme';
 import {
@@ -81,17 +82,16 @@ export function useMonacoEditor({
   });
 
   // 初始化编辑器
-  useEffect(() => {
+  useAsyncEffect((isCurrent) => {
     if (editorRef.current) return;
 
-    let disposed = false;
     let editor: monaco.editor.IStandaloneCodeEditor | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let frame = 0;
     const modelCache = modelCacheRef.current;
 
     frame = window.requestAnimationFrame(() => {
-      if (disposed || !containerRef.current || editorRef.current) return;
+      if (!isCurrent() || !containerRef.current || editorRef.current) return;
 
       try {
         ensureMonacoThemes(monaco);
@@ -170,7 +170,6 @@ export function useMonacoEditor({
     });
 
     return () => {
-      disposed = true;
       if (autoSaveTimerRef.current !== null) window.clearTimeout(autoSaveTimerRef.current);
       window.cancelAnimationFrame(frame);
       editor?.dispose();

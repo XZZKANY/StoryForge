@@ -1,0 +1,25 @@
+## 2026-10-31 「数值记成账」设计稿与刀 0 实测（只改文档）
+
+- 改动：新增 `docs/internal/numeric-ledger-plan-2026-10.md`，内容是设计稿、作者 10-31 对 6 问的拍板、刀 0 实测结论和下一步候选；`docs/internal/TODO.md` 当前入口加第 4 条。产品代码、提示词、golden 都没动。
+- 验证（刀 0 实验；脚本与原始结果在本工作区 `output/numeric-ledger/`，不入库）：
+  - 模型：备用中转的 claude-sonnet-5。原来的 deepseek 中转 key 10-31 返回 403，已停用；作者同意改用它，上限 250 万 token，实际用了约 217.5 万。
+  - 提示词与校验：用 esbuild 把本分支的引擎源码打包成实验工具，`checkPrompt` / `buildCheck` 与产品一字不差；新版只在「quote（正文原句，逐字复制）。」之后插一段 amount 说明。
+  - 自测：`node selftest.mjs` → `selftest ok`（认数 19 例、算账 3 组）。
+  - 跑检查：
+    - `python run_checks.py new all 8`：160 章；
+    - `python run_checks.py old all 8`：经 override 只跑每本书前 10 章，共 40 章，作新旧配对对照；
+    - `python run_hint.py B1_apoc-E0,B3_urban-E0`：80 章，附已有账名；
+    - 复核报警：`python analyze_0b.py judge`，8 处。
+  - 统计：`python analyze_0a.py`、`python analyze_0b.py prep new`、`python analyze_0b.py prep hint`。
+  - 结果：五条通过线四条没过。
+    - 数在原句里核得上 76%（余额 93%、增减 65%、变动前 33%）；
+    - 报警成立 3/8（附账名版 2–3/14），以人工读原文为准；
+    - 第一次偏离抓到 0/5；
+    - 配对 40 章：每章抽出的事实 8.9 → 6.3 条（37 章里 28 章变少），检查作废 1/40 → 3/40。
+  - 行尾：三份文件都是纯 LF，`git diff --cached --numstat` 与 `--ignore-all-space --numstat` 一致。
+- 未覆盖：
+  - 本地没跑 `pnpm verify`，推送时跳过了预推钩子（作者 10-31 同意：只改 Markdown，本工作区没装依赖，D 盘只剩约 6G）；以 PR 上的 Windows Verify 为准。
+  - 0c 端到端没跑：没过线，按设计稿停在这里。
+  - 实验材料是实验台引擎长篇（模型写的合成书），不是作者的真稿。
+  - 复核模型和检查模型是同一个 sonnet-5，复核结论有自相矛盾，最终以人工读原文为准。
+  - 「第一次偏离」取自 10-17 的评测记录；核原文后，5 处里 3 处是评测误读。

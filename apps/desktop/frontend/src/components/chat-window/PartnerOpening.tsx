@@ -8,6 +8,7 @@ import {
   type ChapterHandoff,
 } from '../../lib/chapter-handoff';
 import { Sparkles } from '../icons/shell-icons';
+import { PlainButton } from '../ui';
 
 /**
  * 新会话的开场：伙伴先开口，每一句都来自这本书的确定性事实（上一章结尾、伏笔台账、章序），
@@ -75,54 +76,49 @@ export function PartnerOpening({
         )}
         {actionsHidden ? null : (
           <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
+            <PlainButton
               className={chip}
               onClick={() => onAsk(discussNextChapterPrompt(handoff))}
               data-testid="partner-opening-discuss"
             >
               {last === null ? '聊聊这本书想写什么' : `先聊聊第 ${next} 章怎么走`}
-            </button>
+            </PlainButton>
             {last === null ? (
               <>
-                <button
-                  type="button"
+                <PlainButton
                   className={chip}
                   onClick={() => onAsk(DISCUSS_PROTAGONIST_PROMPT)}
                   data-testid="partner-opening-protagonist"
                 >
                   先想主角
-                </button>
-                <button
-                  type="button"
+                </PlainButton>
+                <PlainButton
                   className={chip}
                   onClick={() => onAsk(DISCUSS_WORLD_PROMPT)}
                   data-testid="partner-opening-world"
                 >
                   先搭世界观
-                </button>
+                </PlainButton>
               </>
             ) : null}
             {promise ? (
-              <button
-                type="button"
+              <PlainButton
                 className={chip}
                 onClick={() => onAsk(pickUpPromisePrompt(handoff, promise))}
                 data-testid="partner-opening-promise"
                 title={`「${promise.title}」${stalePromiseDetail(promise)}`}
               >
                 <span className="truncate">接上「{promise.title}」</span>
-              </button>
+              </PlainButton>
             ) : null}
-            <button
-              type="button"
+            <PlainButton
               className={chip}
               onClick={() => onDraft(handoff.next)}
               data-testid="partner-opening-draft"
             >
               <Sparkles size={13} strokeWidth={1.8} aria-hidden="true" />
               {last === null ? '直接起草第 1 章' : `起草第 ${next} 章`}
-            </button>
+            </PlainButton>
           </div>
         )}
         {sources.length > 0 ? (

@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TOAST_EVENT, type ToastDetail, type ToastTone } from '../../lib/toast';
 import { X } from '../icons/shell-icons';
+import { Button, IconButton } from '../ui';
 
 type ToastItem = ToastDetail & { id: number };
 type ToastActionState = { status: 'loading' | 'error'; error?: string };
@@ -288,24 +289,22 @@ export function ToastHost() {
             )}
           </div>
           {item.action && (
-            <button
-              className="flex-shrink-0 rounded-sm px-1.5 py-0.5 font-medium text-agent hover:bg-elevated"
+            <Button
+              size="compact"
               data-testid="toast-action"
               disabled={actionStates[item.id]?.status === 'loading'}
               onClick={() => void runAction(item)}
             >
               {actionStates[item.id]?.status === 'loading' ? '处理中…' : item.action.label}
-            </button>
+            </Button>
           )}
-          <button
-            className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm text-subtle hover:bg-elevated hover:text-foreground"
-            aria-label="关闭通知"
-            title="关闭通知"
+          <IconButton
+            size="mini"
+            label="关闭通知"
+            icon={<X size={11} strokeWidth={1.7} />}
             data-testid="toast-close"
             onClick={() => dismiss(item.id)}
-          >
-            <X size={11} strokeWidth={1.7} />
-          </button>
+          />
         </div>
       ))}
     </div>

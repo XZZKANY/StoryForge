@@ -4,11 +4,12 @@ import {
   dumpJson,
   InputDomainError,
   isJsonObject,
-  parseJson,
+  parseModelJson,
   type JsonObject,
   type JsonValue,
 } from './json';
-import { compactText, pythonSplitlines, pythonStrip } from './pythonText';
+import type { LlmPort } from './llmPort';
+import { compactText, cpLen, pythonStrip } from './pythonText';
 import {
   characterAgentIssues,
   contextFiles,
@@ -35,24 +36,16 @@ export type ReviewSubagentResult = {
   coverage: { [key: string]: unknown } | null;
 };
 
-/** 模型调用端口（P2 的 LLM 通道实现）：失败一律抛错，由审稿方降级为启发式。 */
-export type ReviewLlmPort = (request: {
-  systemPrompt: string;
-  userPrompt: string;
-}) => Promise<{ content: unknown; latency_ms?: unknown }>;
-
-const length = (text: string) => Array.from(text).length;
-
 export function reviewCoverage(content: string, bundle: Bundle, sent: boolean) {
   const files = contextFiles(bundle);
   const budget = bundle && typeof bundle === 'object' ? bundle.budget : undefined;
   return {
     body_scope: sent ? 'full_provided_text' : 'heuristic_signals_only',
-    content_chars_provided: length(content),
-    content_chars_sent: sent ? length(content) : 0,
+    content_chars_provided: cpLen(content),
+    content_chars_sent: sent ? cpLen(content) : 0,
     context_files_sent: sent ? files.length : 0,
     context_excerpt_chars_sent: sent
-      ? files.reduce((sum, item) => sum + length(String(item.excerpt || '')), 0)
+      ? files.reduce((sum, item) => sum + cpLen(String(item.excerpt || '')), 0)
       : 0,
     context_scope: 'admitted_excerpts_not_full_source_files',
     upstream_context_truncated:
@@ -135,27 +128,9 @@ export function reviewUserPrompt(
   ].join('\n');
 }
 
-export function stripCodeFence(text: string): string {
-  if (!text.startsWith('```')) return text;
-  let lines = pythonSplitlines(text);
-  if (lines.length && lines[0].startsWith('```')) lines = lines.slice(1);
-  if (lines.length && pythonStrip(lines[lines.length - 1]).startsWith('```'))
-    lines = lines.slice(0, -1);
-  return pythonStrip(lines.join('\n'));
-}
-
 /** 容忍模型把 JSON 数组裹进代码块或夹在解释文字里。 */
 export function loadsJsonArray(raw: string): JsonValue {
-  const text = stripCodeFence(pythonStrip(raw));
-  try {
-    return parseJson(text, 'model output');
-  } catch (error) {
-    if (!(error instanceof InputDomainError)) throw error;
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start === -1 || end === -1 || end <= start) throw error;
-    return parseJson(text.slice(start, end + 1), 'model output');
-  }
+  return parseModelJson(raw, { source: 'model output', fence: 'lines', locate: 'arraySpan' });
 }
 
 function normalizeIssue(key: string, item: JsonObject): ReviewIssue {
@@ -201,7 +176,7 @@ export const heuristicReviewReasoner: ReviewReasoner = {
 
 /** 三视角逐个调用模型；任一视角失败只降级该视角为启发式，并写明原因。 */
 export function llmReviewReasoner(options: {
-  callLlm: ReviewLlmPort;
+  callLlm: LlmPort;
   model: string | null;
   checkInterruption?: () => void;
 }): ReviewReasoner {
@@ -212,7 +187,7 @@ export function llmReviewReasoner(options: {
         options.checkInterruption?.();
         try {
           const prompt = reviewUserPrompt(key, content, contextBundle, authorInstruction);
-          if (length(prompt) > MAX_REVIEW_PROMPT_CHARS)
+          if (cpLen(prompt) > MAX_REVIEW_PROMPT_CHARS)
             throw new RangeError('审稿输入超过完整处理预算；本轮不能宣称全文模型审稿。');
           const result = await options.callLlm({
             systemPrompt: reviewSystemPrompt(key),

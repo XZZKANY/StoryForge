@@ -3,6 +3,7 @@ import { ProjectReadError, type ProjectReader } from '../readPort';
 import { MAX_READ_BYTES, ProjectTreeError } from './projectTree';
 import { InputDomainError, JsonFields, parseJsonBytes, type JsonObject } from './json';
 import { pythonStrip } from './pythonText';
+import { sha256Hex } from './sha256';
 import type { RosterEntity } from './bookContext';
 
 const CANON = '.storyforge/canon/';
@@ -12,11 +13,6 @@ const RECEIPTS = '.storyforge/writeback-receipts';
 const REVISION = '_storyforge_source_revision';
 const isDigest = (value: unknown): boolean =>
   typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-
-async function sha256(raw: Uint8Array): Promise<string> {
-  const bytes = await crypto.subtle.digest('SHA-256', new Uint8Array(raw).buffer);
-  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 async function readCacheSource(
   reader: ProjectReader,
@@ -43,7 +39,7 @@ function readReceipt(raw: Uint8Array, path: string, operation: string, kind: str
     'fingerprint',
     ...(kind === 'intent'
       ? ['relativePath', 'beforeHash', 'afterHash', 'checkpointTimestamp']
-      : ['state', 'detail']),
+      : ['state', 'detail', 'detailKind']),
   ]);
   if (
     Object.keys(record).some((key) => !allowed.has(key)) ||
@@ -84,7 +80,7 @@ export async function captureCanonSourceRevision(
         const pair = records.get(operation) ?? new Map();
         pair.set(kind, readReceipt(raw, path, operation, kind));
         records.set(operation, pair);
-        hashes.push([name, await sha256(raw)]);
+        hashes.push([name, sha256Hex(raw)]);
       }
       if (entries.terminalError !== null) throw new ProjectReadError(entries.terminalError);
     }
@@ -96,6 +92,8 @@ export async function captureCanonSourceRevision(
       const timestamp = fields.member(intent, 'checkpointTimestamp');
       const before = fields.member(intent, 'beforeHash');
       const detail = fields.member(outcome, 'detail');
+      // 宿主后加的可选字段（fs_writeback_receipts.rs 的 DetailKind），没有类别时不落盘。
+      const detailKind = fields.member(outcome, 'detailKind');
       const path = fields.member(intent, 'relativePath');
       const state = fields.member(outcome, 'state');
       if (
@@ -108,7 +106,8 @@ export async function captureCanonSourceRevision(
         (timestamp !== undefined &&
           timestamp !== null &&
           !(typeof timestamp === 'number' && timestamp >= 0)) ||
-        (detail !== undefined && detail !== null && typeof detail !== 'string')
+        (detail !== undefined && detail !== null && typeof detail !== 'string') ||
+        (detailKind !== undefined && detailKind !== 'canon-cache-stale' && detailKind !== 'drift')
       )
         throw new InputDomainError(`${RECEIPTS}：回执字段不合约定`);
     }
@@ -121,16 +120,13 @@ export async function captureCanonSourceRevision(
         name,
         info.targetKind === 'missing'
           ? 'missing'
-          : await sha256(
+          : sha256Hex(
               await readCacheSource(reader, root, target.resolvedRelativePath, MAX_READ_BYTES),
             ),
       ]);
     }
     // 阅读序变更会改变 presence 章号，即使原稿/回执字节未变也不能信任旧派生缓存。
-    return (
-      'canon-manuscript-order-v2:' +
-      (await sha256(new TextEncoder().encode(JSON.stringify(hashes))))
-    );
+    return 'canon-manuscript-order-v2:' + sha256Hex(JSON.stringify(hashes));
   } catch (error) {
     if (
       !(

@@ -1,13 +1,12 @@
-import { dumpJson, JsonFloat } from '../kernel/json';
+import { dumpJson, JsonFloat, type Obj } from '../kernel/json';
+import { codePoints } from '../kernel/pythonText';
 import { loopPatchToolSpecs } from './tools/catalog';
 
-type Obj = { [key: string]: unknown };
 const isObj = (value: unknown): value is Obj =>
   typeof value === 'object' &&
   value !== null &&
   !Array.isArray(value) &&
   !(value instanceof JsonFloat);
-const points = (text: string) => Array.from(text);
 /** Python `len(x or [])` / `len(x or {})`：容器取长度，空值记 0。 */
 const size = (value: unknown) =>
   Array.isArray(value) ? value.length : isObj(value) ? Object.keys(value).length : 0;
@@ -28,7 +27,7 @@ const REVIEW_FEEDBACK_ISSUE_KEYS = [
 /** 工具结果回给模型的文本：超过 24,000 字截断并注明。 */
 export function serializeToolOutput(output: unknown): string {
   const text = dumpJson(output, { ensureAscii: false });
-  const chars = points(text);
+  const chars = codePoints(text);
   if (chars.length > TOOL_RESULT_MAX_CHARS)
     return chars.slice(0, TOOL_RESULT_MAX_CHARS).join('') + '…[结果过长已截断]';
   return text;
@@ -89,7 +88,7 @@ function rawToolOutputSummary(registryName: string, output: Obj): Obj {
         skill_name: output.name,
         plugin: output.plugin,
         path: output.path,
-        returned_chars: typeof output.content === 'string' ? points(output.content).length : 0,
+        returned_chars: typeof output.content === 'string' ? codePoints(output.content).length : 0,
         truncated: output.truncated,
       };
     case 'project.consistency':
@@ -190,7 +189,7 @@ function rawToolOutputSummary(registryName: string, output: Obj): Obj {
     const after = output.after;
     return {
       file_path: output.file_path,
-      after_chars: after ? points(typeof after === 'string' ? after : String(after)).length : 0,
+      after_chars: after ? codePoints(typeof after === 'string' ? after : String(after)).length : 0,
       model: output.model,
       patch_id: patch.id,
     };

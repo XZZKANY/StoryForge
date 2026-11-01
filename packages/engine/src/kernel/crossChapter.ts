@@ -4,7 +4,8 @@ import type { ProjectReader } from '../readPort';
 import { chapterOrdinals } from './canonRebuild';
 import { FsToolError, readBoundedText, resolveProjectRoot, resolveScopedPath } from './fsTools';
 import { compareCodePoints, isJsonObject, pythonStr } from './json';
-import { compactText, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
+import type { LlmPort } from './llmPort';
+import { compactText, cpLen, PYTHON_WHITESPACE, pythonStrip } from './pythonText';
 import { loadsJsonArray } from './reviewReasoning';
 
 const TRAILING_WHITESPACE = new RegExp(`${PYTHON_WHITESPACE}+$`, 'u');
@@ -31,13 +32,6 @@ export const CROSS_CHAPTER_SYSTEM_PROMPT =
   '已死亡或已离场角色再次出场、前文埋下的伏笔后文未回收。' +
   '不要报单章内的文风/节奏问题。每条冲突必须给出涉及的章节和各自的原文片段为证。' +
   '只输出 JSON 数组,不要解释,不要 Markdown,不要代码块标记。';
-
-export type CrossChapterLlmPort = (request: {
-  systemPrompt: string;
-  userPrompt: string;
-}) => Promise<{ content: unknown; latency_ms?: unknown }>;
-
-const length = (text: string) => Array.from(text).length;
 
 function truncate(value: string, limit: number): string {
   const text = Array.from(pythonStrip(value));
@@ -127,8 +121,8 @@ export async function orderedChapters(
       path: target,
       chapter: ordinals.get(target) ?? null,
       content: text,
-      chars: length(text),
-      truncated: length(pythonStrip(text)) > PER_CHAPTER_CHAR_BUDGET,
+      chars: cpLen(text),
+      truncated: cpLen(pythonStrip(text)) > PER_CHAPTER_CHAR_BUDGET,
     });
   }
   // 非正文文件（大纲 / 设定）没有章序，排在正文之后，而不是当作第 0 章插到最前。
@@ -147,7 +141,7 @@ export async function orderedChapters(
 export async function checkCrossChapterConsistency(
   chapters: readonly { name?: string | null; content?: string | null }[],
   focus: string | null,
-  options: { callLlm: CrossChapterLlmPort; model: string | null },
+  options: { callLlm: LlmPort; model: string | null },
 ) {
   if (chapters.filter((item) => pythonStrip(item.content || '')).length < MIN_CHAPTERS)
     throw new RangeError('跨章一致性检查至少需要两章有正文的章节。');
@@ -170,7 +164,7 @@ export async function crossChapterReview(
   options: {
     platform: 'windows' | 'posix';
     focus?: string | null;
-    callLlm: CrossChapterLlmPort;
+    callLlm: LlmPort;
     model: string | null;
   },
 ) {

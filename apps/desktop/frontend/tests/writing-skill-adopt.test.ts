@@ -39,7 +39,7 @@ test('放进 写法/：先建目录，同名已有就跳过、不覆盖', async 
   vi.spyOn(TauriFileSystem, 'createDir').mockImplementation(async (_root, path) => {
     dirs.push(path);
   });
-  vi.spyOn(TauriFileSystem, 'pathExists').mockImplementation(async (path) =>
+  vi.spyOn(TauriFileSystem, 'projectPathExists').mockImplementation(async (_root, path) =>
     path.endsWith('02-章末.md'),
   );
   vi.spyOn(TauriFileSystem, 'writeFileIfUnchanged').mockImplementation(

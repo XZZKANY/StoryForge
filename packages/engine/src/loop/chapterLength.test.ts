@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { countProseChars } from '@storyforge/project-core';
 import type { EncodedFile } from '../kernel/contextFixture.test-support';
 import { memoryProject } from '../kernel/memoryProject.test-support';
 import type { SerialPlan } from '../kernel/serialPlan';
-import { chapterChars } from './chapterCheckProtocol';
 import { bookChapterRange, buildBriefSeed, earliestChapterChars } from './chapterWritingContracts';
 
 // 与 apps/api/tests/test_chapter_writing_contracts.py 同一组例子、同一组期望：影子档逐字节比对章纲请求，两边必须算得一样。
@@ -16,8 +16,8 @@ function encoded(text: string): EncodedFile {
 
 describe('chapter length', () => {
   it('counts every character except whitespace', () => {
-    expect(chapterChars('字。\n\n'.repeat(60))).toBe(120);
-    expect(chapterChars('他 推\t门。' + String.fromCharCode(0x3000, 0xa0) + '\r\n')).toBe(4);
+    expect(countProseChars('字。\n\n'.repeat(60))).toBe(120);
+    expect(countProseChars('他 推\t门。' + String.fromCharCode(0x3000, 0xa0) + '\r\n')).toBe(4);
   });
 
   it('samples the chapters before the target, skipping stubs and outlines', async () => {

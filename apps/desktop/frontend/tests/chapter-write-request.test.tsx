@@ -461,21 +461,34 @@ test.each([
   ['relative target', { targetFilePath: '正文/第001章.md' }],
   ['absolute target', { targetFilePath: 'D:/fixture/正文/第001章.md' }],
   ['plan fallback', { planFallback: true }],
-] as const)('chapter context retains the open setting with %s', async (_label, options) => {
+] as const)('chapter context only sends the pinned setting with %s', async (_label, target) => {
   const { useRunAuthorAgent: real } = await vi.importActual<
     typeof import('../src/components/chat-window/useRunAuthorAgent')
   >('../src/components/chat-window/useRunAuthorAgent');
   const setting = 'D:/fixture/设定/核心设定.md';
+  const outline = 'D:/fixture/大纲/总纲.md';
   const canon = '沈敬川生前是邮局稽核员。林苇与沈家无亲属关系。';
-  const list = vi
-    .spyOn(TauriFileSystem, 'listDir')
-    .mockResolvedValue([
-      { path: setting, name: '核心设定.md', extension: 'md', isDir: false, size: 100, modified: 1 },
-    ]);
+  const outlineText = '第三卷收束于邮局大火。';
+  // 只固定打开的设定：它不能因为「是当前文件」被丢掉；没固定的大纲不再由界面预先选入。
+  const options = { ...target, explicitContextPaths: ['设定/核心设定.md'] };
+  const list = vi.spyOn(TauriFileSystem, 'listProjectDir').mockImplementation(async (_root, dir) =>
+    String(dir).replaceAll('\\', '/').endsWith('fixture')
+      ? [setting, outline].map((path) => ({
+          path,
+          name: path.split('/').pop()!,
+          extension: 'md',
+          isDir: false,
+          size: 100,
+          modified: 1,
+        }))
+      : [],
+  );
   const read = vi
     .spyOn(TauriFileSystem, 'readProjectFile')
     .mockImplementation(async (_root, path) => {
-      if (path.replaceAll('\\', '/') !== setting) throw new Error(`Unexpected read: ${path}`);
+      const normalized = path.replaceAll('\\', '/');
+      if (normalized === outline) return outlineText;
+      if (normalized !== setting) throw new Error(`Unexpected read: ${path}`);
       return canon;
     });
   const send = vi
@@ -511,7 +524,10 @@ test.each([
       void realRun!('起草下一章', undefined, 'chapter.write', [], options);
     });
     expect(send).toHaveBeenCalledOnce();
-    expect(JSON.stringify(send.mock.calls[0][0].args?.context_bundle)).toContain(canon);
+    const sentBundle = JSON.stringify(send.mock.calls[0][0].args?.context_bundle);
+    expect(sentBundle).toContain(canon);
+    expect(sentBundle).not.toContain(outlineText);
+    expect(bundle.mock.calls[0][0].automatic).toBe(false);
     expect(flush).not.toHaveBeenCalled();
     expect(send.mock.calls[0][0].args?.current_file).toBeUndefined();
     expect(send.mock.calls[0][0].args?.content).toBeUndefined();

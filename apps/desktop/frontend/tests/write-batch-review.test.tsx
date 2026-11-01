@@ -713,8 +713,10 @@ test('撤销的第二步在那一行里：台账说明与确认、取消挨在�
 test('删掉了章：清掉正文派生的 canon 缓存（与写进文件后宿主清的同一张单子），再恢复台账', async () => {
   const derived = (name: string) => `${ROOT}/.storyforge/canon/derived/${name}`;
   const exists = vi
-    .spyOn(TauriFileSystem, 'pathExists')
-    .mockImplementation(async (filePath: string) => filePath !== derived('report.json'));
+    .spyOn(TauriFileSystem, 'projectPathExists')
+    .mockImplementation(
+      async (_root: string, filePath: string) => filePath !== derived('report.json'),
+    );
   try {
     await openBook(view([chapter(4), chapter(5)]));
     engine.planWriteBatchUndo.mockResolvedValue(undoPlan(5, 5));
@@ -737,7 +739,7 @@ test('删掉了章：清掉正文派生的 canon 缓存（与写进文件后宿�
 });
 
 test('一章都没删成：不动派生缓存', async () => {
-  const exists = vi.spyOn(TauriFileSystem, 'pathExists').mockResolvedValue(true);
+  const exists = vi.spyOn(TauriFileSystem, 'projectPathExists').mockResolvedValue(true);
   try {
     await openBook(view([chapter(4), chapter(5)]));
     engine.planWriteBatchUndo.mockResolvedValue(undoPlan(5, 5));

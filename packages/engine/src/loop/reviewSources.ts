@@ -1,10 +1,7 @@
-import { pythonTruthy, type JsonValue } from '../kernel/json';
+import { isObj, pythonTruthy, type JsonValue, type Obj } from '../kernel/json';
 import type { ConversationSources } from './conversationHistory';
 import { AgentOrchestrationError } from './runPayloads';
 
-type Obj = { [key: string]: unknown };
-const isObj = (value: unknown): value is Obj =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 const truthy = (value: unknown) => pythonTruthy(value as JsonValue);
 
 /**

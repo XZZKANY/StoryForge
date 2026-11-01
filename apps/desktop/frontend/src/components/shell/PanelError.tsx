@@ -9,6 +9,7 @@
  * 原始报错不隐藏 —— 排障时它是唯一线索 —— 但它不该占据标题位。
  */
 import type { ReactNode } from 'react';
+import { Button } from '../ui';
 
 export function PanelError({
   title,
@@ -46,14 +47,9 @@ export function PanelError({
         </p>
       )}
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          data-testid="panel-error-retry"
-          className="mt-2 h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground hover:bg-elevated"
-        >
+        <Button onClick={onRetry} data-testid="panel-error-retry" size="xs" className="mt-2">
           {retryLabel}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -228,5 +228,5 @@ test('工具指标是同一行右侧的淡字：用时说人话，模型名只�
   assert.match(html, /title="改写 大纲\/总纲\.md · 模型 gpt-6\.1-terra"/);
   assert.equal(html.match(/gpt-6\.1-terra/g)?.length, 1);
   // 有右侧淡字时行内不再挂纯文本 detail，行也不是可点的 button。
-  assert.doesNotMatch(html, /<button[^>]*class="flex w-full items-baseline/);
+  assert.doesNotMatch(html, /<button[^>]*class="(?:sf-plain-button )?flex w-full items-baseline/);
 });

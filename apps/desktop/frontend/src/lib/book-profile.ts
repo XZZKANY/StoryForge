@@ -12,6 +12,8 @@
  * 可以区分：前者跟着目录改名走，后者是作者的显式选择。
  */
 
+import { joinPath } from './fs-path-ops';
+
 export type BookProfile = {
   version: 1;
   /** 空串 = 未显式起名，显示时回落到目录名。 */
@@ -31,9 +33,7 @@ export function emptyBookProfile(): BookProfile {
 }
 
 export function bookProfilePath(projectPath: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  const root = projectPath.replace(/[\\/]+$/, '');
-  return `${root}${separator}.storyforge${separator}${BOOK_PROFILE_CHILD}`;
+  return joinPath(projectPath, '.storyforge', BOOK_PROFILE_CHILD);
 }
 
 /** 显示用书名：作者没显式起名就用目录名，不显示空白标题。 */

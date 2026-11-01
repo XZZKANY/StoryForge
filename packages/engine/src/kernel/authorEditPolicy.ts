@@ -1,5 +1,5 @@
 import { dumpJson } from './json';
-import { PYTHON_WHITESPACE } from './pythonText';
+import { countOf, PYTHON_WHITESPACE } from './pythonText';
 import { sha256Hex } from './sha256';
 
 /**
@@ -458,7 +458,6 @@ export function authorEditPolicyPrompt(policy: AuthorEditPolicy): string {
   return lines.join('\n');
 }
 
-const countOf = (text: string, part: string) => text.split(part).length - 1;
 const REPEATED_MARKS = /[？?！!]{2,}/gu;
 
 export function authorEditPolicyFailures(

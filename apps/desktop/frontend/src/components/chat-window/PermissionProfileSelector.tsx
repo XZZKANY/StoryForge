@@ -1,12 +1,10 @@
-import { FloatingSurface } from '../ui';
-import { useId, useLayoutEffect, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
-import { Check, ChevronDown, Shield } from 'lucide-react';
+import { Shield } from '../icons/shell-icons';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import {
   AGENT_PERMISSION_PROFILE_OPTIONS,
   visiblePermissionProfile,
 } from '../../lib/agent-permission';
+import { ComposerMenuSelect } from './ComposerMenuSelect';
 
 interface PermissionProfileSelectorProps {
   value: AgentPermissionProfile;
@@ -24,181 +22,33 @@ export function PermissionProfileSelector({
   busy = false,
   fitToComposer = false,
 }: PermissionProfileSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [focusedIndex, setFocusedIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const selectionClaimedRef = useRef(false);
-  const menuId = useId();
-  const effectiveDisabled = disabled || busy;
-  // Permission availability changing invalidates the open interaction. Do not revive an
-  // old menu when busy clears, or defer closing until an effect after disabled is painted.
-  if (effectiveDisabled && isOpen) setIsOpen(false);
-  const menuOpen = isOpen && !effectiveDisabled;
   const shown = visiblePermissionProfile(value);
   const currentOption = AGENT_PERMISSION_PROFILE_OPTIONS.find((option) => option.value === shown);
-
-  useLayoutEffect(() => {
-    if (menuOpen) optionRefs.current[focusedIndex]?.focus();
-  }, [menuOpen, focusedIndex]);
-
-  function openMenu() {
-    if (effectiveDisabled) return;
-    selectionClaimedRef.current = false;
-    setFocusedIndex(
-      Math.max(
-        0,
-        AGENT_PERMISSION_PROFILE_OPTIONS.findIndex((option) => option.value === shown),
-      ),
-    );
-    setIsOpen(true);
-  }
-
-  function closeMenu(restoreFocus = false) {
-    setIsOpen(false);
-    if (restoreFocus) triggerRef.current?.focus();
-  }
-
-  function handleSelect(profile: AgentPermissionProfile) {
-    if (effectiveDisabled || !menuOpen || selectionClaimedRef.current) return;
-    selectionClaimedRef.current = true;
-    closeMenu(true);
-    onChange(profile);
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.nativeEvent.isComposing || event.keyCode === 229 || effectiveDisabled) return;
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (!menuOpen) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        event.stopPropagation();
-        openMenu();
-      }
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      closeMenu(true);
-      return;
-    }
-    const count = AGENT_PERMISSION_PROFILE_OPTIONS.length;
-    const nextIndex =
-      event.key === 'ArrowDown'
-        ? (focusedIndex + 1) % count
-        : event.key === 'ArrowUp'
-          ? (focusedIndex + count - 1) % count
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? count - 1
-              : null;
-    if (nextIndex !== null) {
-      event.preventDefault();
-      event.stopPropagation();
-      setFocusedIndex(nextIndex);
-      return;
-    }
-    if ((event.key === 'Enter' || event.key === ' ') && event.target !== triggerRef.current) {
-      event.preventDefault();
-      event.stopPropagation();
-      handleSelect(AGENT_PERMISSION_PROFILE_OPTIONS[focusedIndex].value);
-    }
-  }
-
   return (
-    <div
-      ref={containerRef}
-      className={`flex-shrink-0 ${fitToComposer ? 'static' : 'relative'}`}
-      onKeyDown={handleKeyDown}
-      onBlur={(event) => {
-        if (
-          event.relatedTarget instanceof Element &&
-          !event.currentTarget.contains(event.relatedTarget) &&
-          event.relatedTarget.closest('[role="listbox"]')?.id !== menuId
-        )
-          closeMenu();
+    <ComposerMenuSelect<AgentPermissionProfile>
+      options={AGENT_PERMISSION_PROFILE_OPTIONS}
+      selected={shown}
+      onSelect={(profile) => {
+        onChange(profile);
       }}
-    >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => (menuOpen ? closeMenu() : openMenu())}
-        disabled={effectiveDisabled}
-        title={
-          busy
-            ? '本轮正在按启动时的权限档位执行'
-            : 'AI 对本作品的权限（按作品记住，只影响下一次发送）'
-        }
-        aria-label="AI 对本作品的权限档位"
-        aria-expanded={menuOpen}
-        aria-controls={menuOpen ? menuId : undefined}
-        aria-haspopup="listbox"
-        className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-xs [@container(max-width:26rem)]:px-1.5 text-muted transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent disabled:cursor-not-allowed disabled:opacity-50"
-        data-testid="permission-profile-selector"
-      >
+      triggerIcon={
         <Shield
           size={14}
           strokeWidth={1.7}
           className="flex-shrink-0 [@container(max-width:26rem)]:hidden"
           aria-hidden="true"
         />
-        <span className="whitespace-nowrap text-left">{currentOption?.label ?? value}</span>
-        <ChevronDown
-          size={12}
-          strokeWidth={1.7}
-          className={`flex-shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
-          aria-hidden="true"
-        />
-      </button>
-      {menuOpen && (
-        <FloatingSurface
-          triggerRef={triggerRef}
-          side="top"
-          fitToComposer={fitToComposer}
-          onDismiss={(reason) => closeMenu(reason === 'escape')}
-          id={menuId}
-          role="listbox"
-          aria-label="选择权限档位"
-          className="w-[280px] animate-fade-in rounded-xl border border-border bg-surface p-1.5 shadow-dropdown"
-        >
-          {AGENT_PERMISSION_PROFILE_OPTIONS.map((option, index) => {
-            const isSelected = option.value === shown;
-            return (
-              <button
-                key={option.value}
-                ref={(element) => {
-                  optionRefs.current[index] = element;
-                }}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                tabIndex={index === focusedIndex ? 0 : -1}
-                onFocus={() => setFocusedIndex(index)}
-                onClick={() => handleSelect(option.value)}
-                className={`flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-agent ${isSelected ? 'bg-elevated/70' : ''}`}
-                data-testid={`permission-option-${option.value}`}
-              >
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={`block text-xs font-medium ${isSelected ? 'text-agent' : 'text-foreground'}`}
-                  >
-                    {option.label}
-                  </span>
-                  <span className="mt-0.5 block text-2xs leading-snug text-subtle">
-                    {option.hint}
-                  </span>
-                </span>
-                <span className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-agent" aria-hidden="true">
-                  {isSelected && <Check size={14} strokeWidth={1.7} />}
-                </span>
-              </button>
-            );
-          })}
-        </FloatingSurface>
-      )}
-    </div>
+      }
+      triggerText={currentOption?.label ?? value}
+      triggerTitle="AI 对本作品的权限（按作品记住，只影响下一次发送）"
+      ariaLabel="AI 对本作品的权限档位"
+      menuLabel="选择权限档位"
+      testId="permission-profile-selector"
+      className="flex-shrink-0"
+      disabled={disabled}
+      busy={busy}
+      busyTitle="本轮正在按启动时的权限档位执行"
+      fitToComposer={fitToComposer}
+    />
   );
 }

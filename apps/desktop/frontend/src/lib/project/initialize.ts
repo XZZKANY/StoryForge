@@ -6,6 +6,8 @@ import {
   STARTER_PLUGIN_NAME,
 } from '@storyforge/project-core';
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
+import { joinPath, parentDir } from '../fs-path-ops';
+import { documentDirectory } from '../tauri-env';
 import { TauriFileSystem } from '../tauri-fs';
 import { normalizeRoot } from './path';
 import type { StoryProjectInitializationPlan } from './types';
@@ -17,28 +19,24 @@ export const SAMPLE_STORY_PROJECT_NAME = 'StoryForge 示例作品';
 export function buildStoryProjectInitializationPlan(
   projectPath: string,
 ): StoryProjectInitializationPlan {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  const root = normalizeRoot(projectPath);
-  const readmePath = `${root}${separator}${PROJECT_GUIDE_RELATIVE_PATH.split('/').join(separator)}`;
+  const readmePath = joinPath(projectPath, PROJECT_GUIDE_RELATIVE_PATH);
   return {
-    directories: STORY_DIRS.map((dir) => `${root}${separator}${dir}`),
+    directories: STORY_DIRS.map((dir) => joinPath(projectPath, dir)),
     readmePath,
     readmeContent: PROJECT_GUIDE_MARKDOWN,
   };
 }
 
 export function sampleStoryProjectPath(parentPath: string): string {
-  const separator = parentPath.includes('\\') ? '\\' : '/';
-  return `${normalizeRoot(parentPath)}${separator}${SAMPLE_STORY_PROJECT_NAME}`;
+  return joinPath(parentPath, SAMPLE_STORY_PROJECT_NAME);
 }
 
 export function buildSampleStoryProjectFiles(
   projectPath: string,
 ): Array<{ path: string; content: string }> {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
   return [
     {
-      path: `${projectPath}${separator}大纲${separator}总纲.md`,
+      path: joinPath(projectPath, '大纲', '总纲.md'),
       content: [
         '# 总纲',
         '',
@@ -51,7 +49,7 @@ export function buildSampleStoryProjectFiles(
       ].join('\n'),
     },
     {
-      path: `${projectPath}${separator}人物${separator}主角.md`,
+      path: joinPath(projectPath, '人物', '主角.md'),
       content: [
         '# 主角',
         '',
@@ -61,7 +59,7 @@ export function buildSampleStoryProjectFiles(
       ].join('\n'),
     },
     {
-      path: `${projectPath}${separator}正文${separator}第01章.md`,
+      path: joinPath(projectPath, '正文', '第01章.md'),
       content: [
         '# 第01章',
         '',
@@ -82,14 +80,14 @@ export async function initializeStoryProject(projectPath: string): Promise<void>
   }
 
   const readmePath = plan.readmePath;
-  const exists = await TauriFileSystem.pathExists(readmePath);
+  const exists = await TauriFileSystem.projectPathExists(projectPath, readmePath);
   if (!exists) {
     await TauriFileSystem.writeFile(projectPath, readmePath, plan.readmeContent);
   }
 }
 
 async function writeIfMissing(projectPath: string, path: string, content: string): Promise<void> {
-  const exists = await TauriFileSystem.pathExists(path);
+  const exists = await TauriFileSystem.projectPathExists(projectPath, path);
   if (!exists) {
     await TauriFileSystem.writeFile(projectPath, path, content);
   }
@@ -100,9 +98,8 @@ async function writeIfMissing(projectPath: string, path: string, content: string
  * 只给真正新建作品的入口用——initializeStoryProject 也给已有文件夹补骨架，那里不该替作者启用。
  */
 export async function enableStarterPlugin(projectPath: string): Promise<void> {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  const file = `${normalizeRoot(projectPath)}${separator}${PLUGINS_FILE.split('/').join(separator)}`;
-  await TauriFileSystem.createDir(projectPath, file.slice(0, file.lastIndexOf(separator)), true);
+  const file = joinPath(projectPath, PLUGINS_FILE);
+  await TauriFileSystem.createDir(projectPath, parentDir(file), true);
   await writeIfMissing(projectPath, file, serializePluginsFile([STARTER_PLUGIN_NAME]));
 }
 
@@ -129,12 +126,12 @@ export function deriveNewBookName(prompt: string): string {
 }
 
 async function resolveFreeChildPath(parentPath: string, name: string): Promise<string> {
-  const separator = parentPath.includes('\\') ? '\\' : '/';
-  const base = `${normalizeRoot(parentPath)}${separator}${name}`;
-  if (!(await TauriFileSystem.pathExists(base))) return base;
+  const base = joinPath(parentPath, name);
+  // 与随后建目录同一个围栏：书库目录当根，候选书名都是它的直接子目录。
+  if (!(await TauriFileSystem.projectPathExists(parentPath, base))) return base;
   for (let n = 2; n < 1000; n += 1) {
     const candidate = `${base}-${n}`;
-    if (!(await TauriFileSystem.pathExists(candidate))) return candidate;
+    if (!(await TauriFileSystem.projectPathExists(parentPath, candidate))) return candidate;
   }
   return `${base}-${Date.now()}`;
 }
@@ -148,15 +145,13 @@ async function resolveFreeChildPath(parentPath: string, name: string): Promise<s
 export async function createNewBookProject(
   prompt: string,
 ): Promise<{ projectPath: string; seedFilePath: string }> {
-  const { documentDir } = await import('@tauri-apps/api/path');
-  const docs = normalizeRoot(await documentDir());
-  const separator = docs.includes('\\') ? '\\' : '/';
-  const booksRoot = `${docs}${separator}StoryForge`;
+  const docs = normalizeRoot(await documentDirectory());
+  const booksRoot = joinPath(docs, 'StoryForge');
   await TauriFileSystem.createDir(docs, booksRoot, true);
   const projectPath = await resolveFreeChildPath(booksRoot, deriveNewBookName(prompt));
   await TauriFileSystem.createDir(booksRoot, projectPath, true);
   await initializeStoryProject(projectPath);
-  const seedFilePath = `${projectPath}${separator}灵感.md`;
+  const seedFilePath = joinPath(projectPath, '灵感.md');
   await writeIfMissing(projectPath, seedFilePath, ['# 灵感', '', prompt.trim(), ''].join('\n'));
   await writeBookProfileSeed(projectPath, prompt);
   await enableStarterPlugin(projectPath);
@@ -168,8 +163,7 @@ export async function createNewBookProject(
  * 他刚刚才说过这本书是什么。书名留空——空即回落到目录名，作者改目录名它自己会跟上。
  */
 async function writeBookProfileSeed(projectPath: string, prompt: string): Promise<void> {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  await TauriFileSystem.createDir(projectPath, `${projectPath}${separator}.storyforge`, true);
+  await TauriFileSystem.createDir(projectPath, joinPath(projectPath, '.storyforge'), true);
   await writeIfMissing(
     projectPath,
     bookProfilePath(projectPath),

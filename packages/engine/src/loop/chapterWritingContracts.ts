@@ -1,4 +1,4 @@
-import { compareManuscriptPaths } from '@storyforge/project-core';
+import { compareManuscriptPaths, countProseChars } from '@storyforge/project-core';
 import { selectWrittenFacts, type WrittenFact } from '../kernel/canonContext';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
@@ -9,20 +9,20 @@ import {
   InputDomainError,
   isJsonObject,
   parseJson,
+  parseModelJson,
+  type JsonObject,
+  type JsonValue,
+  type Obj,
 } from '../kernel/json';
 import { iterManuscriptFiles, previousChapterTail } from '../kernel/previousChapter';
 import { MAX_READ_BYTES, ProjectTreeError } from '../kernel/projectTree';
-import { PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
+import { codePoints, PYTHON_WHITESPACE, pythonStrip } from '../kernel/pythonText';
 import { locateQuote } from '../kernel/quoteLocation';
 import { buildPlan, nextChapter, type PlannedChapter, type SerialPlan } from '../kernel/serialPlan';
 import type { AvailableWritingStyle } from '../kernel/availableWritingStyles';
 import { pickWritingSkills, WRITING_SKILL_PICK_MAX } from '../kernel/writingSkills';
-import { ProjectReadError, type ProjectReader } from '../readPort';
-import { chapterChars } from './chapterCheckProtocol';
+import { decodeUtf8, ProjectReadError, type ProjectReader } from '../readPort';
 import { AgentOrchestrationError } from './runPayloads';
-
-type Obj = { [key: string]: unknown };
-const points = (text: string) => Array.from(text);
 
 export const CHAPTER_BRIEF_ARTIFACT_KIND = 'chapter_brief';
 export const CHAPTER_CHECK_ARTIFACT_KIND = 'chapter_check';
@@ -50,7 +50,7 @@ const MAX_ITEM_CHARS = 300;
 /** Python 的 value.strip()[:limit]，空串视为没有。 */
 export function textValue(value: unknown, limit: number): string | null {
   if (typeof value !== 'string' || !pythonStrip(value)) return null;
-  return points(pythonStrip(value)).slice(0, limit).join('');
+  return codePoints(pythonStrip(value)).slice(0, limit).join('');
 }
 
 export function textList(value: unknown): string[] {
@@ -213,7 +213,7 @@ export async function earliestChapterChars(
       if (error instanceof ProjectReadError || error instanceof FsToolError) continue;
       throw error;
     }
-    const count = chapterChars(new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes));
+    const count = countProseChars(decodeUtf8(bytes));
     if (count >= MIN_SAMPLE_CHARS) {
       counts.push(count);
       if (counts.length === LENGTH_SAMPLES) break;
@@ -343,10 +343,11 @@ export function briefConversation(
     if (role === 'user' && text.startsWith(REPAIR_INSTRUCTION_PREFIX)) continue;
     if (role === 'assistant' && REVISION_SUMMARY.test(text)) continue;
     const cap = role === 'user' ? AUTHOR_LINE_MAX_CHARS : AI_LINE_MAX_CHARS;
-    const body = points(text).length > cap ? `${points(text).slice(0, cap).join('')}……` : text;
+    const body =
+      codePoints(text).length > cap ? `${codePoints(text).slice(0, cap).join('')}……` : text;
     const line = `${role === 'user' ? '作者' : 'AI'}：${body}`;
-    if (used + points(line).length > CONVERSATION_MAX_CHARS) break;
-    used += points(line).length;
+    if (used + codePoints(line).length > CONVERSATION_MAX_CHARS) break;
+    used += codePoints(line).length;
     lines.unshift(line);
   }
   return lines.length ? lines.join('\n') : null;
@@ -443,25 +444,22 @@ function deathAdjustments(planText: string, written: BriefWritten, existing: Obj
   return added;
 }
 
-const STRUCTURED_FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
-
 function jsonObject(raw: unknown): Obj {
   if (isJsonObject(raw as never)) return { ...(raw as Obj) };
   if (typeof raw !== 'string') throw new AgentOrchestrationError('模型未返回可解析的结构化结果。');
-  let text = pythonStrip(raw);
-  const fence = STRUCTURED_FENCE.exec(text);
-  if (fence) text = fence[1];
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = parseJson(text, 'chapter brief');
+    parsed = parseModelJson(raw, {
+      source: 'chapter brief',
+      fence: 'block',
+      // 模型把带直引号的计划原文、对白原样抄进字符串时，先用程序转义再解析，不让整份章纲重来。
+      locate: (text) => leadingBriefObject(text) ?? repairedBriefObject(text),
+    });
   } catch (error) {
     if (!(error instanceof InputDomainError)) throw error;
-    parsed = leadingBriefObject(text);
-    // 模型把带直引号的计划原文、对白原样抄进字符串时，先用程序转义再解析，不让整份章纲重来。
-    if (parsed === null) parsed = repairedBriefObject(text);
-    if (parsed === null) throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
+    throw new AgentOrchestrationError('模型返回的结构化结果不是有效 JSON。');
   }
-  if (!isJsonObject(parsed as never))
+  if (!isJsonObject(parsed))
     throw new AgentOrchestrationError('模型返回的结构化结果必须是 JSON 对象。');
   return parsed as Obj;
 }
@@ -490,7 +488,7 @@ function leadingBracketEnd(text: string, open: '{' | '[', close: '}' | ']'): num
  * 它就另起一行写在对象外面；还常补一段说明。只认开头那个完整对象：紧跟的 fact_adjustments
  * 数组并回对象（写坏或与对象里的同名字段重复就不认），再往后的说明文字不要。
  */
-function leadingBriefObject(text: string): Obj | null {
+function leadingBriefObject(text: string): JsonObject | null {
   const end = leadingBracketEnd(text, '{', '}');
   if (end === null) return null;
   try {
@@ -512,7 +510,7 @@ function leadingBriefObject(text: string): Obj | null {
 }
 
 /** 直引号转义后再解析一次（整份或开头的对象）；仍不成就放弃，交给调用方报错。 */
-function repairedBriefObject(text: string): Obj | null {
+function repairedBriefObject(text: string): JsonObject | null {
   const repaired = escapeStrayQuotes(text);
   if (repaired === text) return null;
   try {

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { readAgentRunWithin } from '../../lib/api/agent-delivery';
 import { queryChapterCheckHistory, type ChapterCheckHistory } from '../../lib/api/chapter-checks';
+import { useAsyncEffect } from '../../lib/async-guards';
 
 type Owner = { project: string; session: number; active: boolean };
 type Snapshot = ChapterCheckHistory & { owner: Owner; refresh: string; error: string | null };
@@ -28,40 +29,41 @@ export function useChapterCheckHistory(
     };
   }, [projectPath, assistantSessionId]);
 
-  useEffect(() => {
-    const scope = owner.current;
-    if (!scope || !projectPath || !assistantSessionId) return;
-    let active = true;
-    const controller = new AbortController();
-    const owns = () => active && scope.active && owner.current === scope;
-    void readAgentRunWithin((signal) => {
-      const abort = () => controller.abort();
-      signal.addEventListener('abort', abort, { once: true });
-      return queryChapterCheckHistory(
-        { project_root: projectPath, assistant_session_id: assistantSessionId, limit: 20 },
-        {
-          signal: controller.signal,
-        },
-      ).finally(() => signal.removeEventListener('abort', abort));
-    })
-      .then((history) => {
-        if (owns()) setSnapshot({ ...history, owner: scope, refresh, error: null });
+  useAsyncEffect(
+    (isCurrent) => {
+      const scope = owner.current;
+      if (!scope || !projectPath || !assistantSessionId) return;
+      const controller = new AbortController();
+      const owns = () => isCurrent() && scope.active && owner.current === scope;
+      void readAgentRunWithin((signal) => {
+        const abort = () => controller.abort();
+        signal.addEventListener('abort', abort, { once: true });
+        return queryChapterCheckHistory(
+          { project_root: projectPath, assistant_session_id: assistantSessionId, limit: 20 },
+          {
+            signal: controller.signal,
+          },
+        ).finally(() => signal.removeEventListener('abort', abort));
       })
-      .catch((error: unknown) => {
-        if (!owns()) return;
-        setSnapshot((previous) => ({
-          owner: scope,
-          refresh,
-          error: error instanceof Error ? error.message : String(error),
-          entries: previous?.owner === scope ? previous.entries : [],
-          truncated: previous?.owner === scope ? previous.truncated : false,
-        }));
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [projectPath, assistantSessionId, refresh]);
+        .then((history) => {
+          if (owns()) setSnapshot({ ...history, owner: scope, refresh, error: null });
+        })
+        .catch((error: unknown) => {
+          if (!owns()) return;
+          setSnapshot((previous) => ({
+            owner: scope,
+            refresh,
+            error: error instanceof Error ? error.message : String(error),
+            entries: previous?.owner === scope ? previous.entries : [],
+            truncated: previous?.owner === scope ? previous.truncated : false,
+          }));
+        });
+      return () => {
+        controller.abort();
+      };
+    },
+    [projectPath, assistantSessionId, refresh],
+  );
 
   const current =
     snapshot &&

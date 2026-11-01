@@ -4,26 +4,9 @@
  * 避免顶栏出现 `D:\test` 这类裸路径。窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽。
  */
 import type { Ref } from 'react';
-import { isTauriRuntime } from '../../lib/tauri-env';
+import { runWindowAction } from '../../lib/host-window';
 import { Library, Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
-
-async function runWindowAction(action: 'drag' | 'minimize' | 'maximize' | 'close') {
-  if (!isTauriRuntime()) return;
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    const appWindow = getCurrentWindow();
-    if (action === 'drag') {
-      // Windows 不允许拖动最大化窗口（startDragging 静默无效）：先还原再拖，对齐原生手感。
-      if (await appWindow.isMaximized()) await appWindow.unmaximize();
-      await appWindow.startDragging();
-    }
-    if (action === 'minimize') await appWindow.minimize();
-    if (action === 'maximize') await appWindow.toggleMaximize();
-    if (action === 'close') await appWindow.close();
-  } catch (error) {
-    console.error('窗口操作失败', error);
-  }
-}
+import { Button, PlainButton } from '../ui';
 
 export function Titlebar({
   onOpenPalette,
@@ -64,22 +47,23 @@ export function Titlebar({
         </span>
         <span className="text-2xs text-subtle">StoryForge</span>
         {onOpenLibrary && (
-          <button
+          <Button
             ref={libraryButtonRef}
-            type="button"
+            variant="ghost"
+            size="xs"
+            className="ml-2"
+            leadingIcon={<Library size={13} />}
             onClick={onOpenLibrary}
             data-testid="titlebar-library"
             aria-current={libraryVisible ? 'page' : undefined}
-            className="ml-2 inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted hover:bg-elevated hover:text-foreground"
             title="返回作品库"
           >
-            <Library size={13} aria-hidden="true" />
             作品库
-          </button>
+          </Button>
         )}
       </div>
 
-      <button
+      <PlainButton
         className="mx-auto flex h-6 w-[340px] max-w-[38vw] items-center justify-center gap-2 rounded-md bg-background text-2xs text-subtle transition-colors hover:bg-elevated"
         onClick={onOpenPalette}
         // P2-D：visible label 随 projectOpen 切换，aria-label/title 跟着切，
@@ -90,12 +74,14 @@ export function Titlebar({
         <Search size={13} strokeWidth={1.6} />
         <span>{projectOpen ? '搜索文件…' : '搜索命令…'}</span>
         <kbd className="rounded-sm bg-panel px-1 font-mono text-3xs text-subtle">Ctrl P</kbd>
-      </button>
+      </PlainButton>
 
       <div className="flex min-w-[200px] items-center justify-end">
         {projectOpen && (
-          <button
-            className={`mr-1.5 flex h-7 items-center justify-center gap-1 rounded-md hover:bg-elevated hover:text-foreground ${rightCollapsed ? 'px-2 text-foreground' : 'w-8 text-muted'}`}
+          <Button
+            variant="ghost"
+            size="xs"
+            className="mr-1.5"
             onClick={onToggleRight}
             // 与 StatusBar 字数徽标同一套弹层模式：名字稳定（不因展开/收起态翻成相反动作），
             // 态由 aria-expanded 告知；否则只剩视觉图标 + 随态翻转的 title，屏读者拿不到稳定身份。
@@ -106,10 +92,10 @@ export function Titlebar({
           >
             <PanelRight size={14} strokeWidth={1.6} />
             {/* 对话栏收起后只剩一个小图标，作者找不到回去的路：收起时带上字。 */}
-            {rightCollapsed && <span className="text-xs">对话</span>}
-          </button>
+            {rightCollapsed && '对话'}
+          </Button>
         )}
-        <button
+        <PlainButton
           className="flex h-9 w-11 items-center justify-center text-muted transition-colors hover:bg-elevated active:bg-border-strong/40"
           onClick={() => void runWindowAction('minimize')}
           aria-label="最小化"
@@ -117,8 +103,8 @@ export function Titlebar({
           data-testid="titlebar-minimize"
         >
           <Minus size={14} strokeWidth={1.6} />
-        </button>
-        <button
+        </PlainButton>
+        <PlainButton
           className="flex h-9 w-11 items-center justify-center text-muted transition-colors hover:bg-elevated active:bg-border-strong/40"
           onClick={() => void runWindowAction('maximize')}
           aria-label="最大化"
@@ -126,8 +112,8 @@ export function Titlebar({
           data-testid="titlebar-maximize"
         >
           <Square size={12} strokeWidth={1.6} />
-        </button>
-        <button
+        </PlainButton>
+        <PlainButton
           className="flex h-9 w-11 items-center justify-center text-muted transition-colors hover:bg-error hover:text-white active:bg-error/80"
           onClick={() => void runWindowAction('close')}
           aria-label="关闭"
@@ -135,7 +121,7 @@ export function Titlebar({
           data-testid="titlebar-close"
         >
           <X size={14} strokeWidth={1.6} />
-        </button>
+        </PlainButton>
       </div>
     </header>
   );

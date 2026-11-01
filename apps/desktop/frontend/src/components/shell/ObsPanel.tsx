@@ -6,6 +6,7 @@
  * 只有调用方确认数据已经加载后，才可传入 available 并展示真实空态或观测列表。
  */
 import { Check, X } from '../icons/shell-icons';
+import { IconButton, PlainButton, revealOnHover } from '../ui';
 
 export type ObsSeverity = 'error' | 'warning' | 'advisory';
 export type ObservationAvailability = 'unavailable' | 'loading' | 'available' | 'error';
@@ -76,14 +77,12 @@ export function ObsPanel({
         <span>改完一条勾一条 · 点击行定位原文</span>
         <span className="flex-1" />
         <span className="font-mono">{statusLabel}</span>
-        <button
-          className="flex h-6 w-6 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-elevated hover:text-foreground active:bg-border-strong/40"
+        <IconButton
+          size="compact"
+          label="关闭观测面板"
+          icon={<X size={13} strokeWidth={1.7} />}
           onClick={onClose}
-          aria-label="关闭观测面板"
-          title="关闭观测面板"
-        >
-          <X size={13} strokeWidth={1.7} />
-        </button>
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {availability !== 'available' ? (
@@ -148,18 +147,18 @@ export function ObsPanel({
                   <span className="mt-0.5 block font-mono text-3xs text-subtle">{obs.source}</span>
                 )}
               </span>
-              <button
+              <PlainButton
                 className={`mt-px flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border text-2xs transition-opacity focus-visible:border-success/50 focus-visible:text-success ${
                   obs.resolved
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
-                    : 'border-border text-subtle opacity-40 hover:border-success/50 hover:bg-success/15 hover:text-success hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100'
+                    : `border-border text-subtle hover:border-success/50 hover:bg-success/15 hover:text-success ${revealOnHover('faint')}`
                 }`}
                 aria-label={`标记已处理：${obs.title}`}
                 title="标记已处理"
                 onClick={() => onResolve(obs.id)}
               >
                 <Check size={12} strokeWidth={2} />
-              </button>
+              </PlainButton>
             </div>
           ))
         )}

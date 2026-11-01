@@ -18,6 +18,7 @@ import {
 } from './promiseScan';
 import { proseStaticScan } from './proseScan';
 import { pythonStrip } from './pythonText';
+import { sha1Id } from './sha1';
 import type { Presence } from './canonRebuild';
 
 /** 文笔气味逐文件扫描的文件数上限：超出如实记 truncated，不静默丢。 */
@@ -57,12 +58,6 @@ type Observation = {
 
 const severityOf = (raw: unknown) =>
   Object.prototype.hasOwnProperty.call(SEVERITY, String(raw)) ? SEVERITY[String(raw)] : 'advisory';
-
-async function syntheticId(prefix: string, parts: readonly string[]): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(parts.join('|')));
-  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0'));
-  return `${prefix}_${hex.join('').slice(0, 12)}`;
-}
 
 function canonObservations(output: { conflicts: CanonIssue[]; advisories: CanonIssue[] }) {
   const observations: Observation[] = [];
@@ -169,7 +164,7 @@ async function proseObservations(
       if (suggestion) parts.push(suggestion);
       if (strategy) parts.push(`建议策略 ${strategy}`);
       observations.push({
-        id: await syntheticId('prose', [relative, dimension, snippet]),
+        id: await sha1Id('prose', [relative, dimension, snippet]),
         severity: severityOf(issue.severity),
         title: `「${titleSnippet}」`,
         detail: parts.filter(Boolean).join(' · '),
