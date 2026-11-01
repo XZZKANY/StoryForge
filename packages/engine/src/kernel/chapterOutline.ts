@@ -59,14 +59,14 @@ export function isChapterOutlineCandidate(item: { source_type: string; path: str
   );
 }
 
-/** 这一章的细纲全文（同一章有几份时取路径序第一份能读出内容的）；没有或读不到为 null。 */
-export async function findChapterOutline(
+/** 第 N 章细纲的约定存放处：对话里起草细纲时存这里，写章时就会整份交给章纲与起草。 */
+export const suggestedChapterOutlinePath = (ordinal: number) => `大纲/第${ordinal}章细纲.md`;
+
+/** 作品里各章细纲的路径（按章号分组、路径序）；扫不到为 null。 */
+async function outlinePathsByOrdinal(
   reader: ProjectReader,
   root: string,
-  ordinal: number | null,
-  options: { secrets: SecretContext },
-): Promise<ChapterOutline | null> {
-  if (ordinal === null) return null;
+): Promise<Map<number, string[]> | null> {
   let candidates: Awaited<ReturnType<typeof projectKnowledgeCandidates>>;
   try {
     candidates = await projectKnowledgeCandidates(reader, root);
@@ -74,12 +74,23 @@ export async function findChapterOutline(
     if (optional(error)) return null;
     throw error;
   }
-  const paths = candidates
-    .filter(
-      (item) => isChapterOutlineCandidate(item) && chapterOutlineOrdinal(item.path) === ordinal,
-    )
-    .map((item) => item.path)
-    .sort(compareChapterPaths);
+  const byOrdinal = new Map<number, string[]>();
+  for (const item of candidates) {
+    if (!isChapterOutlineCandidate(item)) continue;
+    const ordinal = chapterOutlineOrdinal(item.path)!;
+    byOrdinal.set(ordinal, [...(byOrdinal.get(ordinal) ?? []), item.path]);
+  }
+  for (const paths of byOrdinal.values()) paths.sort(compareChapterPaths);
+  return byOrdinal;
+}
+
+/** 路径序第一份读得出内容的细纲（已去空白、已脱敏）；都读不出为 null。 */
+async function firstReadable(
+  reader: ProjectReader,
+  root: string,
+  paths: readonly string[],
+  secrets: SecretContext,
+): Promise<{ path: string; text: string } | null> {
   for (const path of paths) {
     let content: string;
     try {
@@ -88,8 +99,45 @@ export async function findChapterOutline(
       if (optional(error)) continue;
       throw error;
     }
-    const text = pythonStrip(redactSensitiveText(normalizeNewlines(content), options.secrets));
-    if (!text) continue;
+    const text = pythonStrip(redactSensitiveText(normalizeNewlines(content), secrets));
+    if (text) return { path, text };
+  }
+  return null;
+}
+
+/** 这些章里哪几章有细纲（与 findChapterOutline 同一条认法），章号 → 路径；只看有没有，不交出内容。 */
+export async function chapterOutlinePaths(
+  reader: ProjectReader,
+  root: string,
+  ordinals: readonly number[],
+): Promise<Map<number, string>> {
+  const found = new Map<number, string>();
+  const byOrdinal = ordinals.length ? await outlinePathsByOrdinal(reader, root) : null;
+  if (byOrdinal === null) return found;
+  for (const ordinal of ordinals) {
+    const readable = await firstReadable(reader, root, byOrdinal.get(ordinal) ?? [], {
+      values: [],
+    });
+    if (readable !== null) found.set(ordinal, readable.path);
+  }
+  return found;
+}
+
+/** 这一章的细纲全文（同一章有几份时取路径序第一份能读出内容的）；没有或读不到为 null。 */
+export async function findChapterOutline(
+  reader: ProjectReader,
+  root: string,
+  ordinal: number | null,
+  options: { secrets: SecretContext },
+): Promise<ChapterOutline | null> {
+  if (ordinal === null) return null;
+  const byOrdinal = await outlinePathsByOrdinal(reader, root);
+  const readable =
+    byOrdinal === null
+      ? null
+      : await firstReadable(reader, root, byOrdinal.get(ordinal) ?? [], options.secrets);
+  if (readable !== null) {
+    const { path, text } = readable;
     const points = codePoints(text);
     const truncated = points.length > CHAPTER_OUTLINE_MAX_CHARS;
     return {

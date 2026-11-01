@@ -27,6 +27,7 @@ StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. Th
 - **Canon**: author-declared facts and invariants under `.storyforge/canon/`, with derived caches the Agent may read but not write.
 - **Knowledge proposal**: an Agent-suggested addition to project knowledge, reviewed by the author before it is materialized.
 - **Chapter check**: a check run on a drafted chapter, recorded under its session as check history.
+- **Chapter outline (细纲)**: the author-reviewed plan for one chapter, stored as `大纲/第N章细纲.md`; chapter writing hands it whole to the brief and the draft. The **brief (章纲)** is what the engine distils from the outline and the serial plan before each chapter.
 - **Judge**: semantic review logic that evaluates generated or revised text; its findings are advisory.
 - **Legacy import**: the one-time read-only import of the Python-era database into the engine database.
 
@@ -45,6 +46,7 @@ StoryForge is a Desktop IDE-first AI writing workbench for long-form fiction. Th
 
 - 「手稿」只当左栏那个视图的名字；「原稿」（修订前的原文）和「候选稿」是别的意思，照旧。
 - 「修改」只当普通动词用（未保存修改、修订里的修改块）；编辑器自己存盘叫「保存」，不叫写进文件。
+- 「细纲」指作者写或审过的某一章的安排，存在 `大纲/第N章细纲.md`，写章时整份照它写；「章纲」指每次写章前程序从细纲和计划里整理出来的那份（确认卡上看到的）。两个词别混用。
 - Rust 宿主会露给作者的报错也按这张表说（`main.rs` 冒烟自检的诊断信息不改）；前端测试替身照抄宿主原话，两边要逐字一致。
 - 引擎喂给对话模型的系统提示词、工具说明、工具反馈，以及会显示给作者的引擎消息，也按这张表说（模型会照着说）。产字与评稿提示词（`craftPromptClause`，修订 / 起草 / 续写 / 审稿 / 章纲模板）没改，改它们要先有对比证据（CLAUDE.md §4）；识别作者输入的匹配词新旧说法都认；只给开发看的运行日志与角色目录不改。
 

@@ -74,6 +74,7 @@ function decodeChapter(value: unknown): ApiWriteBatchChapter {
     goal: field(raw, 'goal', orNull(isString), at),
     status: field(raw, 'status', oneOf('write', 'skip_written', 'after_trial'), at),
     written_path: field(raw, 'written_path', orNull(isString), at),
+    outline_path: field(raw, 'outline_path', orNull(isString), at),
   };
 }
 

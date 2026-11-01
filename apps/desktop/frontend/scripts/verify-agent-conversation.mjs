@@ -262,6 +262,7 @@ try {
             goal: `第${ordinal}章目标`,
             status,
             written_path: status === 'skip_written' ? '正文/第三章.md' : null,
+            outline_path: null,
           });
           const planFor = (from, to, permission) => ({
             project_root: projectPath,

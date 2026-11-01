@@ -1,5 +1,6 @@
 import { AssistantSessionNotFoundError, type AssistantSessionRef } from '../assistant/service';
 import { chapterOrdinals } from '../kernel/canonRebuild';
+import { chapterOutlinePaths } from '../kernel/chapterOutline';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { isObj, type Obj } from '../kernel/json';
@@ -195,6 +196,8 @@ export type WriteBatchChapter = {
   status: WriteBatchChapterStatus;
   /** 已有正文时它的路径；没有为 null。 */
   written_path: string | null;
+  /** 这一章的细纲（写章时整份交给章纲与起草）；没有、或这章已有正文跳过时为 null。 */
+  outline_path: string | null;
 };
 
 export type WriteBatchBlockerCode =
@@ -440,6 +443,10 @@ export async function planBatch(
     );
 
   const chapters: WriteBatchChapter[] = [];
+  const unwritten: number[] = [];
+  for (let ordinal = input.from; ordinal <= input.to; ordinal++)
+    if (writtenPath(ordinal) === null) unwritten.push(ordinal);
+  const outlines = await chapterOutlinePaths(reader, root, unwritten);
   for (let ordinal = input.from; ordinal <= input.to; ordinal++) {
     const planned = entry(ordinal);
     const written = writtenPath(ordinal);
@@ -450,6 +457,7 @@ export async function planBatch(
       goal: planned?.goal ?? null,
       status: written !== null ? 'skip_written' : 'write',
       written_path: written,
+      outline_path: outlines.get(ordinal) ?? null,
     });
   }
   const toWrite = chapters.filter((chapter) => chapter.status === 'write');

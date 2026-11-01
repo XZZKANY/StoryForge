@@ -239,6 +239,24 @@ describe('批量写章计划', () => {
     ]),
   };
 
+  it('tells which chapters have an outline, only for chapters it will write', async () => {
+    const result = await plan(
+      {
+        ...book,
+        '大纲/第3章细纲.md': file('第三章已经写了，细纲留着。\n'),
+        '大纲/第4章细纲.md': file('开场先写城门守卫议论他。\n'),
+        '大纲/第5章细纲.md': file('   \n'),
+      },
+      { from: 3, to: 6 },
+    );
+    expect(result.chapters.map((chapter) => [chapter.ordinal, chapter.outline_path])).toEqual([
+      [3, null],
+      [4, '大纲/第4章细纲.md'],
+      [5, null],
+      [6, null],
+    ]);
+  });
+
   it('skips chapters whose manuscript exists, whatever the plan status says', async () => {
     const result = await plan(book, { from: 3, to: 6 });
     expect(statuses(result)).toEqual([

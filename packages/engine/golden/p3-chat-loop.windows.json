@@ -107,7 +107,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -326,7 +326,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -559,7 +559,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -628,7 +628,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -1035,7 +1035,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -1117,7 +1117,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -1231,7 +1231,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -1927,7 +1927,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -2009,7 +2009,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -2548,7 +2548,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -2617,7 +2617,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -3529,7 +3529,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -4094,7 +4094,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -4163,7 +4163,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -4523,7 +4523,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -4631,7 +4631,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -5128,7 +5128,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -5213,7 +5213,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -5696,7 +5696,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -5778,7 +5778,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -6342,7 +6342,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -6930,7 +6930,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -7307,7 +7307,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -7688,7 +7688,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -8026,7 +8026,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -8095,7 +8095,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -8474,7 +8474,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -8697,7 +8697,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -8959,7 +8959,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -9028,7 +9028,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -9359,7 +9359,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -9564,7 +9564,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -9633,7 +9633,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -9959,7 +9959,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -10118,7 +10118,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -10353,7 +10353,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -10640,7 +10640,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -10709,7 +10709,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -10797,7 +10797,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -10904,7 +10904,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -11030,7 +11030,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -11175,7 +11175,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -11339,7 +11339,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -12706,7 +12706,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -12775,7 +12775,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -12863,7 +12863,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -12970,7 +12970,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -13096,7 +13096,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -13241,7 +13241,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -13405,7 +13405,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -14689,7 +14689,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -14758,7 +14758,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -15162,7 +15162,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -15398,7 +15398,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -15467,7 +15467,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -15555,7 +15555,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -16017,7 +16017,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -16267,7 +16267,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -16719,7 +16719,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -16788,7 +16788,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -17194,7 +17194,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -17968,7 +17968,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,
@@ -18037,7 +18037,7 @@
             "prose_continue",
             "project_hooks_delta"
           ],
-          "tools_sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+          "tools_sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
           "temperature": null,
           "max_tokens": null,
           "tool_choice": null,

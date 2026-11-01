@@ -51,6 +51,7 @@ const chapter = (
   goal: `目标${ordinal}`,
   status,
   written_path: status === 'skip_written' ? `正文/第${ordinal}章.md` : null,
+  outline_path: null,
   ...extra,
 });
 
@@ -169,6 +170,23 @@ describe('确认卡', () => {
     );
     expect(q('write-batch-blockers')).toBeNull();
     expect(q('write-batch-trial')).toBeNull();
+  });
+
+  test('有细纲的章挂「有细纲」，悬停看得到细纲路径；没细纲的章不挂', async () => {
+    plan.mockResolvedValue(
+      historyPlan({
+        chapters: [
+          chapter(4, 'skip_written'),
+          chapter(5, 'write', { outline_path: '大纲/第5章细纲.md' }),
+          chapter(6),
+        ],
+      }),
+    );
+    await card(range(4, 6));
+    const tags = all('write-batch-chapter-outline');
+    expect(tags.map((tag) => tag.textContent)).toEqual(['有细纲']);
+    expect(tags[0].title).toBe('大纲/第5章细纲.md：写这一章时照它写');
+    expect(all('write-batch-chapter')[1].contains(tags[0])).toBe(true);
   });
 
   test('没接 onStart 时「开始写」显示但禁用，带提示「下一步接上」；接了点一下把计划交出去', async () => {

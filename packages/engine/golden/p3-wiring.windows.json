@@ -306,7 +306,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -352,7 +352,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
@@ -378,7 +378,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -446,7 +446,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -829,7 +829,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -837,11 +837,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ff201fc154c7de757421ecf9efa15baa0ac7e014bfe7cc104d6fd0cebaf81b8b",
+            "request_digest": "bb12839fe53d416ad9235766ed606353fb222681de73d89388362826d8daa334",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1130,7 +1130,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -1138,11 +1138,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "24d656a6fdeaa54413909c1e9d9169b274c836106bd1a3d895a457a1da4f1979",
+            "request_digest": "0874a285da8be1585c83096db16ff9cad8dac5bc6a4c38abcff41433b748beb0",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -1584,7 +1584,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -1630,7 +1630,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
@@ -1656,7 +1656,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -1721,7 +1721,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -2104,7 +2104,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2112,11 +2112,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ff201fc154c7de757421ecf9efa15baa0ac7e014bfe7cc104d6fd0cebaf81b8b",
+            "request_digest": "bb12839fe53d416ad9235766ed606353fb222681de73d89388362826d8daa334",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -2402,7 +2402,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -2410,11 +2410,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "3dadcd7c74d8b7b8677928ba50d21bff9966cdf933de5e498d6550d8094a5b71",
+            "request_digest": "3a4525a157abc94bc82e9f86e473f093ff828d26192a0843031d0fdcd6d09528",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -2849,7 +2849,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -2895,7 +2895,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
@@ -2921,7 +2921,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -2986,7 +2986,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -3365,7 +3365,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3373,11 +3373,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ff201fc154c7de757421ecf9efa15baa0ac7e014bfe7cc104d6fd0cebaf81b8b",
+            "request_digest": "bb12839fe53d416ad9235766ed606353fb222681de73d89388362826d8daa334",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -3663,7 +3663,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -3671,11 +3671,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "154bcc72feae20080f2f767edbccaffd3b2caccae7b0cdf3ca4f9ade2d18f0dd",
+            "request_digest": "ef59b4c6b5affc01f74bada1bd92484c1b27f5e7f6e55776a217ed42a7a97ce8",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4107,7 +4107,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -4153,7 +4153,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
@@ -4179,7 +4179,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -4244,7 +4244,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -4623,7 +4623,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4631,11 +4631,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ff201fc154c7de757421ecf9efa15baa0ac7e014bfe7cc104d6fd0cebaf81b8b",
+            "request_digest": "bb12839fe53d416ad9235766ed606353fb222681de73d89388362826d8daa334",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -4921,7 +4921,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -4929,11 +4929,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "63d9b0255b4032d2af6966d9071ea3207b25deaa69fe3bf5004aba365ef57e16",
+            "request_digest": "f386c5ac3c678dd98caf9561654089d14e597777daadce1ad81ed5be1c238ced",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -5381,7 +5381,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -5427,7 +5427,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
@@ -5782,7 +5782,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -5790,11 +5790,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "ff201fc154c7de757421ecf9efa15baa0ac7e014bfe7cc104d6fd0cebaf81b8b",
+            "request_digest": "bb12839fe53d416ad9235766ed606353fb222681de73d89388362826d8daa334",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -6284,7 +6284,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-2",
             "messages": [
@@ -6330,7 +6330,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
@@ -6356,7 +6356,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-2",
             "messages": [
@@ -6424,7 +6424,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -6807,7 +6807,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -6815,11 +6815,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "be0faf2f32a136c36a4b07da0a12b4396db0218fbd5d5db01ae3b37af440ebf9",
+            "request_digest": "beaf6586519103ceb68405313fc33cb4bca39e454bc92c8ae1ac3c9a55b68596",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7108,7 +7108,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -7116,11 +7116,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "70fd309ae57f1ff9fdfe2c856c539d85329c1838941aea00565f7114420754ba",
+            "request_digest": "fa839cebc470d952605ef490e62ef7a4e4142ade2622cb0520fc0d7b79b5328a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -7537,7 +7537,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -7583,14 +7583,14 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -7655,7 +7655,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -8019,7 +8019,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -8027,11 +8027,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "94ef6d90cce2f19bc013abf0797d68beaf143195d2a66350a4a37ed1a13ba45b",
+            "request_digest": "c05f1f872d869ad0828d22846f971f412cc96ca11645c21d3163fb63f77d36aa",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -8231,7 +8231,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -8239,11 +8239,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "885afdd74d62df2183c8dd241c6f9a3f62ec28bf9c73f6c11b3f969d7c9198ac",
+            "request_digest": "5347fda343d4806805c489e767c04f342a4c9508787c1f347f2dc112766588b5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -8659,7 +8659,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -8705,14 +8705,14 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -8777,7 +8777,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -9144,7 +9144,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -9152,11 +9152,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "13722a7cabc4525528369ef24b33c85228a310f43faffc3929926abde8a39b2c",
+            "request_digest": "a498e2b0cff8d48f00f32d70b65fbdd365efa5c3bd28bec967269f97758b78f5",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -9356,7 +9356,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -9364,11 +9364,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "75e3084bf022478ea03db1ab0bafeaf87f902dbad2e38c5554ed05b6039a619a",
+            "request_digest": "bf2c23f7a6a4cecebda61c379ad1b7ab8442fd020e5ca568d46e804af8045f38",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -9789,7 +9789,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -9835,14 +9835,14 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         },
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -9907,7 +9907,7 @@
                 "prose_continue",
                 "project_hooks_delta"
               ],
-              "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+              "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
             }
           }
         }
@@ -10275,7 +10275,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10283,11 +10283,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "a82709b7379528cceab3687a6fa4ae33dc4984027027d3de0e8d7d4bf4fb53d9",
+            "request_digest": "fbd032074b062734fa0cf8a52eef8621665c997938b5c25017cd806fc952fbe3",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",
@@ -10487,7 +10487,7 @@
                   "prose_continue",
                   "project_hooks_delta"
                 ],
-                "sha256": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db"
+                "sha256": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3"
               },
               "temperature": 0.7,
               "max_tokens": null,
@@ -10495,11 +10495,11 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "0bce76c33afcc6d92d93a6210c06a96ae217c75d02f46eb25eb20758e3993dd7",
+            "request_digest": "884eaab9f8c19f3689bfa8f7adc505a8655ee6883d40c360461cb90467b13d0b",
             "redacted": false,
             "omissions": [],
             "prompt_version": "a8693cae02acfb03685f1f3134813824b610bc49ab91f03964644c79a67a7603",
-            "tool_schema_version": "de4e124338fd24c7b9071e6ba44ef4577791dbfe271e29e18f80647c8b47d6db",
+            "tool_schema_version": "b91d8edaa00cc5b8b141c7537b2fa75fe1aa4a4a1e0e94637c61b549f65cefc3",
             "sources": [
               {
                 "kind": "compiled_message",

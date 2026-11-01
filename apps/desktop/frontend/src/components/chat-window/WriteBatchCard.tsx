@@ -240,6 +240,15 @@ export function WriteBatchCard({
                     {chapter.goal ?? '计划里没写本章目标'}
                   </div>
                 </div>
+                {chapter.outline_path && (
+                  <span
+                    className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-3xs text-subtle"
+                    title={`${chapter.outline_path}：写这一章时照它写`}
+                    data-testid="write-batch-chapter-outline"
+                  >
+                    有细纲
+                  </span>
+                )}
                 {STATUS_TAG[chapter.status] && (
                   <span
                     className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-3xs text-subtle"

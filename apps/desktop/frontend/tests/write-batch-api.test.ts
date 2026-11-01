@@ -181,6 +181,7 @@ describe('批量写章回包的解码', () => {
         goal: '目标',
         status: 'write',
         written_path: null,
+        outline_path: '大纲/第2章细纲.md',
         extra: 'dropped',
       },
     ],
@@ -195,6 +196,7 @@ describe('批量写章回包的解码', () => {
     const plan = decodeWriteBatchPlan({ ...PLAN, internal: true });
     expect(plan).not.toHaveProperty('internal');
     expect(plan.chapters[0]).not.toHaveProperty('extra');
+    expect(plan.chapters[0].outline_path).toBe('大纲/第2章细纲.md');
     expect(
       decodeRunUsage({
         run_id: 'r',
@@ -209,6 +211,7 @@ describe('批量写章回包的解码', () => {
 
   it.each([
     ['unknown chapter status', { chapters: [{ ...PLAN.chapters[0], status: 'maybe' }] }],
+    ['outline path that is not text', { chapters: [{ ...PLAN.chapters[0], outline_path: 3 }] }],
     ['unknown blocker code', { blockers: [{ code: 'later', message: '', chapters: [] }] }],
     [
       'estimate without history basis',
