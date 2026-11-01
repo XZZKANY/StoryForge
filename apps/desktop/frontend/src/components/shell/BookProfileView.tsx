@@ -22,7 +22,7 @@ import {
 } from '../../lib/book-profile';
 import { readDailyProgress } from '../../lib/daily-progress';
 import { FileText, ImagePlus, Library, Plus, RefreshCw, X } from '../icons/shell-icons';
-import { IconButton, PlainButton, Spinner } from '../ui';
+import { IconButton, PlainButton, revealOnHover, Spinner } from '../ui';
 import { PanelSection } from './PanelSection';
 import { LiveStatus } from './LiveStatus';
 import { BookBreakdownBody } from './BookBreakdown';
@@ -286,7 +286,7 @@ export function BookProfileView({
                 >
                   {tag}
                   <PlainButton
-                    className="text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                    className={`text-subtle hover:text-foreground ${revealOnHover('faint')}`}
                     title={`移除题材 ${tag}`}
                     aria-label={`移除题材 ${tag}`}
                     onClick={() => commit({ tags: profile.tags.filter((item) => item !== tag) })}

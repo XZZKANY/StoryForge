@@ -2,7 +2,7 @@
 import { useId, type ReactNode } from 'react';
 
 import { Button, Field, type FieldControlProps, PlainButton, Select } from '../ui';
-import { useSettingsRowVisible } from './search-context';
+import { useSettingsQuery, useSettingsRowVisible } from './search-context';
 
 export function SettingGroup({
   id,
@@ -40,6 +40,28 @@ export function UnsavedBadge({ visible, testId }: { visible: boolean; testId: st
 
 export function SettingCard({ children }: { children: ReactNode }) {
   return <div className="sf-settings-card overflow-hidden rounded-xl bg-surface">{children}</div>;
+}
+
+/** 卡片里的折叠区（连接与存储详情、模型服务的「高级」）：平时收起，在搜索时自动展开，命中的内容可能就在里面。 */
+export function SettingDetails({
+  summary,
+  className,
+  children,
+  'data-testid': testId,
+}: {
+  summary: ReactNode;
+  className: string;
+  children: ReactNode;
+  'data-testid'?: string;
+}) {
+  return (
+    <details className={className} data-testid={testId} open={Boolean(useSettingsQuery())}>
+      <summary className="cursor-pointer rounded-sm py-1 text-xs text-muted hover:text-foreground">
+        {summary}
+      </summary>
+      {children}
+    </details>
+  );
 }
 
 const ROW_CLASS = 'min-h-[76px] px-4 py-3';

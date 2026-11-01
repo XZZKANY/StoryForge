@@ -15,6 +15,7 @@ import {
   type ChapterFactRecordPlan,
   type FactBackfillPlan,
 } from './api/facts';
+import { joinPath } from './fs-path-ops';
 import { relativePathInsideProject } from './project/path';
 import { TauriFileSystem } from './tauri-fs';
 import { emitToast } from './toast';
@@ -36,8 +37,7 @@ export type FactRecordOutcome =
 const FACTS_RELATIVE = ['.storyforge', 'canon', 'facts.json'];
 
 export function factsLedgerPathFor(projectPath: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
-  return [projectPath.replace(/[/\\]+$/, ''), ...FACTS_RELATIVE].join(separator);
+  return joinPath(projectPath, ...FACTS_RELATIVE);
 }
 
 async function readLedger(projectPath: string, path: string): Promise<string | null> {

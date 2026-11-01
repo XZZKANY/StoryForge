@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 import { emitPatchRejected, replacePendingFileSuggestion } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
+import { joinPath } from '../../lib/fs-path-ops';
 import { TauriFileSystem } from '../../lib/tauri-fs';
 import type { SuggestionIntake } from './useSuggestionIntake';
 import type { SuggestionState, UseSuggestionWritebackParams } from './useSuggestionState';
@@ -59,14 +60,8 @@ export function useSuggestionDismissal(
     const canRetireEmptyTarget = prepareEmptyTargetRetirement(actionToken, suggestion);
 
     try {
-      const separator = project.includes('\\') ? '\\' : '/';
       const fileName = suggestion.filePath.split(/[/\\]/).pop() ?? 'file';
-      const notePath = [
-        project.replace(/[/\\]+$/, ''),
-        '.storyforge',
-        'notes',
-        `${Date.now()}-${fileName}.md`,
-      ].join(separator);
+      const notePath = joinPath(project, '.storyforge', 'notes', `${Date.now()}-${fileName}.md`);
       const note = [
         `# ${suggestion.title}`,
         '',

@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 
 import { Button } from '../ui';
 import { pluginTitle, type PluginDescription } from '../../lib/api/plugins';
+import type { AppDialogApi } from '../app/AppDialog';
 import { settingsTextMatches, useSettingsQuery } from './search-context';
 import {
   PluginContents,
@@ -11,19 +12,17 @@ import {
 } from './PluginImportDialog';
 import type { PluginsState } from './usePlugins';
 
-type Confirm = (options: {
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  tone?: 'default' | 'danger';
-}) => Promise<boolean>;
-
 // 设置搜索按这些词命中整个插件分组。
 const SEARCH_TEXT = '插件 技能 写法 指令 导入 压缩包 zip 移除 Codex';
 
 /** 设置页「插件」：本机插件库里装了什么、从文件夹或压缩包导入、移除；每本书在对话头「上下文」里选用。 */
-export function PluginsSection({ plugins, confirm }: { plugins: PluginsState; confirm: Confirm }) {
+export function PluginsSection({
+  plugins,
+  confirm,
+}: {
+  plugins: PluginsState;
+  confirm: AppDialogApi['confirm'];
+}) {
   const visible = settingsTextMatches(useSettingsQuery(), SEARCH_TEXT);
   const remove = async (plugin: PluginDescription) => {
     const confirmed = await confirm({

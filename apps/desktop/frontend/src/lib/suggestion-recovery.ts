@@ -1,5 +1,6 @@
 import type { AssistantFileSuggestion } from './assistant-suggestions';
 import { createSuggestionChangeSet, type SuggestionChangeSet } from './suggestion-change-set';
+import { joinPath } from './fs-path-ops';
 import { relativeToProject } from './project-context';
 import { TauriFileSystem } from './tauri-fs';
 import { readReceiptAuditPayload, verifyReceiptAudit } from './writeback-audit';
@@ -32,13 +33,7 @@ async function journalPath(project: string, file: string): Promise<string> {
   const label = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),
   ).join('');
-  const separator = project.includes('\\') ? '\\' : '/';
-  return [
-    project.replace(/[/\\]+$/, ''),
-    '.storyforge',
-    'pending-suggestions',
-    `${label}.json`,
-  ].join(separator);
+  return joinPath(project, '.storyforge', 'pending-suggestions', `${label}.json`);
 }
 async function readJournal(
   project: string,
@@ -172,10 +167,7 @@ export async function loadPendingSuggestion(
  * 只看日志本身（名字须与目标路径对得上），不结算运行；读不了的日志跳过，不挡作品打开。
  */
 export async function listPendingNewFileTargets(project: string): Promise<string[]> {
-  const separator = project.includes('\\') ? '\\' : '/';
-  const directory = [project.replace(/[/\\]+$/, ''), '.storyforge', 'pending-suggestions'].join(
-    separator,
-  );
+  const directory = joinPath(project, '.storyforge', 'pending-suggestions');
   if (!(await TauriFileSystem.projectPathExists(project, directory))) return [];
   const targets: string[] = [];
   for (const entry of await TauriFileSystem.listProjectDir(project, directory)) {
@@ -279,10 +271,7 @@ export class MissingSuggestionAudit extends Error {
 }
 
 function receiptAuditPath(project: string, operationId: string): string {
-  const separator = project.includes('\\') ? '\\' : '/';
-  return [project.replace(/[/\\]+$/, ''), '.storyforge', 'author-loop', `${operationId}.md`].join(
-    separator,
-  );
+  return joinPath(project, '.storyforge', 'author-loop', `${operationId}.md`);
 }
 
 /** A new proposal/dismissal must not erase the only repair descriptor for an admitted write. */

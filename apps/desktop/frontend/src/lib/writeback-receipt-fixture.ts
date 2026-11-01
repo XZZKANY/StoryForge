@@ -1,4 +1,5 @@
 /** Browser smoke fixture only. Production admission/durability belongs to the Rust commands. */
+import { joinPath } from './fs-path-ops';
 import { DiskDriftError } from './host-file-errors';
 import { relativePathInsideProject } from './project/path';
 import type { DiskBaseline } from './tauri-fs';
@@ -122,13 +123,7 @@ export async function readFixtureAudit(
 ): Promise<{ operationId: string; content: string } | null> {
   const io = requireFixture(fs);
   const { operationId } = await identity(projectRoot, request);
-  const separator = projectRoot.includes('\\') ? '\\' : '/';
-  const path = [
-    projectRoot.replace(/[/\\]+$/, ''),
-    '.storyforge',
-    'author-loop',
-    `${operationId}.md`,
-  ].join(separator);
+  const path = joinPath(projectRoot, '.storyforge', 'author-loop', `${operationId}.md`);
   return (await io.exists(path)) ? { operationId, content: await io.read(path) } : null;
 }
 
@@ -142,13 +137,7 @@ export async function createFixtureAudit(
   content: string,
 ): Promise<void> {
   const io = requireFixture(fs);
-  const separator = root.includes('\\') ? '\\' : '/';
-  const path = [
-    root.replace(/[/\\]+$/, ''),
-    '.storyforge',
-    'author-loop',
-    `${operationId}.md`,
-  ].join(separator);
+  const path = joinPath(root, '.storyforge', 'author-loop', `${operationId}.md`);
   const previous = fixtureAuditQueues.get(fs) ?? Promise.resolve();
   const work = previous
     .catch(() => {})

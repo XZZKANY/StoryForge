@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 
 import type { BookProfileHandle } from '../app/useBookProfile';
 import { Check, Pencil, X } from '../icons/shell-icons';
-import { PlainButton } from '../ui';
+import { PlainButton, revealOnHover } from '../ui';
 
 export type EditingNote = { line: number; original: string; text: string };
 
@@ -102,7 +102,7 @@ export function BookNotesBody({
                 </PlainButton>
               )}
               <PlainButton
-                className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                className={`mt-[2px] flex-shrink-0 text-subtle hover:text-foreground ${revealOnHover('faint')}`}
                 title="改这条"
                 aria-label={`改速记 ${note.text}`}
                 onClick={() =>
@@ -113,7 +113,7 @@ export function BookNotesBody({
                 <Pencil size={11} strokeWidth={2} />
               </PlainButton>
               <PlainButton
-                className="mt-[2px] flex-shrink-0 text-subtle opacity-40 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+                className={`mt-[2px] flex-shrink-0 text-subtle hover:text-foreground ${revealOnHover('faint')}`}
                 title="删除这条"
                 aria-label={`删除速记 ${note.text}`}
                 onClick={() => void handle.removeNote(note)}

@@ -1,3 +1,4 @@
+import { joinPath } from './fs-path-ops';
 import { TauriFileSystem } from './tauri-fs';
 import { relativeToProject } from './project-context';
 import { countCjkChars, countParagraphs } from './text-metrics';
@@ -38,14 +39,6 @@ export type ExportCurrentFileResult = {
   exportPath: string;
 };
 
-function separator(path: string): string {
-  return path.includes('\\') ? '\\' : '/';
-}
-
-function normalizeRoot(path: string): string {
-  return path.replace(/[/\\]+$/, '');
-}
-
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
 }
@@ -67,27 +60,23 @@ function timestampSlug(date = new Date()): string {
   ].join('');
 }
 
-function projectChildPath(projectPath: string, segments: string[]): string {
-  const s = separator(projectPath);
-  return [normalizeRoot(projectPath), ...segments].join(s);
-}
-
 export function buildRevisionLoopRecordPath(
   projectPath: string,
   filePath: string,
   stamp = new Date(),
 ): string {
   const sourceName = stripMarkdownExtension(basename(filePath));
-  return projectChildPath(projectPath, [
+  return joinPath(
+    projectPath,
     '.storyforge',
     'author-loop',
     `${timestampSlug(stamp)}-${sourceName}.md`,
-  ]);
+  );
 }
 
 export function buildExportPath(projectPath: string, filePath: string, stamp = new Date()): string {
   const sourceName = stripMarkdownExtension(basename(filePath));
-  return projectChildPath(projectPath, ['导出', `${timestampSlug(stamp)}-${sourceName}.md`]);
+  return joinPath(projectPath, '导出', `${timestampSlug(stamp)}-${sourceName}.md`);
 }
 
 /** The audit's timestamp-independent identity, shared by writing and read-only recovery. */
@@ -200,7 +189,7 @@ export async function recordRevisionLoop(record: RevisionLoopRecord): Promise<Re
     throw new Error('写入回执 operationId 无效');
   }
   const recordPath = operationId
-    ? projectChildPath(projectPath, ['.storyforge', 'author-loop', `${operationId}.md`])
+    ? joinPath(projectPath, '.storyforge', 'author-loop', `${operationId}.md`)
     : buildRevisionLoopRecordPath(projectPath, filePath);
   const content = [
     '# 作者闭环记录',

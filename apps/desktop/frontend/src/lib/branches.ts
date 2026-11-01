@@ -8,6 +8,7 @@
  * 版本 .meta.json 里（见 versions.ts）。全部走真实文件系统，不伪造数据。
  */
 
+import { joinPath } from './fs-path-ops';
 import { TauriFileSystem } from './tauri-fs';
 import { versionDirFor, type VersionEntry } from './versions';
 
@@ -99,8 +100,7 @@ export function normalizeManifest(value: unknown): BranchManifest {
 function manifestPathFor(projectPath: string, filePath: string): string | null {
   const dir = versionDirFor(projectPath, filePath);
   if (!dir) return null;
-  const s = dir.includes('\\') ? '\\' : '/';
-  return `${dir}${s}${MANIFEST_NAME}`;
+  return joinPath(dir, MANIFEST_NAME);
 }
 
 /** 读取分支清单；缺失或损坏时回退到仅含主线的默认清单，不伪造分支。 */

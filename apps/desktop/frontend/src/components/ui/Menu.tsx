@@ -1,9 +1,42 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
-import { PlainButton } from './Button';
+import { PlainButton, revealOnHover } from './Button';
+import { FloatingSurface, type FloatingSurfaceProps } from './FloatingSurface';
 
 // 菜单项只留这一种写法：行高、字号、悬停与键盘焦点的底色、危险与禁用态在这里定一次。
-// 菜单容器仍是 FloatingSurface（方向键在项之间移动、Esc 关闭都由它管）。
+// 菜单容器用 MenuSurface，底下仍是 FloatingSurface（方向键在项之间移动、Esc 关闭都由它管）。
+const MENU_FRAME = 'animate-fade-in rounded-lg border p-1 shadow-dropdown';
+const MENU_FILL = {
+  solid: 'border-border bg-surface',
+  frosted: 'border-border/60 bg-surface/[0.92]',
+};
+const FROSTED_BACKDROP = {
+  backdropFilter: 'blur(40px) saturate(1.5)',
+  WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
+};
+
+export type MenuSurfaceProps = Omit<FloatingSurfaceProps, 'role'> & {
+  /** 磨砂：半透明底、淡描边、背景模糊（右键菜单用）。 */
+  frosted?: boolean;
+};
+
+/** 菜单的外框：圆角、描边、底色、投影、内边距与淡入在这里定一次，宽度由调用方的 className 给。 */
+export function MenuSurface({
+  frosted = false,
+  className = '',
+  style,
+  ...props
+}: MenuSurfaceProps) {
+  return (
+    <FloatingSurface
+      {...props}
+      role="menu"
+      className={`${MENU_FRAME} ${frosted ? MENU_FILL.frosted : MENU_FILL.solid} ${className}`}
+      style={frosted ? { ...FROSTED_BACKDROP, ...style } : style}
+    />
+  );
+}
+
 export type MenuItemProps = Omit<ComponentPropsWithoutRef<'button'>, 'role' | 'className'> & {
   icon?: ReactNode;
   /** 快捷键提示，等宽小字靠右。 */
@@ -80,7 +113,7 @@ export function MenuItemAction({ label, icon, title, ...props }: MenuItemActionP
       role="menuitem"
       aria-label={label}
       title={title ?? label}
-      className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-sm text-subtle opacity-0 transition-opacity hover:bg-surface hover:text-foreground focus-visible:bg-surface focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+      className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-sm text-subtle hover:bg-surface hover:text-foreground focus-visible:bg-surface ${revealOnHover()}`}
     >
       {icon}
     </PlainButton>

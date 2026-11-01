@@ -6,7 +6,7 @@ export type {
   SelectProps,
   InputShellProps,
 } from './FormControls';
-export { Button, IconButton, PlainButton } from './Button';
+export { Button, IconButton, PlainButton, revealOnHover } from './Button';
 export type {
   ButtonProps,
   IconButtonProps,
@@ -18,8 +18,8 @@ export { DialogSurface, ModalDialog } from './Dialog';
 export type { DialogSurfaceProps, ModalDialogProps } from './Dialog';
 export { FloatingSurface } from './FloatingSurface';
 export type { FloatingSurfaceProps } from './FloatingSurface';
-export { MenuItem, MenuItemAction, MenuSeparator } from './Menu';
-export type { MenuItemProps, MenuItemActionProps } from './Menu';
+export { MenuItem, MenuItemAction, MenuSeparator, MenuSurface } from './Menu';
+export type { MenuItemProps, MenuItemActionProps, MenuSurfaceProps } from './Menu';
 export { Tooltip } from './Tooltip';
 export { Spinner } from './Spinner';
 export type { SpinnerProps } from './Spinner';

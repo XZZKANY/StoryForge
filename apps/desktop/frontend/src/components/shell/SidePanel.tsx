@@ -1,9 +1,9 @@
 import {
-  FloatingSurface,
   IconButton,
   MenuItem,
   MenuItemAction,
   MenuSeparator,
+  MenuSurface,
   PlainButton,
 } from '../ui';
 /**
@@ -210,12 +210,11 @@ function ExplorerView({
         )}
         {menuOpen && (
           <>
-            <FloatingSurface
-              role="menu"
+            <MenuSurface
               aria-label="操作"
               triggerRef={menuTriggerRef}
               onDismiss={() => setMenuOpen(false)}
-              className="w-64 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+              className="w-64"
             >
               {projects.slice(0, 8).map((project) => (
                 <MenuItem
@@ -253,7 +252,7 @@ function ExplorerView({
               >
                 打开本地作品…
               </MenuItem>
-            </FloatingSurface>
+            </MenuSurface>
           </>
         )}
       </div>

@@ -6,7 +6,7 @@
  * 只有调用方确认数据已经加载后，才可传入 available 并展示真实空态或观测列表。
  */
 import { Check, X } from '../icons/shell-icons';
-import { IconButton, PlainButton } from '../ui';
+import { IconButton, PlainButton, revealOnHover } from '../ui';
 
 export type ObsSeverity = 'error' | 'warning' | 'advisory';
 export type ObservationAvailability = 'unavailable' | 'loading' | 'available' | 'error';
@@ -151,7 +151,7 @@ export function ObsPanel({
                 className={`mt-px flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border text-2xs transition-opacity focus-visible:border-success/50 focus-visible:text-success ${
                   obs.resolved
                     ? 'border-success/40 bg-success/15 text-success opacity-100'
-                    : 'border-border text-subtle opacity-40 hover:border-success/50 hover:bg-success/15 hover:text-success hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100'
+                    : `border-border text-subtle hover:border-success/50 hover:bg-success/15 hover:text-success ${revealOnHover('faint')}`
                 }`}
                 aria-label={`标记已处理：${obs.title}`}
                 title="标记已处理"
