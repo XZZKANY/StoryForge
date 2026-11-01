@@ -21,7 +21,7 @@ function normalize(path: string): string {
   return path.replace(/\\/g, '/');
 }
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: async (_root: string, path: string, content: string) => {
       events.push(path.endsWith('.meta.json') ? 'write-meta' : 'write-file');
@@ -60,7 +60,7 @@ vi.mock('../src/lib/tauri-fs', () => ({
   },
 }));
 
-vi.mock('../src/lib/shadow-git', () => ({
+vi.mock('../src/lib/host/shadow-git', () => ({
   createShadowSnapshot: async () => {
     events.push('create-tree');
     if (shadow.createError) throw shadow.createError;

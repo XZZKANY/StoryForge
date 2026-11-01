@@ -15,8 +15,10 @@ function StateProbe({ label }: { label: string }) {
     </button>
   );
 }
-vi.mock('../src/components/Editor', () => ({ Editor: () => <StateProbe label="editor-probe" /> }));
-vi.mock('../src/components/ChatWindow', () => ({
+vi.mock('../src/components/editor/Editor', () => ({
+  Editor: () => <StateProbe label="editor-probe" />,
+}));
+vi.mock('../src/components/chat-window/ChatWindow', () => ({
   ChatWindow: () => <StateProbe label="agent-probe" />,
 }));
 

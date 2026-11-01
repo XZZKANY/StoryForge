@@ -3,7 +3,7 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 import { Button, ModalDialog, PlainButton } from '../ui';
 import { ChevronDown, ChevronRight } from '../icons/shell-icons';
 import type { PluginDescription, PluginEntry, PluginManifest } from '../../lib/api/plugins';
-import type { SkippedPluginFile } from '../../lib/plugin-library';
+import type { SkippedPluginFile } from '../../lib/host/plugin-library';
 import { pluginInstallBlocker, type PluginImportPreview } from './usePlugins';
 
 /** 「v版本 · 作者」，跟在插件名后面；没有清单时为空。 */

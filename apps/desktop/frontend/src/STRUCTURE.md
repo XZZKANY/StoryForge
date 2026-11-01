@@ -10,7 +10,7 @@ Read the live Desktop path in this order. The list stays within eight files.
 2. `components/app/AppShell.tsx` - fixed shell layout and component composition.
 3. `components/app/useEditorWorkspaceTabs.ts` - preview/open/dirty editor-tab state and destructive-boundary confirmation.
 4. `components/app/useProjectCommands.ts` - project/file commands, Canon refresh, smoke loaders, and project-tree invalidation.
-5. `components/ChatWindow.tsx` - Agent conversation container.
+5. `components/chat-window/ChatWindow.tsx` - Agent conversation container.
 6. `components/chat-window/useChatSessionContext.ts` - session load, switch, and draft ownership.
 7. `components/chat-window/useRunAuthorAgent.ts` - context flush/build and live Agent run orchestration.
 8. `components/chat-window/ChatWindowView.tsx` - conversation presentation and controls.
@@ -21,7 +21,7 @@ Open `components/app/useAppPreferences.ts`, the remaining `components/chat-windo
 
 The editor has the same shape. Read it in this order:
 
-1. `components/Editor.tsx` - editor container: creates the shared refs, calls the owners below, renders the panels.
+1. `components/editor/Editor.tsx` - editor container: creates the shared refs, calls the owners below, renders the panels.
 2. `components/editor/useSuggestionWriteback.ts` - AI patch composition; keeps the chat-side window listeners and the returned API.
 3. `components/editor/useSuggestionState.ts` - pending patch, action lock, and truncated-accept arming.
 4. `components/editor/useGuardedSuggestionWrite.ts` - guarded write-back for every accepted patch.
@@ -42,6 +42,7 @@ Open the other owners only when the path points to them: `useSuggestionIntake.ts
 - `useSuggestionState.ts` is the single owner of the pending patch, the action lock, and truncated-accept arming; the other suggestion owners change them only through what it returns.
 - `useGuardedSuggestionWrite.ts` is the only path that writes an accepted patch (read-only derived paths refused, pre-write snapshot, branch head, receipted atomic write, version record). Whole and hunk accept, undo, and inline chat all call it.
 - `useInlineSession.ts` owns the inline session and its teardown; the diff and request phases act only on a session that still qualifies.
+- `lib/host/` wraps every Tauri host call; `lib/engine/` wires the engine's native ports. No other file imports `@tauri-apps`, so components reach the host only through `lib/host/`.
 
 ## Product Guardrails
 
@@ -53,5 +54,5 @@ Open the other owners only when the path points to them: `useSuggestionIntake.ts
 ## Size Gates
 
 - `App.tsx` must remain at or below 400 lines.
-- Every file under `components/` — the top-level files and every subdirectory — must remain at or below 500 lines, with no exceptions. A new subdirectory under `components/` must be added to `LIVE_MODULE_ROOTS` in `tests/source-standards.test.ts`; a test fails until it is.
+- `components/` holds no source files at its top level; every component lives in the folder of the area it belongs to. Every file under those subdirectories must remain at or below 500 lines, with no exceptions. A new subdirectory under `components/` must be added to `LIVE_MODULE_ROOTS` in `tests/source-standards.test.ts`; a test fails until it is.
 - Static layout/ownership tests must move with the owner file rather than silently continuing to inspect an emptied facade.

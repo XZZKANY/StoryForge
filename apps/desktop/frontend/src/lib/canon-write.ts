@@ -7,7 +7,7 @@
  */
 
 import { readCanonDeclaration, serializeCanon, type CanonDeclaration } from './canon-merge';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { snapshotBeforeWrite } from './versions';
 
 type Canon = CanonDeclaration['canon'];

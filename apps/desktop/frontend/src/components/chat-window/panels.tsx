@@ -1,17 +1,13 @@
 import { Button, PlainButton, revealOnHover } from '../ui';
 
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AgentStepsPanel, hasProcess } from '../AgentStepsPanel';
+import { AgentStepsPanel, hasProcess } from './AgentStepsPanel';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { CHAT_COLUMN } from './column';
 import { MessageActions } from './MessageActions';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import { StreamPhase } from './StreamPhase';
 import type { AgentRun, Message } from './types';
-
-// 对话头与操作条在各自的文件里，仍从这里导出，调用方的引用路径不变。
-export { ConversationHeader } from './ConversationHeader';
-export { RunActionBar } from './RunActionBar';
 
 export function MessageList({
   conversationScope = 0,

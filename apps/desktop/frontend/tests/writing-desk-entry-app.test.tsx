@@ -3,19 +3,19 @@ import { createRoot } from 'react-dom/client';
 import { expect, test, vi } from 'vitest';
 import { App } from '../src/App';
 import { RECENT_PROJECTS_KEY } from '../src/components/app/helpers';
-import { invalidateFileSystemCache, type FileEntry } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, type FileEntry } from '../src/lib/host/tauri-fs';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 // 编辑器换成探针：显示当前文件；没文件时照真 Editor 的样子把壳层给的去处画出来。
-vi.mock('../src/components/Editor', () => ({
+vi.mock('../src/components/editor/Editor', () => ({
   Editor: ({ filePath, emptyState }: { filePath: string | null; emptyState?: ReactNode }) => (
     <div data-testid="editor-probe" data-file={filePath ?? ''}>
       {filePath ? null : emptyState}
     </div>
   ),
 }));
-vi.mock('../src/components/ChatWindow', () => ({ ChatWindow: () => <div /> }));
+vi.mock('../src/components/chat-window/ChatWindow', () => ({ ChatWindow: () => <div /> }));
 
 function entry(path: string, isDir: boolean): FileEntry {
   const name = path.split('/').pop()!;

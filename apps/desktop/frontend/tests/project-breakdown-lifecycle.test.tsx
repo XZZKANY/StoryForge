@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { useProjectCommands, type ProjectCommands } from '../src/components/app/useProjectCommands';
 import { executeIdeCommand } from '../src/lib/api-client';
 import { flushActiveEditorToDisk } from '../src/lib/assistant-events';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { TOAST_EVENT } from '../src/lib/toast';
 
 vi.mock('../src/lib/api-client', () => ({ executeIdeCommand: vi.fn() }));
@@ -18,7 +18,7 @@ vi.mock('../src/lib/smoke', () => ({
   registerSmokeFileLoader: () => () => {},
   registerSmokeProjectLoader: () => () => {},
 }));
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   FS_MUTATION_EVENT: 'fs-mutation',
   invalidateFileSystemCache: vi.fn(),
   TauriFileSystem: { readProjectFile: vi.fn() },

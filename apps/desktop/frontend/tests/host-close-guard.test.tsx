@@ -11,7 +11,7 @@ import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
 } from '../src/lib/assistant-events';
-import { useHostCloseGuard } from '../src/lib/host-close';
+import { useHostCloseGuard } from '../src/lib/host/host-close';
 
 const bridge = vi.hoisted(() => ({
   invoke: vi.fn(async (_command: string, _args?: unknown) => undefined),
@@ -25,7 +25,7 @@ vi.mock('@tauri-apps/api/event', () => ({
     return bridge.unlisten;
   }),
 }));
-vi.mock('../src/lib/tauri-env', () => ({ isTauriRuntime: () => true }));
+vi.mock('../src/lib/host/tauri-env', () => ({ isTauriRuntime: () => true }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

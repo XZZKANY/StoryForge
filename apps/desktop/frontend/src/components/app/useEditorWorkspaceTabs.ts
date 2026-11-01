@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { useAsyncEffect } from '../../lib/async-guards';
 import { saveActiveEditorForClose } from '../../lib/assistant-events';
-import { useHostCloseGuard } from '../../lib/host-close';
+import { useHostCloseGuard } from '../../lib/host/host-close';
 import { projectBasename } from '../../lib/project-context';
 import { listPendingNewFileTargets } from '../../lib/suggestion-recovery';
 import { emitToast } from '../../lib/toast';

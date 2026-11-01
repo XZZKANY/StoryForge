@@ -1,15 +1,15 @@
-import { Button } from './ui';
+import { Button } from '../ui';
 import { useMemo } from 'react';
-import type { AssistantFileSuggestion } from '../lib/assistant-suggestions';
-import { isEditableTarget } from '../lib/browser-guards';
-import { relativeToProject } from '../lib/project/path';
+import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
+import { isEditableTarget } from '../../lib/browser-guards';
+import { relativeToProject } from '../../lib/project/path';
 import {
   buildPatchHunks,
   placePatchHunks,
   type PatchHunk,
   type PlacedPatchHunk,
-} from '../lib/patch-hunks';
-import { markdownToPlainLine } from '../lib/plain-text';
+} from '../../lib/patch-hunks';
+import { markdownToPlainLine } from '../../lib/plain-text';
 import {
   actionFailureText,
   buildPatchReviewTraceTitle,
@@ -17,13 +17,11 @@ import {
   diffStats,
   PATCH_ACTION_LABELS,
   type PatchAction,
-} from './editor/patch-review-text';
-import { usePatchHunkZones } from './editor/usePatchHunkZones';
-import { usePatchDiffEditor } from './editor/usePatchDiffEditor';
-import { usePatchReviewActions } from './editor/usePatchReviewActions';
-import { usePatchReviewShortcuts } from './editor/usePatchReviewShortcuts';
-
-export { buildPatchReviewTraceTitle } from './editor/patch-review-text';
+} from './patch-review-text';
+import { usePatchHunkZones } from './usePatchHunkZones';
+import { usePatchDiffEditor } from './usePatchDiffEditor';
+import { usePatchReviewActions } from './usePatchReviewActions';
+import { usePatchReviewShortcuts } from './usePatchReviewShortcuts';
 
 type PatchReviewPanelProps = {
   suggestion: AssistantFileSuggestion;

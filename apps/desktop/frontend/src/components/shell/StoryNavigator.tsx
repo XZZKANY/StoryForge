@@ -10,14 +10,14 @@ import {
   type ProjectIndex,
   type SemanticFile,
   type SemanticKind,
-} from '../lib/project-context';
-import { invalidateFileSystemCache } from '../lib/tauri-fs';
-import { useAsyncEffect } from '../lib/async-guards';
-import { FileText, RefreshCw } from './icons/shell-icons';
-import { PanelError } from './shell/PanelError';
+} from '../../lib/project-context';
+import { invalidateFileSystemCache } from '../../lib/host/tauri-fs';
+import { useAsyncEffect } from '../../lib/async-guards';
+import { FileText, RefreshCw } from '../icons/shell-icons';
+import { PanelError } from './PanelError';
 import { ResourceExplorer } from './ResourceExplorer';
-import type { FileTreeActions } from './app/useFileTreeActions';
-import { IconButton, PlainButton } from './ui';
+import type { FileTreeActions } from '../app/useFileTreeActions';
+import { IconButton, PlainButton } from '../ui';
 
 type StoryNavigatorProps = {
   projectPath: string | null;

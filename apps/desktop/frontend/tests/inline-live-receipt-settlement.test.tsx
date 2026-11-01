@@ -1,4 +1,4 @@
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 /**
  * 实际 Editor → Ctrl+K → 守卫写回集成回归。
  * 仅替换 Monaco 装配、HTTP、磁盘适配边界与快照服务；不是 Windows/Tauri 原生验收。
@@ -8,7 +8,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { editor as monacoEditor, __getLastEditor, __resetMonacoStub } from 'monaco-editor';
-import { Editor } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({

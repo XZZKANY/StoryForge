@@ -12,7 +12,7 @@ import { resolveLedgerDispute, retireLedgerFact } from '../src/lib/api/facts';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';
 import { factsLedgerPathFor } from '../src/lib/fact-write';
 import { mapObservatoryPayload, type ObservationAnchor } from '../src/lib/observations';
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import { snapshotBeforeWrite } from '../src/lib/versions';
 

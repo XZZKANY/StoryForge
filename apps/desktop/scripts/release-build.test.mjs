@@ -103,10 +103,10 @@ test('宿主注册了更新插件与三个命令，界面问的就是这些命�
   const main = await readFile(resolve(tauriDir, 'src', 'main.rs'), 'utf8');
   assert.match(main, /\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\)/);
   assert.match(main, /\.manage\(app_update::StagedUpdate::default\(\)\)/);
-  const lib = resolve(tauriDir, '..', 'frontend', 'src', 'lib');
+  const host = resolve(tauriDir, '..', 'frontend', 'src', 'lib', 'host');
   const frontend =
-    (await readFile(resolve(lib, 'update-check.ts'), 'utf8')) +
-    (await readFile(resolve(lib, 'app-update.ts'), 'utf8'));
+    (await readFile(resolve(host, 'update-check.ts'), 'utf8')) +
+    (await readFile(resolve(host, 'app-update.ts'), 'utf8'));
   for (const command of ['app_update_check', 'app_update_download', 'app_update_restart_install']) {
     assert.match(main, new RegExp(`app_update::${command},`));
     assert.match(frontend, new RegExp(`'${command}'`));

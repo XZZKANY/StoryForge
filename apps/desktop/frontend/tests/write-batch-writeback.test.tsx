@@ -6,7 +6,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __getLastEditor, __resetMonacoStub } from 'monaco-editor';
-import { Editor } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
 import {
   awaitChapterWriteback,

@@ -5,7 +5,7 @@ import {
   selectContextBundleFiles,
 } from '../src/lib/project-context';
 import { streamContinueProse } from '../src/lib/api/assistant';
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({

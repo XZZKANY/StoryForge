@@ -18,7 +18,10 @@ const editorTabsSource = readFileSync('src/components/app/useEditorWorkspaceTabs
 const projectCommandsSource = readFileSync('src/components/app/useProjectCommands.ts', 'utf8');
 const preferencesSource = readFileSync('src/components/app/useAppPreferences.ts', 'utf8');
 const assistantPanelSource = readFileSync('src/components/shell/AssistantPanelFrame.tsx', 'utf8');
-const commandPaletteSource = readFileSync('src/components/CommandPalette.tsx', 'utf8');
+const commandPaletteSource = readFileSync(
+  'src/components/command-palette/CommandPalette.tsx',
+  'utf8',
+);
 const appSource = [
   appContainerSource,
   appShellSource,

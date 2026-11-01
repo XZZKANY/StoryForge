@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import { BranchCanvas } from '../src/components/BranchCanvas';
+import { BranchCanvas } from '../src/components/editor/BranchCanvas';
 import { buildGraph, emptyManifest } from '../src/lib/branches';
 import { versionLabel, versionSummaryText } from '../src/lib/version-label';
 

@@ -11,7 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
 
 import type { BookProfileHandle } from '../src/components/app/useBookProfile';
-import type { BookBreakdownPreview } from '../src/components/app/useProjectCommands';
+import type { BookBreakdownPreview } from '../src/components/app/useBookBreakdown';
 import { BookProfileView } from '../src/components/shell/BookProfileView';
 import { emptyBookProfile } from '../src/lib/book-profile';
 

@@ -5,10 +5,10 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useFileTreeActions } from '../src/components/app/useFileTreeActions';
 import type { AppDialogApi } from '../src/components/app/AppDialog';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { emitToast } from '../src/lib/toast';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(),
     writeFile: vi.fn(),

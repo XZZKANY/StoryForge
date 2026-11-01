@@ -5,13 +5,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { DialogFilter } from '@tauri-apps/plugin-dialog';
 import type { FileEntry } from '@storyforge/project-core';
-import { joinPath } from './fs-path-ops';
+import { joinPath } from '../fs-path-ops';
 import {
   DiskDriftError,
   HostFileError,
   ProjectFileMissingError,
   ProjectPathOutsideError,
-} from './host-file-errors';
+} from '../host-file-errors';
 import { assertTauriRuntime } from './tauri-env';
 import {
   decodeWritebackIdentity,
@@ -19,7 +19,7 @@ import {
   type WritebackIdentity,
   type WritebackReceipt,
   type WritebackRequest,
-} from './writeback-receipt-types';
+} from '../writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,

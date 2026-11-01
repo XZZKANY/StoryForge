@@ -17,7 +17,7 @@ import { afterEach, beforeEach, test } from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { RunActionBar } from '../../src/components/chat-window/panels';
+import { RunActionBar } from '../../src/components/chat-window/RunActionBar';
 import type { AgentRun, AgentRunControlHandlers } from '../../src/components/chat-window/types';
 
 const acceptCalls: string[] = [];

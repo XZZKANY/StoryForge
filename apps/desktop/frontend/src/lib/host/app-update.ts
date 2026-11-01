@@ -1,6 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { useEffect, useSyncExternalStore } from 'react';
-import { emitToast } from './toast';
+import { emitToast } from '../toast';
 import { checkForUpdate, currentAppVersion } from './update-check';
 
 /**

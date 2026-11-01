@@ -17,7 +17,7 @@ import {
 } from '../src/lib/api/facts';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';
 import { backfillMessage, factsLedgerPathFor } from '../src/lib/fact-write';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import { snapshotBeforeWrite } from '../src/lib/versions';
 

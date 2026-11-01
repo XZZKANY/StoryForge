@@ -3,7 +3,7 @@ import type * as monaco from 'monaco-editor';
 
 import { recordDailyProgress, writebackDelta } from '../../lib/daily-progress';
 import { invalidateContextBundleCache } from '../../lib/project-context';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import { performGuardedWriteback, type WritebackQueue } from '../../lib/writeback';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';

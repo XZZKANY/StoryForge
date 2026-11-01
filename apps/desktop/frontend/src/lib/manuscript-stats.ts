@@ -5,7 +5,7 @@
  * 按字节推字数会给作者一个虚高约 3 倍的假数字。
  */
 import { buildProjectIndex } from './project-context';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { countProseChars } from './text-metrics';
 
 export type ManuscriptTotals = {

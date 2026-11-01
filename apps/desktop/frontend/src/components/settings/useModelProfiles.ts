@@ -12,7 +12,7 @@ import {
   type LlmDraftModels,
   type LlmProfile,
   type LlmProfiles,
-} from '../../lib/desktop-llm-config';
+} from '../../lib/host/desktop-llm-config';
 import {
   getProviderPreset,
   profileTitle,

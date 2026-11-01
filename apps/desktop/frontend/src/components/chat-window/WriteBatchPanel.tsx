@@ -5,7 +5,8 @@ import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
 import { CHAT_COLUMN } from './column';
 import type { WriteBatchRequest } from './useChatSubmission';
-import type { WriteBatchProgress, WriteBatchScheduler } from './useWriteBatchScheduler';
+import type { WriteBatchScheduler } from './useWriteBatchScheduler';
+import type { WriteBatchProgress } from './write-batch-run';
 import { WriteBatchCard, type WriteBatchStartFeedback } from './WriteBatchCard';
 import { WriteBatchResultCard } from './WriteBatchResultCard';
 

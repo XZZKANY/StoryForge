@@ -2,16 +2,16 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../src/lib/desktop-llm-config')>()),
+vi.mock('../src/lib/host/desktop-llm-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/host/desktop-llm-config')>()),
   listLlmProfiles: vi.fn(async () => null),
 }));
 vi.mock('../src/lib/api-client', () => ({ probeProviderHealth: vi.fn() }));
-vi.mock('../src/lib/update-check', () => ({
+vi.mock('../src/lib/host/update-check', () => ({
   currentAppVersion: async () => null,
   checkForUpdate: vi.fn(),
 }));
-vi.mock('../src/lib/plugin-library', () => ({
+vi.mock('../src/lib/host/plugin-library', () => ({
   pluginLibraryDir: vi.fn(async () => 'C:\\库'),
   stagePluginImport: vi.fn(),
   commitPluginImport: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('../src/lib/api/plugins', async (importOriginal) => ({
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 
 import { open } from '@tauri-apps/plugin-dialog';
-import { SettingsView } from '../src/components/SettingsView';
+import { SettingsView } from '../src/components/settings/SettingsView';
 import { PluginImportDialog } from '../src/components/settings/PluginImportDialog';
 import {
   describeStagedPlugin,
@@ -42,7 +42,7 @@ import {
   removePlugin,
   stagePluginImport,
   type StagedPluginImport,
-} from '../src/lib/plugin-library';
+} from '../src/lib/host/plugin-library';
 import { requestSettingsSection } from '../src/lib/settings-section';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import { DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';

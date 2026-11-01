@@ -1,7 +1,7 @@
 /** 编辑器页签行右端的两个菜单：润色当前章、「…」文件操作。 */
 import { useRef, useState } from 'react';
 
-import { listLlmProfiles } from '../../lib/desktop-llm-config';
+import { listLlmProfiles } from '../../lib/host/desktop-llm-config';
 import { MoreHorizontal, Sparkles } from '../icons/shell-icons';
 import { IconButton, MenuItem, MenuSeparator, MenuSurface } from '../ui';
 

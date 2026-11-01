@@ -4,7 +4,7 @@ import { replacePendingFileSuggestion } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import { deleteCreatedFile } from '../../lib/created-file-delete';
 import { projectRemainingSuggestion } from '../../lib/suggestion-change-set';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import { canUndoWriteback } from '../../lib/writeback';
 import { emitToast } from '../../lib/toast';
 import type { WritebackReceipt } from '../../lib/writeback-receipt-types';

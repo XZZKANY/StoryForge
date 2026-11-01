@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
-import type { PaletteMode } from '../CommandPalette';
-import type { EditorPendingSuggestionSummary } from '../Editor';
+import type { PaletteMode } from '../command-palette/CommandPalette';
+import type { EditorPendingSuggestionSummary } from '../editor/Editor';
 import type { Observation } from '../shell/ObsPanel';
 import type { useShellState } from '../shell/useShellState';
 import type { ObservationAnchor } from '../../lib/observations';

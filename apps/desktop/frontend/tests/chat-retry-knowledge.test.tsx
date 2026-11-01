@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 vi.mock('../src/lib/api/chapter-checks', () => ({
   queryChapterCheckHistory: vi.fn().mockResolvedValue({ entries: [], truncated: false }),
 }));
-import type { RunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
+import type { RunAuthorAgent } from '../src/components/chat-window/types';
 
 const { run } = vi.hoisted(() => ({ run: vi.fn<RunAuthorAgent>(async () => undefined) }));
 vi.mock('../src/components/chat-window/useRunAuthorAgent', () => ({
@@ -31,7 +31,7 @@ vi.mock('../src/components/chat-window/useAgentStreamEvent', () => ({
 vi.mock('../src/components/chat-window/useAgentRunControls', () => ({
   useAgentRunControls: () => ({ retryLastFailedRun: () => {}, agentRunControls: {} }),
 }));
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { emitRetryWithoutKnowledge } from '../src/lib/assistant-events';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -5,7 +5,7 @@ import { App } from '../../src/App';
 import { buildSampleStoryProjectFiles } from '../../src/lib/project-context';
 import { APP_SETTINGS_KEY, DEFAULT_APP_SETTINGS } from '../../src/lib/user-settings';
 import { applyTheme } from '../../src/lib/theme';
-import { invalidateFileSystemCache, type FileEntry } from '../../src/lib/tauri-fs';
+import { invalidateFileSystemCache, type FileEntry } from '../../src/lib/host/tauri-fs';
 
 const project = 'D:/uiux-memory/StoryForge 示例项目';
 const sample = buildSampleStoryProjectFiles(project);

@@ -4,7 +4,7 @@ import { useAsyncEffect } from '../../lib/async-guards';
 import { buildProjectChapterIndex, type ProjectChapter } from '../../lib/project/chapter-index';
 import { buildProjectIndex } from '../../lib/project-context';
 import { relativePathInsideProject, resolveProjectRelativePath } from '../../lib/project-context';
-import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT } from '../../lib/host/tauri-fs';
 
 export type BookOverviewChaptersStatus = 'unavailable' | 'loading' | 'available' | 'error';
 
@@ -117,6 +117,3 @@ export function useBookOverviewChapters({
     refresh,
   };
 }
-
-export { buildProjectChapterIndex } from '../../lib/project/chapter-index';
-export type { ProjectChapter } from '../../lib/project/chapter-index';

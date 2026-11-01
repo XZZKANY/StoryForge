@@ -15,9 +15,9 @@ import { SidePanel } from '../src/components/shell/SidePanel';
 import { useChapterHandoff } from '../src/components/app/useChapterHandoff';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';
 import { suggestNewFileName } from '../src/lib/fs-path-ops';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(async () => false),
     writeFile: vi.fn(async () => undefined),

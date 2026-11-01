@@ -5,13 +5,13 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { App } from '../src/App';
 import { RECENT_PROJECTS_KEY } from '../src/components/app/helpers';
-import { SettingsView } from '../src/components/SettingsView';
+import { SettingsView } from '../src/components/settings/SettingsView';
 import { DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';
-import { listLlmProfiles, type LlmProfiles } from '../src/lib/desktop-llm-config';
+import { listLlmProfiles, type LlmProfiles } from '../src/lib/host/desktop-llm-config';
 
-vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
-vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/lib/desktop-llm-config')>();
+vi.mock('../src/components/editor/Editor', () => ({ Editor: () => null }));
+vi.mock('../src/lib/host/desktop-llm-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/host/desktop-llm-config')>();
   return {
     LlmProbeError: actual.LlmProbeError,
     subscribeLlmProfiles: actual.subscribeLlmProfiles,

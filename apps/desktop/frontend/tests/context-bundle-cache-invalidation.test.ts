@@ -9,11 +9,11 @@ import assert from 'node:assert/strict';
 import { beforeEach, test, vi } from 'vitest';
 
 import { buildContextBundle, invalidateContextBundleCache } from '../src/lib/project-context';
-import { TauriFileSystem, FS_MUTATION_EVENT } from '../src/lib/tauri-fs';
+import { TauriFileSystem, FS_MUTATION_EVENT } from '../src/lib/host/tauri-fs';
 import type { FileEntry } from '@storyforge/project-core';
 
-vi.mock('../src/lib/tauri-fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/lib/tauri-fs')>();
+vi.mock('../src/lib/host/tauri-fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/host/tauri-fs')>();
   return {
     ...actual,
     TauriFileSystem: {

@@ -4,7 +4,7 @@
  * 避免顶栏出现 `D:\test` 这类裸路径。窗控复用原 WindowMenu 的 Tauri 窗口动作；整条可拖拽。
  */
 import type { Ref } from 'react';
-import { runWindowAction } from '../../lib/host-window';
+import { runWindowAction } from '../../lib/host/host-window';
 import { Library, Minus, PanelRight, Search, Square, X } from '../icons/shell-icons';
 import { Button, PlainButton } from '../ui';
 

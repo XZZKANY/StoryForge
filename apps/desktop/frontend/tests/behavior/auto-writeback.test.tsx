@@ -7,14 +7,14 @@
  */
 import assert from 'node:assert/strict';
 import { createWritebackQueue } from '../../src/lib/writeback';
-import type { DiskBaseline } from '../../src/lib/tauri-fs';
+import type { DiskBaseline } from '../../src/lib/host/tauri-fs';
 import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
   readFixtureAudit,
   writeFixtureReceipt,
-} from '../../src/lib/writeback-receipt-fixture';
+} from '../../src/lib/host/writeback-receipt-fixture';
 import { recordRevisionLoop } from '../../src/lib/author-loop';
 import { DiskDriftError, HostFileError } from '../../src/lib/host-file-errors';
 import { act } from 'react';
@@ -47,7 +47,7 @@ const receiptFs = {
   },
 };
 
-vi.mock('../../src/lib/tauri-fs', () => ({
+vi.mock('../../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     createWritebackAudit: (project: string, id: string, content: string) =>
       createFixtureAudit(receiptFs, project, id, content),
@@ -143,11 +143,9 @@ import {
   emitFileSuggestion,
 } from '../../src/lib/assistant-events';
 import { TOAST_EVENT, type ToastAction, type ToastDetail } from '../../src/lib/toast';
-import {
-  TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS,
-  useSuggestionWriteback,
-} from '../../src/components/editor/useSuggestionWriteback';
-import { PatchReviewPanel } from '../../src/components/PatchReviewPanel';
+import { useSuggestionWriteback } from '../../src/components/editor/useSuggestionWriteback';
+import { TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS } from '../../src/components/editor/useSuggestionState';
+import { PatchReviewPanel } from '../../src/components/editor/PatchReviewPanel';
 import { acceptPatchFromChat } from '../../src/components/chat-window/accept-patch';
 import { buildPatchHunks } from '../../src/lib/patch-hunks';
 import {

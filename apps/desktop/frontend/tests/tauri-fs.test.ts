@@ -14,7 +14,11 @@ import {
   ProjectFileMissingError,
   ProjectPathOutsideError,
 } from '../src/lib/host-file-errors';
-import { invalidateFileSystemCache, TauriFileSystem, type FileEntry } from '../src/lib/tauri-fs';
+import {
+  invalidateFileSystemCache,
+  TauriFileSystem,
+  type FileEntry,
+} from '../src/lib/host/tauri-fs';
 
 function entry(name: string, path: string): FileEntry {
   return {
@@ -352,7 +356,7 @@ test('列目录、查存在只留带作品根的口子：没有 listDir / pathEx
 const PROJECT_FOLDER_EXISTS_CALLERS = [
   'components/app/useProjectWorkspace.ts',
   'components/app/useSessionRestore.ts',
-  'lib/tauri-fs.ts',
+  'lib/host/tauri-fs.ts',
 ];
 
 test('projectFolderExists 只在打开作品前核对作品文件夹的地方用', () => {

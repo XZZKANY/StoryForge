@@ -8,7 +8,7 @@ import {
 } from '../../lib/assistant-events';
 import { requestCrossChapterConsistency } from '../../lib/api-client';
 import { useAsyncEffect } from '../../lib/async-guards';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import {
   formatCrossChapterFindings,
   planChapterSubmission,
@@ -20,7 +20,7 @@ import { useConversationScope } from './useConversationScope';
 import { buildRejectionPrompt, deriveConversationTitle } from './conversation-utils';
 import type { ChatWindowProps } from './types';
 import type { ChatWindowState } from './useChatWindowState';
-import type { RunAuthorAgent } from './useRunAuthorAgent';
+import type { RunAuthorAgent } from './types';
 
 export type QueuedChatMessage = {
   id: number;

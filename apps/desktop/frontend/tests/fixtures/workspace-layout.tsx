@@ -13,7 +13,7 @@ import {
 import { useWorkspaceColumns } from '../../src/components/shell/useWorkspaceColumns';
 import { SidePanel } from '../../src/components/shell/SidePanel';
 import { AssistantPanelFrame } from '../../src/components/shell/AssistantPanelFrame';
-import { PatchReviewPanel } from '../../src/components/PatchReviewPanel';
+import { PatchReviewPanel } from '../../src/components/editor/PatchReviewPanel';
 import type { LayoutMode } from '../../src/components/shell/useShellState';
 
 ensureMonacoThemes(monaco);

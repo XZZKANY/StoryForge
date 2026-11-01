@@ -8,7 +8,7 @@ import {
   setBranchHead,
   type BranchInfo,
 } from '../branches';
-import { TauriFileSystem, type DiskBaseline } from '../tauri-fs';
+import { TauriFileSystem, type DiskBaseline } from '../host/tauri-fs';
 import { snapshotBeforeWrite } from '../versions';
 import { performReceiptedWriteback } from '../writeback-receipts';
 import type { WritebackReceipt } from '../writeback-receipt-types';

@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { useAcknowledgeHostClosing } from '../src/lib/host-close';
+import { useAcknowledgeHostClosing } from '../src/lib/host/host-close';
 
 const bridge = vi.hoisted(() => ({
   invoke: vi.fn(async () => undefined),
@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/event', () => ({
     return bridge.unlisten;
   }),
 }));
-vi.mock('../src/lib/tauri-env', () => ({ isTauriRuntime: () => true }));
+vi.mock('../src/lib/host/tauri-env', () => ({ isTauriRuntime: () => true }));
 
 function Probe() {
   useAcknowledgeHostClosing();

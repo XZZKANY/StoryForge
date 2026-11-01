@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { writeReceiptAudit } from '../src/lib/writeback-audit';
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn() }));
 const request = {

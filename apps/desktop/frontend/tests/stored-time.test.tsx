@@ -7,7 +7,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { test } from 'vitest';
 
-import { ConversationHeader } from '../src/components/chat-window/panels';
+import { ConversationHeader } from '../src/components/chat-window/ConversationHeader';
 import { formatStoredTimeShort, parseStoredTime } from '../src/lib/stored-time';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

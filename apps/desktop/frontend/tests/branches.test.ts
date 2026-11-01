@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 import {
   buildGraph,
   createBranch,

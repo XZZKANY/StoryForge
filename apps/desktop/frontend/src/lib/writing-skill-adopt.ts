@@ -1,5 +1,5 @@
 import { resolveProjectRelativePath } from './project-context';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 
 /** 拆书产出的写法 skill（引擎每次拆书整份覆盖）；作者点「放进 写法/」才落进作品。 */
 export const BREAKDOWN_SKILLS_PATH = '.storyforge/analysis/writing-skills.json';

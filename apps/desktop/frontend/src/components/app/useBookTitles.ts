@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 import { useAsyncEffect } from '../../lib/async-guards';
 import { bookProfilePath, displayBookTitle, parseBookProfile } from '../../lib/book-profile';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/host/tauri-fs';
 import { basename } from './helpers';
 
 async function readTitle(projectPath: string): Promise<string> {

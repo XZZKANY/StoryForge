@@ -390,10 +390,7 @@ it('设置搜索词只在 search-context 里读', () => {
 
 // 设置卡片里的折叠区只留 SettingDetails：连接与存储详情、模型服务的「高级」曾各写一份 <details open={Boolean(query)}>。
 it('设置里的 <details> 只写在 SettingRows，SettingDetails 在搜索时展开', () => {
-  const settingsFiles = [
-    ...sourceFiles('src/components/settings'),
-    'src/components/SettingsView.tsx',
-  ]
+  const settingsFiles = sourceFiles('src/components/settings')
     .map(relativePath)
     .filter((path) => readFileSync(path, 'utf8').includes('<details'));
   expect(settingsFiles).toEqual(['src/components/settings/SettingRows.tsx']);

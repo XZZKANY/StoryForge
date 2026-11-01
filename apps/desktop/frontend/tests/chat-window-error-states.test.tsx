@@ -9,7 +9,7 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
   queryChapterCheckHistory: vi.fn().mockResolvedValue({ entries: [], truncated: false }),
 }));
 
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
 import { getAssistantSession } from '../src/lib/api-client';
 import {

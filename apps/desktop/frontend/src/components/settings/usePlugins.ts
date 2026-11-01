@@ -15,8 +15,8 @@ import {
   removePlugin,
   stagePluginImport,
   type StagedPluginImport,
-} from '../../lib/plugin-library';
-import { pickDirectory, pickFile } from '../../lib/tauri-fs';
+} from '../../lib/host/plugin-library';
+import { pickDirectory, pickFile } from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 
 export type PluginImportPreview = {

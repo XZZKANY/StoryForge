@@ -6,12 +6,11 @@ import { expect, it } from 'vitest';
 // 拆过的大文件不许长回去，活跃模块目录下的新文件有行数上限，界面只经 lib/api 进引擎。
 const HARD_LINE_LIMITS: Record<string, number> = {
   'src/App.tsx': 400,
-  'src/components/ChatWindow.tsx': 500,
-  'src/components/Editor.tsx': 500,
   'src/components/app/AppShell.tsx': 500,
   'src/components/app/useAppPreferences.ts': 500,
   'src/components/app/useEditorWorkspaceTabs.ts': 500,
   'src/components/app/useProjectCommands.ts': 500,
+  'src/components/chat-window/ChatWindow.tsx': 500,
   'src/components/chat-window/ChatWindowView.tsx': 500,
   'src/components/chat-window/agent-result.ts': 500,
   'src/components/chat-window/context-files.ts': 500,
@@ -22,9 +21,9 @@ const HARD_LINE_LIMITS: Record<string, number> = {
   'src/components/chat-window/useChatSubmission.ts': 500,
   'src/components/chat-window/useChatWindowState.ts': 500,
   'src/components/chat-window/useRunAuthorAgent.ts': 500,
+  'src/components/editor/Editor.tsx': 500,
 };
-// components 下每个子目录都列在这里（下面有测试钉住），加上 components 顶层的文件，
-// 就是 components 下的全部文件。
+// components 顶层不放源文件、每个子目录都列在这里（下面两条测试钉住），这些子目录就是 components 下的全部文件。
 const COMPONENTS_ROOT = 'src/components';
 const LIVE_MODULE_ROOTS = [
   'src/components/app',
@@ -71,8 +70,12 @@ it('拆过的大文件不超过各自的硬上限', () => {
   expect(over).toEqual([]);
 });
 
+it('components 顶层没有源文件，组件都放在各自的文件夹里', () => {
+  expect(topLevelSourceFiles(COMPONENTS_ROOT).map(relativePath)).toEqual([]);
+});
+
 it('components 下的文件不超过 500 行', () => {
-  const over = [...topLevelSourceFiles(COMPONENTS_ROOT), ...LIVE_MODULE_ROOTS.flatMap(sourceFiles)]
+  const over = LIVE_MODULE_ROOTS.flatMap(sourceFiles)
     .map(relativePath)
     .flatMap((path) => {
       const lines = lineCount(path);
@@ -100,40 +103,18 @@ it('界面只经 lib/api 进引擎，不直接引引擎包或 lib/engine', () =>
   expect(offenders).toEqual([]);
 });
 
-// 宿主访问只经这些封装；挪进 lib/host/ 待 #561 合后做。
-const HOST_ACCESS_MODULES = [
-  // lib/engine：给引擎装配原生读写口与应用版本
-  'src/lib/engine/agent.ts',
-  'src/lib/engine/assistant.ts',
-  'src/lib/engine/crossChapter.ts',
-  'src/lib/engine/db.ts',
-  'src/lib/engine/facts.ts',
-  'src/lib/engine/ideCommands.ts',
-  'src/lib/engine/llm.ts',
-  'src/lib/engine/reader.ts',
-  'src/lib/engine/writer.ts',
-  // lib 顶层的宿主封装
-  'src/lib/app-update.ts',
-  'src/lib/book-cover.ts',
-  'src/lib/desktop-llm-config.ts',
-  'src/lib/host-close.ts',
-  'src/lib/host-window.ts',
-  'src/lib/native-delivery.ts',
-  'src/lib/plugin-library.ts',
-  'src/lib/shadow-git.ts',
-  'src/lib/tauri-env.ts',
-  'src/lib/tauri-fs.ts',
-  'src/lib/update-check.ts',
-];
+// 宿主访问只经 lib/host 里的封装，和 lib/engine 给引擎装配的原生读写口与应用版本。
+const HOST_GATEWAYS = ['src/lib/host/', 'src/lib/engine/'];
 
-it('只有白名单里的封装模块引 @tauri-apps，组件经它们调宿主', () => {
+it('只有 lib/host 与 lib/engine 引 @tauri-apps，组件经它们调宿主', () => {
   const importing = sourceFiles('src')
     .map(relativePath)
     .filter((path) => /['"]@tauri-apps\//.test(readFileSync(path, 'utf8')));
-  expect(importing.filter((path) => !HOST_ACCESS_MODULES.includes(path))).toEqual([]);
+  for (const gateway of HOST_GATEWAYS) {
+    expect(importing.some((path) => path.startsWith(gateway))).toBe(true);
+  }
   expect(
-    HOST_ACCESS_MODULES.filter((path) => !importing.includes(path)),
-    '不再调宿主了：从白名单去掉',
+    importing.filter((path) => !HOST_GATEWAYS.some((gateway) => path.startsWith(gateway))),
   ).toEqual([]);
 });
 
@@ -142,7 +123,7 @@ it('@tauri-apps/plugin-dialog 只在 tauri-fs 里引', () => {
   const importing = sourceFiles('src')
     .map(relativePath)
     .filter((path) => readFileSync(path, 'utf8').includes('@tauri-apps/plugin-dialog'));
-  expect(importing).toEqual(['src/lib/tauri-fs.ts']);
+  expect(importing).toEqual(['src/lib/host/tauri-fs.ts']);
 });
 
 // 跨组件的窗口事件：名字跟着各自的领域模块以 export const XXX_EVENT 定义一次，派发与监听只引常量。

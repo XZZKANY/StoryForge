@@ -7,7 +7,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { ConversationHeader } from '../src/components/chat-window/panels';
+import { ConversationHeader } from '../src/components/chat-window/ConversationHeader';
 import { useObservatory } from '../src/components/app/useObservatory';
 import { ObservatoryView } from '../src/components/shell/ObservatoryView';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';

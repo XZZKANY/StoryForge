@@ -10,7 +10,7 @@ import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
 import { useChatSubmission } from '../src/components/chat-window/useChatSubmission';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import { emitPatchRejected } from '../src/lib/assistant-events';
-import type { RunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
+import type { RunAuthorAgent } from '../src/components/chat-window/types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;

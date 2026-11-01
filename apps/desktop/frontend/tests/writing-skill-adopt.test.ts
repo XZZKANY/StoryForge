@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { adoptableSkills, adoptWritingSkills } from '../src/lib/writing-skill-adopt';
 
 const PROJECT = 'D:\\连载\\末世吞噬';

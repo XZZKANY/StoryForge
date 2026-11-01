@@ -1,4 +1,4 @@
-import { withNativeDelivery } from '../../lib/native-delivery';
+import { withNativeDelivery } from '../../lib/host/native-delivery';
 import { useCallback } from 'react';
 
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
@@ -7,7 +7,7 @@ import { isWholeFileDrifted } from '../../lib/patch-hunks';
 import type { IssueCounts, IssueResolution } from '../../lib/suggestion-ops';
 import { invalidateContextBundleCache } from '../../lib/project-context';
 import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import { snapshotBeforeWrite } from '../../lib/versions';
 import { shouldSettleActiveEditor } from '../../lib/writeback';
 import { emitToast } from '../../lib/toast';

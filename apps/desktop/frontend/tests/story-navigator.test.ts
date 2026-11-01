@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { buildStoryNavigationGroups } from '../src/components/StoryNavigator';
+import { buildStoryNavigationGroups } from '../src/components/shell/StoryNavigator';
 import { buildProjectIndexFromEntries } from '../src/lib/project-context';
 
 test('story navigator groups markdown files by fiction semantics', () => {

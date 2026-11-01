@@ -10,7 +10,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { useObservatory } from '../src/components/app/useObservatory';
 import { listUnrecordedChapters } from '../src/lib/api/facts';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';
-import { FS_MUTATION_EVENT } from '../src/lib/tauri-fs';
+import { FS_MUTATION_EVENT } from '../src/lib/host/tauri-fs';
 
 vi.mock('../src/lib/api/ide-commands', () => ({
   executeIdeCommand: vi.fn(),

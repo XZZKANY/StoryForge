@@ -5,7 +5,8 @@ import { test } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { Editor, EditorLoadStatus } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
+import { EditorLoadStatus } from '../src/components/editor/EditorLoadStatus';
 import type { AppDialogApi } from '../src/components/app/AppDialog';
 
 // G1 护栏：Editor.tsx 此前零单测，是所有前端拆分（C3）的硬阻塞。
@@ -15,7 +16,7 @@ import type { AppDialogApi } from '../src/components/app/AppDialog';
 //   2) e2e 规格（ide-judge-repair.spec.ts / ide-shell.spec.ts）用 readFileSync
 //      断言源文本含关键符号，这里镜像成单元级护栏，使 C3 拆分能在 CI 早期失败。
 
-const editorSource = readFileSync('src/components/Editor.tsx', 'utf8');
+const editorSource = readFileSync('src/components/editor/Editor.tsx', 'utf8');
 // 编辑器按职责拆成了 components/editor/ 下的一组 hook，下面的源码断言跟着代码读它搬到的文件。
 const editorPart = (name: string) => readFileSync(`src/components/editor/${name}`, 'utf8');
 const guardedWriteSource = editorPart('useGuardedSuggestionWrite.ts');

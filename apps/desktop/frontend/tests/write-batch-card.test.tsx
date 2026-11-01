@@ -25,7 +25,7 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
 import { useChatSubmission } from '../src/components/chat-window/useChatSubmission';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
-import type { RunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
+import type { RunAuthorAgent } from '../src/components/chat-window/types';
 import { formatTenThousands, WriteBatchCard } from '../src/components/chat-window/WriteBatchCard';
 import type { AgentPermissionProfile } from '../src/lib/agent-permission';
 import type { ChapterHandoff } from '../src/lib/chapter-handoff';

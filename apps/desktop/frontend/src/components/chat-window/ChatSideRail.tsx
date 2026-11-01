@@ -5,7 +5,7 @@ import { resolveProjectRelativePath } from '../../lib/project-context';
 import { Button, PlainButton } from '../ui';
 import { ContextPanel } from './ContextPanel';
 import type { AgentRun } from './types';
-import type { WriteBatchProgress } from './useWriteBatchScheduler';
+import type { WriteBatchProgress } from './write-batch-run';
 import type { WriteBatchProgressChapter } from './write-batch-run';
 
 const CHAPTER_STATE_LABEL: Record<WriteBatchProgressChapter['state'], string> = {

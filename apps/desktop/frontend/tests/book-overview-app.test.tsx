@@ -19,12 +19,12 @@ function Probe({ kind, filePath }: { kind: string; filePath?: string | null }) {
     </button>
   );
 }
-vi.mock('../src/components/Editor', () => ({
+vi.mock('../src/components/editor/Editor', () => ({
   Editor: ({ filePath }: { filePath: string | null }) => (
     <Probe kind="editor" filePath={filePath} />
   ),
 }));
-vi.mock('../src/components/ChatWindow', () => ({
+vi.mock('../src/components/chat-window/ChatWindow', () => ({
   ChatWindow: ({
     onAgentRunSummaryChange,
   }: {

@@ -1,4 +1,4 @@
-import type { FileEntry } from '../tauri-fs';
+import type { FileEntry } from '../host/tauri-fs';
 
 /** 与后端 `app/common/author_voice.py::RELATIVE_PATH` 同一个文件，两处须同改。 */
 const AUTHOR_INSTRUCTIONS_CHILD = 'agent-instructions.md';

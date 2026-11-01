@@ -1,4 +1,4 @@
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import type { WritebackRequest } from './writeback-receipt-types';
 
 const HEADER = '<!-- storyforge-writeback-audit-v1 ';

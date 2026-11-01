@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useAsyncEffect } from '../../lib/async-guards';
-import { importCoverImage, readCoverDataUrl } from '../../lib/book-cover';
+import { importCoverImage, readCoverDataUrl } from '../../lib/host/book-cover';
 import { joinPath } from '../../lib/fs-path-ops';
 import {
   bookProfilePath,
@@ -34,7 +34,7 @@ import { scanManuscriptTotals, type ManuscriptTotals } from '../../lib/manuscrip
 import { limitOutlineEntries, parseHeadings, type OutlineEntry } from '../../lib/outline-index';
 import { ProjectFileMissingError } from '../../lib/host-file-errors';
 import { buildProjectIndex } from '../../lib/project-context';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 
 export type BookProfileHandle = {

@@ -1,4 +1,4 @@
-import { withNativeDelivery } from '../../lib/native-delivery';
+import { withNativeDelivery } from '../../lib/host/native-delivery';
 import {
   useCallback,
   useEffect,

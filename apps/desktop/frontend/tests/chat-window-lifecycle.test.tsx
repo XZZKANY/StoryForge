@@ -15,7 +15,7 @@ import { useAgentStreamEvent } from '../src/components/chat-window/useAgentStrea
 import { useChatSessionContext } from '../src/components/chat-window/useChatSessionContext';
 import { useChatSubmission } from '../src/components/chat-window/useChatSubmission';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
-import type { RunAuthorAgent } from '../src/components/chat-window/useRunAuthorAgent';
+import type { RunAuthorAgent } from '../src/components/chat-window/types';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

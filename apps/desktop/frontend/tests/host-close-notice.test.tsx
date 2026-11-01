@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { useHostCloseNotice } from '../src/lib/host-close';
+import { useHostCloseNotice } from '../src/lib/host/host-close';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import { ToastHost } from '../src/components/shell/ToastHost';
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('../src/lib/tauri-env', () => ({ isTauriRuntime: () => true }));
+vi.mock('../src/lib/host/tauri-env', () => ({ isTauriRuntime: () => true }));
 
 function Harness() {
   useHostCloseNotice();

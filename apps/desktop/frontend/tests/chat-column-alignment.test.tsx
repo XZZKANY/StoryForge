@@ -6,7 +6,8 @@ import { test } from 'vitest';
 import { CHAT_COLUMN } from '../src/components/chat-window/column';
 import { ComposerBox } from '../src/components/chat-window/Composer';
 import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
-import { LightweightStatus, RunActionBar } from '../src/components/chat-window/panels';
+import { LightweightStatus } from '../src/components/chat-window/panels';
+import { RunActionBar } from '../src/components/chat-window/RunActionBar';
 import type { AgentRun } from '../src/components/chat-window/types';
 import { WriteBatchProgressBar } from '../src/components/chat-window/WriteBatchPanel';
 

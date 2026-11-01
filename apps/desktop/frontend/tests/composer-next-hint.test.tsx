@@ -39,7 +39,7 @@ vi.mock('../src/components/chat-window/useChatWindowState', async (importOrigina
   };
 });
 
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { ComposerBox } from '../src/components/chat-window/Composer';
 import type { ChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';

@@ -7,14 +7,14 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { AgentRunEventRecord } from '../src/lib/api/agent-run-events';
 import type { ChapterFactRecordPlan } from '../src/lib/api/facts';
 import { createWritebackQueue } from '../src/lib/writeback';
-import { TauriFileSystem, type DiskBaseline } from '../src/lib/tauri-fs';
+import { TauriFileSystem, type DiskBaseline } from '../src/lib/host/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
   readFixtureAudit,
   writeFixtureReceipt,
-} from '../src/lib/writeback-receipt-fixture';
+} from '../src/lib/host/writeback-receipt-fixture';
 import { useSuggestionWriteback } from '../src/components/editor/useSuggestionWriteback';
 import type { EditorModelCache } from '../src/components/editor/useMonacoEditor';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
@@ -83,7 +83,7 @@ vi.mock('../src/lib/api/agent-socket', () => ({
   isAgentErrorMessage: (message: { type: string }) => message.type === 'error',
 }));
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot }));
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: effects.write,
     projectPathExists: (_project: string, path: string) => effects.disk.has(path),

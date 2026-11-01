@@ -11,7 +11,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 
-import type { BookBreakdownPreview } from '../app/useProjectCommands';
+import type { BookBreakdownPreview } from '../app/useBookBreakdown';
 import type { BookProfileHandle } from '../app/useBookProfile';
 import {
   bookGoalProgress,

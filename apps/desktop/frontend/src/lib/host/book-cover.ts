@@ -8,7 +8,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 
-import { joinPath } from './fs-path-ops';
+import { joinPath } from '../fs-path-ops';
 import { pickFile, TauriFileSystem } from './tauri-fs';
 
 const MIME_BY_EXTENSION: Record<string, string> = {

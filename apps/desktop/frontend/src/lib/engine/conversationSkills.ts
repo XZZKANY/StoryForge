@@ -1,5 +1,5 @@
 import { loadAvailableSkills, type SkillPlugin } from '@storyforge/engine';
-import { pluginLibraryDir } from '../plugin-library';
+import { pluginLibraryDir } from '../host/plugin-library';
 import { nativeProjectReader } from './reader';
 import { engineSecrets } from './store';
 

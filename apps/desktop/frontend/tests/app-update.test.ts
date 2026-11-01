@@ -43,7 +43,7 @@ afterEach(() => {
 const available = { version: '0.2.4', currentVersion: '0.2.3', notes: '修了两处断流' };
 
 async function loadWithUpdate() {
-  const store = await import('../src/lib/app-update');
+  const store = await import('../src/lib/host/app-update');
   host.invoke.mockResolvedValueOnce(available);
   await store.checkAppUpdate('0.2.3');
   return store;
@@ -120,7 +120,7 @@ test('下载中、已下载好时再检查不冲掉进度；没有版本号就�
   expect(host.invoke).toHaveBeenCalledTimes(2);
 
   vi.resetModules();
-  const fresh = await import('../src/lib/app-update');
+  const fresh = await import('../src/lib/host/app-update');
   expect(await fresh.checkAppUpdate(null)).toEqual({
     phase: 'check-failed',
     message: '非桌面运行时无版本信息',
@@ -130,7 +130,7 @@ test('下载中、已下载好时再检查不冲掉进度；没有版本号就�
 test('打包版打开 8 秒后静默检查：有新版在右下角提示并给「下载」', async () => {
   vi.stubEnv('PROD', true);
   vi.useFakeTimers();
-  const store = await import('../src/lib/app-update');
+  const store = await import('../src/lib/host/app-update');
   function Probe() {
     store.useStartupUpdateCheck();
     return null;

@@ -5,32 +5,30 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import * as monaco from 'monaco-editor';
-import { emitRetryWithoutKnowledge } from '../lib/assistant-events';
-import type { EditorLineNumbersMode } from '../lib/user-settings';
-import { recordRevisionLoop } from '../lib/author-loop';
-import { emitAuthorLoopResult } from '../lib/assistant-events';
+import { emitRetryWithoutKnowledge } from '../../lib/assistant-events';
+import type { EditorLineNumbersMode } from '../../lib/user-settings';
+import { recordRevisionLoop } from '../../lib/author-loop';
+import { emitAuthorLoopResult } from '../../lib/assistant-events';
 import { PatchReviewPanel } from './PatchReviewPanel';
-import { EditorLoadStatus } from './editor/EditorLoadStatus';
-import { useEditorFileLoader } from './editor/useEditorFileLoader';
-import { useMonacoEditor, type EditorModelCache } from './editor/useMonacoEditor';
-import { resolveEditorFontFamily, type EditorFontMode, type ProseMeasure } from './editor/options';
-import { useBranchManifest } from './editor/useBranchManifest';
-import { useSuggestionWriteback } from './editor/useSuggestionWriteback';
-import { useInlineChat } from './editor/useInlineChat';
-import { useEditorSave } from './editor/useEditorSave';
-import { useReviewIssueMarkers } from './editor/useReviewIssueMarkers';
-import { useEditorCursorSync } from './editor/useEditorCursorSync';
-import { useEditorWindowCommands } from './editor/useEditorWindowCommands';
-import { useVersionRestore } from './editor/useVersionRestore';
-import { VersionHistory } from './editor/VersionHistory';
-import type { AppDialogApi } from './app/AppDialog';
-import { createWritebackQueue, type WritebackQueue } from '../lib/writeback';
-import { isReadOnlyDerivedProjectPath } from '../lib/project/entry-visibility';
-import type { FileCursor } from '../lib/workspace-session';
-import { Folder } from './icons/shell-icons';
-import { Button, Spinner } from './ui';
-
-export { EditorLoadStatus };
+import { EditorLoadStatus } from './EditorLoadStatus';
+import { useEditorFileLoader } from './useEditorFileLoader';
+import { useMonacoEditor, type EditorModelCache } from './useMonacoEditor';
+import { resolveEditorFontFamily, type EditorFontMode, type ProseMeasure } from './options';
+import { useBranchManifest } from './useBranchManifest';
+import { useSuggestionWriteback } from './useSuggestionWriteback';
+import { useInlineChat } from './useInlineChat';
+import { useEditorSave } from './useEditorSave';
+import { useReviewIssueMarkers } from './useReviewIssueMarkers';
+import { useEditorCursorSync } from './useEditorCursorSync';
+import { useEditorWindowCommands } from './useEditorWindowCommands';
+import { useVersionRestore } from './useVersionRestore';
+import { VersionHistory } from './VersionHistory';
+import type { AppDialogApi } from '../app/AppDialog';
+import { createWritebackQueue, type WritebackQueue } from '../../lib/writeback';
+import { isReadOnlyDerivedProjectPath } from '../../lib/project/entry-visibility';
+import type { FileCursor } from '../../lib/workspace-session';
+import { Folder } from '../icons/shell-icons';
+import { Button, Spinner } from '../ui';
 
 // Monaco 与磁盘原文的换行风格可能不一致（Windows CRLF vs 模型/编辑器 LF）；
 // 比较补丁能否写回时按 LF 归一，避免仅换行差异被误判为“内容已变化”而挡住写回。

@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useAsyncEffect } from './async-guards';
+import { useAsyncEffect } from '../async-guards';
 import { isTauriRuntime } from './tauri-env';
-import { emitToast } from './toast';
+import { emitToast } from '../toast';
 
 /**
  * 退出握手的前端一道闸：宿主广播 `storyforge:host-closing` 时回一声「已停手」，Rust 才不必等满期限。

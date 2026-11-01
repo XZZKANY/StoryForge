@@ -5,14 +5,14 @@ import * as monaco from 'monaco-editor';
 import { __getLastEditor } from 'monaco-editor';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import { createWritebackQueue } from '../src/lib/writeback';
-import type { DiskBaseline } from '../src/lib/tauri-fs';
+import type { DiskBaseline } from '../src/lib/host/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
 import {
   createFixtureAudit,
   inspectFixtureReceipt,
   readFixtureAudit,
   writeFixtureReceipt,
-} from '../src/lib/writeback-receipt-fixture';
+} from '../src/lib/host/writeback-receipt-fixture';
 import { useSuggestionWriteback } from '../src/components/editor/useSuggestionWriteback';
 import type { EditorModelCache } from '../src/components/editor/useMonacoEditor';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
@@ -50,7 +50,7 @@ const receiptFs = {
   },
 };
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: effects.snapshot }));
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     writeFile: effects.write,
     createWritebackAudit: (project: string, id: string, content: string) =>

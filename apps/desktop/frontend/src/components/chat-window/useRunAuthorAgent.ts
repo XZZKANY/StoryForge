@@ -25,7 +25,7 @@ import {
   type LocalConversationAction,
 } from '../../lib/local-conversation-action';
 import { buildContextBundle, resolveProjectRelativePath } from '../../lib/project-context';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { permissionForRun } from '../../lib/write-batch-grant';
 import { filePathFromAgentResult, writableFilePatch, repairPatchApproval } from './agent-result';
@@ -47,7 +47,6 @@ import type {
   RunAuthorAgentOutcome,
 } from './types';
 import type { ChatWindowState } from './useChatWindowState';
-export type { RunAuthorAgent } from './types';
 
 const NOT_DISPATCHED: RunAuthorAgentOutcome = { kind: 'not_dispatched' };
 

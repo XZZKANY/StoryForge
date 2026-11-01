@@ -4,7 +4,7 @@ import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { Button, PlainButton } from '../ui';
 
-import type { WriteBatchResult } from './useWriteBatchScheduler';
+import type { WriteBatchResult } from './write-batch-run';
 import {
   chapterRows,
   plannedChapterCount,

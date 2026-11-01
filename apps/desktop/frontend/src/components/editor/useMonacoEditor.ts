@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import * as monaco from 'monaco-editor';
 
-import type { DiskBaseline } from '../../lib/tauri-fs';
+import type { DiskBaseline } from '../../lib/host/tauri-fs';
 import { useAsyncEffect } from '../../lib/async-guards';
 import { registerSmokeEditorController } from '../../lib/smoke';
 import { currentMonacoTheme, ensureMonacoThemes } from '../../lib/theme';

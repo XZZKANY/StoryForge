@@ -19,7 +19,7 @@ vi.mock('../src/lib/project-context', async (importOriginal) => {
   return { ...actual, buildProjectIndex: vi.fn() };
 });
 
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { PartnerOpening } from '../src/components/chat-window/PartnerOpening';
 import { useChapterHandoff } from '../src/components/app/useChapterHandoff';
 import { executeIdeCommand } from '../src/lib/api/ide-commands';

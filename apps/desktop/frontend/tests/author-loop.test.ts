@@ -1,4 +1,4 @@
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { readReceiptAuditPayload, verifyReceiptAudit } from '../src/lib/writeback-audit';
 import assert from 'node:assert/strict';
 import { test } from 'vitest';

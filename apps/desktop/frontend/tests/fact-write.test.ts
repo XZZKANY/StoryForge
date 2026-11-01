@@ -20,7 +20,7 @@ import {
   resolveDisputeGuarded,
   retireFactGuarded,
 } from '../src/lib/fact-write';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { emitToast } from '../src/lib/toast';
 import { snapshotBeforeWrite } from '../src/lib/versions';
 

@@ -3,7 +3,7 @@ import type * as monaco from 'monaco-editor';
 
 import { type GraphNode } from '../../lib/branches';
 import { unmarkChapterWrittenInPlan } from '../../lib/serial-plan';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 import { readVersionState, snapshotBeforeWrite, type VersionEntry } from '../../lib/versions';
 import { performGuardedWriteback } from '../../lib/writeback';

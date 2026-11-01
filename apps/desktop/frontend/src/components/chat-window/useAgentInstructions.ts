@@ -8,7 +8,7 @@ import { useAsyncEffect } from '../../lib/async-guards';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { normalizePathForMatch } from '../../lib/project/path';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 
 // 这段说明也会原样带给模型，所以只写怎么用、不举例（例子会被当成真规矩）。

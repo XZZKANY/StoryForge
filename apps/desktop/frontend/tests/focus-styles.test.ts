@@ -133,7 +133,7 @@ test('所有第一方文本/数字/下拉控件都声明焦点 owner，checkbox/
 });
 
 test('命令面板和命令式内联提问同样声明外壳焦点，不遗漏 React 之外的 textarea', () => {
-  const palette = readFileSync('src/components/CommandPalette.tsx', 'utf8');
+  const palette = readFileSync('src/components/command-palette/CommandPalette.tsx', 'utf8');
   assert.match(palette, /className="sf-input-shell [^"]*focus-within:border-accent/);
   // 行间 zone 的 DOM 已收进 inline-chat-dom.ts（E21 可达性修复时从 hook 抽离）。
   const inline = readFileSync('src/components/editor/inline-chat-dom.ts', 'utf8');

@@ -4,8 +4,12 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { StoryNavigator } from '../src/components/StoryNavigator';
-import { invalidateFileSystemCache, TauriFileSystem, type FileEntry } from '../src/lib/tauri-fs';
+import { StoryNavigator } from '../src/components/shell/StoryNavigator';
+import {
+  invalidateFileSystemCache,
+  TauriFileSystem,
+  type FileEntry,
+} from '../src/lib/host/tauri-fs';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

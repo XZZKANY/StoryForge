@@ -7,10 +7,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { editor as monacoEditor, __getLastEditor, __resetMonacoStub } from 'monaco-editor';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { ToastHost } from '../src/components/shell/ToastHost';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
-import { Editor } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
 
 const effects = vi.hoisted(() => ({
   snapshot: vi.fn(async () => ({ timestamp: 1, created: false })),

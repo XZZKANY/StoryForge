@@ -1,5 +1,5 @@
 import { joinPath } from '../fs-path-ops';
-import type { FileEntry } from '../tauri-fs';
+import type { FileEntry } from '../host/tauri-fs';
 
 export type ProjectTreeNode = {
   name: string;

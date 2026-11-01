@@ -10,7 +10,7 @@ import { __getLastEditor, __resetMonacoStub } from 'monaco-editor';
 import { buildPatchHunks } from '../src/lib/patch-hunks';
 import { ToastHost } from '../src/components/shell/ToastHost';
 import { emitFileSuggestion } from '../src/lib/assistant-events';
-import { Editor } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
 
 const effects = vi.hoisted(() => ({
   snapshot: vi.fn(async () => ({ timestamp: 1, created: false })),

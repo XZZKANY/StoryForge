@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ProjectReadError, type ProjectReader, type ProjectPathKind } from '@storyforge/engine';
-import { assertTauriRuntime } from '../tauri-env';
+import { assertTauriRuntime } from '../host/tauri-env';
 
 function record(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {

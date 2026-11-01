@@ -5,7 +5,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { useBookOverviewChapters } from '../src/components/app/useBookOverviewChapters';
 import { buildProjectIndex } from '../src/lib/project-context';
-import { FS_MUTATION_EVENT } from '../src/lib/tauri-fs';
+import { FS_MUTATION_EVENT } from '../src/lib/host/tauri-fs';
 
 vi.mock('../src/lib/project-context', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/lib/project-context')>();

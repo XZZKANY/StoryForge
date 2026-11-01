@@ -11,16 +11,16 @@ import {
   useCallback,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { useAsyncEffect } from '../lib/async-guards';
-import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
-import { isVisibleProjectTreeEntry } from '../lib/project/entry-visibility';
-import { buildProjectTree, type ProjectTreeNode } from '../lib/project/tree';
-import { parentDir } from '../lib/fs-path-ops';
-import { ChevronRight, FilePlus, FileText, Folder, FolderPlus } from './icons/shell-icons';
-import { ContextMenu, type ContextMenuItem } from './shell/ContextMenu';
-import { PanelError } from './shell/PanelError';
-import { IconButton, PlainButton, revealOnHover } from './ui';
-import type { FileTreeActions } from './app/useFileTreeActions';
+import { useAsyncEffect } from '../../lib/async-guards';
+import { TauriFileSystem, FileEntry } from '../../lib/host/tauri-fs';
+import { isVisibleProjectTreeEntry } from '../../lib/project/entry-visibility';
+import { buildProjectTree, type ProjectTreeNode } from '../../lib/project/tree';
+import { parentDir } from '../../lib/fs-path-ops';
+import { ChevronRight, FilePlus, FileText, Folder, FolderPlus } from '../icons/shell-icons';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { PanelError } from './PanelError';
+import { IconButton, PlainButton, revealOnHover } from '../ui';
+import type { FileTreeActions } from '../app/useFileTreeActions';
 
 type ContextTarget = { path: string; isDir: boolean };
 type NodeContextMenuHandler = (event: ReactMouseEvent, target: ContextTarget) => void;

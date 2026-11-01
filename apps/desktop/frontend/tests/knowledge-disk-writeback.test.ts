@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { applyKnowledgePatch } from '../src/lib/project/knowledge-writeback';
 import type { ApiKnowledgeProposalPatch } from '../src/lib/api/contracts';
 

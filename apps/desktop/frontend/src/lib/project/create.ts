@@ -1,6 +1,6 @@
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
 import { joinPath } from '../fs-path-ops';
-import { TauriFileSystem } from '../tauri-fs';
+import { TauriFileSystem } from '../host/tauri-fs';
 import { enableStarterPlugin, initializeStoryProject } from './initialize';
 
 /** The book title is also the new directory name; never silently sanitize or rename it. */

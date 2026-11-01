@@ -53,13 +53,13 @@ vi.mock('../src/components/chat-window/useChatWindowState', async (importOrigina
     },
   };
 });
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import {
   emitChapterWriteRequest,
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
 } from '../src/lib/assistant-events';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import type { SemanticFile } from '../src/lib/project/types';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import { isWriteBatchCardOpen } from '../src/lib/write-batch-card';

@@ -17,10 +17,10 @@ import {
   REQUEST_SAVE_ACTIVE_FILE_EVENT,
   SAVE_ACTIVE_FILE_DONE_EVENT,
 } from '../src/lib/assistant-events';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { recordRenameLineage } from '../src/lib/versions';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(async () => false),
     renamePath: vi.fn(async () => undefined),

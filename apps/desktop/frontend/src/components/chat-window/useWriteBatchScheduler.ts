@@ -29,8 +29,6 @@ import {
 import type { RunAuthorAgent } from './types';
 import type { ChatWindowState } from './useChatWindowState';
 
-export type { WriteBatchProgress, WriteBatchResult } from './write-batch-run';
-
 export type WriteBatchPhase =
   | { kind: 'idle' }
   /**

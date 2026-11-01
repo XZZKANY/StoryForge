@@ -54,7 +54,7 @@ StoryForge 是面向长篇小说的 Desktop IDE-first AI 写作工作台（2026-
 ```
 apps/
   desktop/
-    frontend/     React + Monaco 界面；src/lib/api 是进引擎的唯一入口，src/lib/engine 装配引擎的原生读写口
+    frontend/     React + Monaco 界面；src/lib/api 是进引擎的唯一入口，src/lib/engine 装配引擎的原生读写口，src/lib/host 是界面调宿主的唯一入口
     src-tauri/    Rust 宿主：fs / engine_db / engine_llm / llm_config_store / shadow_git / host_close / smoke_ui
     scripts/      Tauri 冒烟、NSIS 安装校验、随包 git 准备
 packages/

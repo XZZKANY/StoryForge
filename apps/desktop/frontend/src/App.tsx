@@ -1,7 +1,7 @@
 /** StoryForge desktop shell wiring. */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { PaletteMode } from './components/CommandPalette';
+import type { PaletteMode } from './components/command-palette/CommandPalette';
 import { AppShell } from './components/app/AppShell';
 import { BookOverview } from './components/app/BookOverview';
 import { useMainSurface } from './components/app/useMainSurface';
@@ -30,9 +30,9 @@ import {
 } from './lib/assistant-events';
 import { emitToast } from './lib/toast';
 import { useWriteBatchCardOpen } from './lib/write-batch-card';
-import { useStartupUpdateCheck } from './lib/app-update';
+import { useStartupUpdateCheck } from './lib/host/app-update';
 import { isEditableTarget } from './lib/browser-guards';
-import { useAcknowledgeHostClosing, useHostCloseNotice } from './lib/host-close';
+import { useAcknowledgeHostClosing, useHostCloseNotice } from './lib/host/host-close';
 export function App() {
   useAcknowledgeHostClosing();
   useHostCloseNotice();

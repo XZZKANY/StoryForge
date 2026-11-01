@@ -1,5 +1,5 @@
 import { joinPath } from './fs-path-ops';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { relativeToProject } from './project-context';
 import { countCjkChars, countParagraphs } from './text-metrics';
 import { writeReceiptAudit } from './writeback-audit';

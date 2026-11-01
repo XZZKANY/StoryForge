@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, test } from 'vitest';
 import type * as monaco from 'monaco-editor';
 import { __getLastEditor, __resetMonacoStub } from 'monaco-editor';
-import { Editor } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
 
 import { useEditorFileLoader } from '../src/components/editor/useEditorFileLoader';
 import type { EditorModelCache } from '../src/components/editor/useMonacoEditor';
