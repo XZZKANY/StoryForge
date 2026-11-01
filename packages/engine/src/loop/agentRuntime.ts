@@ -379,6 +379,7 @@ export class AgentRuntime {
   private async toolRunView(run: RunRecord) {
     const current = await this.deps.store.getRun(run.id);
     return {
+      id: current.id,
       public_id: current.public_id,
       permission_profile: current.permission_profile,
       goal: current.goal,

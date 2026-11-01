@@ -56,6 +56,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         ),
         contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
         assistantSessionId: context.assistantSessionId,
+        relatedRunId: context.run.id,
       });
       parsed = parseBrief(chat.reply, {
         seed,
@@ -123,7 +124,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         assistant_session_id: context.assistantSessionId,
         context_bundle: prepared.contextBundle,
       },
-      { preparedContext: prepared },
+      { preparedContext: prepared, relatedRunId: context.run.id },
     );
     return {
       status: 'completed',
@@ -147,6 +148,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         userMessage: checkPrompt(confirmed, content),
         contextBlock: '',
         assistantSessionId: context.assistantSessionId,
+        relatedRunId: context.run.id,
       });
       raw = chat.reply;
     } catch (error) {
@@ -207,7 +209,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         assistant_session_id: context.assistantSessionId,
         context_bundle: prepared.contextBundle,
       },
-      { preparedContext: prepared, writtenFacts: true },
+      { preparedContext: prepared, writtenFacts: true, relatedRunId: context.run.id },
     );
     // 修复走修订链路，改到的行可能又写回半角；与起草一样统一成全角。
     const [repaired, punctuationNormalized] = fullwidthCjkPunctuation(response.after);

@@ -36,6 +36,7 @@ export type ToolResult = {
 
 /** 工具处理器看到的 run（P4 前来自内存存储）。 */
 export type ToolRunView = {
+  readonly id: number;
   readonly public_id: string;
   readonly permission_profile: unknown;
   readonly goal: string;

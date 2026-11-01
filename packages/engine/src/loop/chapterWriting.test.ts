@@ -3,6 +3,7 @@ import golden from '../../golden/p3-chapter-writing.windows.json';
 import { AgentRuntimeUserMessageError } from './agentRuntime';
 import { agentRunReplay, REPLAY_KEYS } from './agentRunReplay.test-support';
 import { buildCheck, checkPrompt } from './chapterCheckProtocol';
+import { evidenceSources } from './conversationHistory';
 import { RUN_MAX_DURATION_SECONDS } from './runControl';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
@@ -236,6 +237,34 @@ describe('the result line follows whether the author still has to accept the rev
       '写第三章：沈禾带林舟入城',
       '章纲已准备：沈禾带林舟入城，夜宿客栈。',
     ]);
+  });
+});
+
+// 10-31 实验书：`/写` 14 章后对话历史 417 KB、第一句聊天就超预算。真跑一章，从落库到下一轮历史证据一路核对。
+describe('a finished chapter is one entry in the history of the next turn', () => {
+  it('folds the artifacts of the run and the model calls it made, keeping no prose', async () => {
+    const base = (golden.scenarios as Obj[]).find((item) => item.id === 'write-auto-profile')!;
+    const { record, error, conversation } = await replay(base);
+    if (error) throw error;
+    const calls = await conversation.toolCalls(1);
+    expect(calls.map((call) => [call.tool_name, call.related_type, call.related_id])).toEqual([
+      ['assistant.chat', 'agent_run', 1],
+      ['assistant.draft', 'agent_run', 1],
+      ['assistant.chat', 'agent_run', 1],
+    ]);
+    const evidence = await evidenceSources(conversation, 1);
+    expect(evidence.map((source) => source.key)).toEqual(['chapter_run:1']);
+    expect(JSON.parse(evidence[0].content)).toMatchObject({
+      kind: 'chapter_write_run',
+      run_id: 1,
+      target_path: '正文/第003章.md',
+      goal: '沈禾带林舟入城，夜宿客栈',
+      proposed_patch: {
+        file_path: record.result.proposed_patch.file_path,
+        requires_confirmation: false,
+      },
+    });
+    expect(evidence[0].content).not.toContain('守卫看了他们一眼');
   });
 });
 

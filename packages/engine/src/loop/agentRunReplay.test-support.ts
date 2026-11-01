@@ -38,7 +38,8 @@ import { storeRunSources, storeToolArtifactQuery } from './storeSources';
 
 type Obj = { [key: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any -- 脚本按 Python 预言机的 JSON 形状读
 
-export type Replay = { record: Obj; error: unknown };
+/** `conversation` 是跑完后的会话来源（sqlite 那一遍；落库的 related_type / related_id 只有它保留）。 */
+export type Replay = { record: Obj; error: unknown; conversation: ConversationSources };
 
 function encoded(text: string): EncodedFile {
   const bytes = new TextEncoder().encode(text);
@@ -404,7 +405,7 @@ export function agentRunReplay(golden: Obj) {
     const failure = (error: unknown) =>
       error ? { name: (error as Error).name, message: (error as Error).message } : null;
     expect(failure(sql.error), 'sqlite store error').toEqual(failure(memory.error));
-    return memory;
+    return { ...memory, conversation: sql.conversation };
   }
 
   async function replayWith(
@@ -825,6 +826,7 @@ export function agentRunReplay(golden: Obj) {
     const rows = await runs.rowsAfter({ events: 0, artifacts: 0, subagents: 0 });
     return {
       error,
+      conversation,
       record: {
         ...host,
         result,

@@ -215,6 +215,89 @@ function evidenceContent(value: unknown, internalKeys?: ReadonlySet<string>): un
   return value;
 }
 
+/**
+ * 已结束、没有挂着待续调用的写章 run：它的产物（章纲、待续调用、检查、补丁……）和它发起的模型调用记录
+ * 在历史里只留一条摘要。每章原来约 22 KB，大半是续跑用的内部记录、章纲的来源清单和用量记录，`/写` 写十几章
+ * 就把历史撑过预算（10-31 实验书，14 章 317 KB）；挂着待续调用的 run 照旧整份留着，续写要用。
+ */
+function settledChapterRuns(
+  artifacts: readonly ArtifactRow[],
+  events: readonly RunEventRow[],
+): Map<number, ArtifactRow[]> {
+  const ended = new Set(
+    events
+      .filter((e) => e.event_type === 'agent_run_completed' || e.event_type === 'agent_run_failed')
+      .map((e) => e.run_id),
+  );
+  const resolved = new Set(
+    artifacts
+      .filter((a) => a.kind === 'runtime_pending_call_resolution' && isObj(a.payload))
+      .map((a) => (a.payload as Obj).pending_artifact_id),
+  );
+  const runs = new Map<number, ArtifactRow[]>();
+  for (const artifact of artifacts)
+    if (!EVIDENCE_EXCLUDED_ARTIFACTS.has(artifact.kind))
+      runs.set(artifact.run_id, [...(runs.get(artifact.run_id) ?? []), artifact]);
+  for (const [runId, items] of runs)
+    if (
+      !ended.has(runId) ||
+      !items.some((a) => a.kind === 'chapter_brief') ||
+      items.some((a) => a.kind === 'runtime_pending_call' && !resolved.has(a.id))
+    )
+      runs.delete(runId);
+  return runs;
+}
+
+/** 一章一条：写了哪章、目标、检查结论、补丁落在哪个文件、要不要作者点接受。不带正文与引文。 */
+function chapterRunDigest(runId: number, items: readonly ArtifactRow[]): Obj {
+  const last = (kind: string) => {
+    const found = items.filter((a) => a.kind === kind && isObj(a.payload));
+    return found.length ? found[found.length - 1] : null;
+  };
+  const brief = last('chapter_brief')!.payload as Obj;
+  const checkRow = last('chapter_check');
+  const check = checkRow === null ? null : (checkRow.payload as Obj);
+  const patchRow = last('proposed_patch');
+  const patch = patchRow === null ? null : (patchRow.payload as Obj);
+  const list = (value: unknown) => (Array.isArray(value) ? value : []);
+  return {
+    kind: 'chapter_write_run',
+    run_id: runId,
+    chapter_ordinal: brief.chapter_ordinal ?? null,
+    chapter_title: brief.chapter_title ?? null,
+    target_path: brief.target_path ?? null,
+    goal: brief.goal ?? null,
+    target_chars: [brief.target_chars_min ?? null, brief.target_chars_max ?? null],
+    check:
+      check === null
+        ? null
+        : {
+            status: check.status ?? null,
+            manuscript_status: check.manuscript_status ?? null,
+            content_chars: check.content_chars ?? null,
+            hard_failure_count: check.hard_failure_count ?? null,
+            advisory_count: check.advisory_count ?? null,
+            repair_count: check.repair_count ?? null,
+            findings: list(check.findings)
+              .filter(isObj)
+              .map((finding) => ({
+                rule: finding.rule ?? null,
+                severity: finding.severity ?? null,
+                message: finding.message ?? null,
+              })),
+            new_fact_count: list(check.new_facts).length,
+          },
+    proposed_patch:
+      patch === null
+        ? null
+        : {
+            id: patch.id ?? null,
+            file_path: patch.file_path ?? null,
+            requires_confirmation: patchRow!.requires_confirmation,
+          },
+  };
+}
+
 /** 有日期的事实，不是文件系统真相：不从「已批准」推断「已写盘」。 */
 export async function evidenceSources(
   store: ConversationSources,
@@ -231,8 +314,22 @@ export async function evidenceSources(
       digest: contentDigest(raw),
       content: canonicalJson(evidenceContent(raw, internalKeys)),
     });
-  for (const artifact of byId(await store.runArtifacts(sessionId))) {
+  const artifacts = byId(await store.runArtifacts(sessionId));
+  const events = byId(await store.runEvents(sessionId));
+  const chapterRuns = settledChapterRuns(artifacts, events);
+  for (const artifact of artifacts) {
     if (EVIDENCE_EXCLUDED_ARTIFACTS.has(artifact.kind)) continue;
+    const chapterRun = chapterRuns.get(artifact.run_id);
+    if (chapterRun !== undefined) {
+      // 摘要占这个 run 第一份产物的位置，其余产物不再单独出条目。
+      if (chapterRun[0] === artifact)
+        push(
+          `chapter_run:${artifact.run_id}`,
+          artifact.id,
+          chapterRunDigest(artifact.run_id, chapterRun),
+        );
+      continue;
+    }
     push(
       `artifact:${artifact.id}`,
       artifact.id,
@@ -245,7 +342,7 @@ export async function evidenceSources(
       artifact.kind === 'runtime_pending_call' ? PENDING_CALL_INTERNAL_KEYS : undefined,
     );
   }
-  for (const event of byId(await store.runEvents(sessionId))) {
+  for (const event of events) {
     if (!EVIDENCE_EVENT_TYPES.has(event.event_type)) continue;
     const control = event.payload.control_type;
     if (
@@ -264,6 +361,7 @@ export async function evidenceSources(
   }
   for (const call of byId(await store.toolCalls(sessionId))) {
     if (call.tool_name === 'conversation.compact') continue;
+    if (call.related_type === 'agent_run' && chapterRuns.has(call.related_id as number)) continue;
     push(
       `tool:${call.id}`,
       call.id,
