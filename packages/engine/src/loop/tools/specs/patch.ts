@@ -30,7 +30,7 @@ export const PATCH_TOOL_SPECS = [
         '按目标压缩率压缩作品内单篇正文，攻击冗余副词（「他愤怒地说」→「他说」或直接用动作语气带）、情绪直述（「她感到恐惧」→ 生理反应或环境暗示）、解释性旁白、冗余重复和啰嗦比喻。' +
         '保留所有剧情信息、情感高潮、关键动作和对话。' +
         '调用前建议先 fs_read 确认内容。' +
-        '每条调用生成待确认修订，一次对话最多一个修订。',
+        '每条调用生成待确认修订，作者每发一句话最多出一个修订。',
       parameters: {
         type: 'object',
         properties: {
@@ -103,7 +103,7 @@ export const PATCH_TOOL_SPECS = [
     loop_schema: {
       description:
         '按明确指示修订作品内单个文件，生成待作者确认的修订；' +
-        '不会直接写进文件。一次对话最多修订一个文件，修订前建议先 fs_read 或 file_review。',
+        '不会直接写进文件。作者每发一句话最多修订一个文件，修订前建议先 fs_read 或 file_review。',
       parameters: {
         type: 'object',
         properties: {

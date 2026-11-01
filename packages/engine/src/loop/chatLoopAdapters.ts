@@ -60,7 +60,7 @@ const LLM_TO_REGISTRY = new Map(
   listLoopToolSpecs().map((spec) => [llmToolName(spec.name), spec.name]),
 );
 const SINGLE_PATCH_ERROR =
-  '一次对话最多生成一个待确认修订：请先等作者处理当前修订，再发起新的修订或起草。';
+  '这一轮已经生成过一个待确认修订，一轮只出一个：先停下，跟作者说清已经出了哪份修订；作者下一句话时可以再发起新的修订或起草。';
 /** SDK 在处理器之前就挡下的失败：处理器从没跑，证据与轨迹由这里补记。 */
 const PRE_HANDLER_FAILURE_CODES = new Set([
   'invalid_arguments',

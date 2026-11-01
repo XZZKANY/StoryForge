@@ -103,7 +103,7 @@ export class StoryForgeRuntimeContext {
     this.pluginSkills = fields.pluginSkills ?? false;
   }
 
-  /** 一次对话最多一个待确认补丁。 */
+  /** 每一轮（作者发一句话）最多一个待确认补丁。 */
   get writeBudgetExhausted(): boolean {
     return this.outcome.patchProposal !== null;
   }
