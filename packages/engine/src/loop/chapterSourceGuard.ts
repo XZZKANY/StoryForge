@@ -166,10 +166,20 @@ export async function assertChapterSources(
     throw new AgentOrchestrationError(DRIFT);
 }
 
-/** 冻结确认后的 Brief 背后的来源，而不只是旧 bundle 里的摘录（chapter_source_guard）。 */
+/**
+ * 冻结确认后的 Brief 背后的来源，而不只是旧 bundle 里的摘录（chapter_source_guard）。
+ * extraPaths：摘录之外另行整份带上的文件（本章细纲不在立项资料里，要单独盯着）。
+ */
 export async function captureChapterSources(
   deps: GuardDeps,
-  input: { root: string; target: string; bundle: Obj; snapshot: Obj; userMessage: string },
+  input: {
+    root: string;
+    target: string;
+    bundle: Obj;
+    snapshot: Obj;
+    userMessage: string;
+    extraPaths?: readonly string[];
+  },
 ): Promise<Obj> {
   const { root, target, bundle, snapshot } = input;
   const absolute = nativeProjectPath(root, target, deps.platform);
@@ -182,11 +192,17 @@ export async function captureChapterSources(
     secrets: deps.secrets,
   });
   const paths = new Set(FIXED_SOURCES);
-  for (const item of Array.isArray(bundle.files) ? bundle.files : []) {
-    if (!isObj(item)) continue;
-    if (String(item.path || '').startsWith('storyforge://llm-context/')) continue;
+  const relatives = [
+    ...(Array.isArray(bundle.files) ? bundle.files : [])
+      .filter(
+        (item) => isObj(item) && !String(item.path || '').startsWith('storyforge://llm-context/'),
+      )
+      .map((item) => String((item as Obj).relative_path || '')),
+    ...(input.extraPaths ?? []),
+  ];
+  for (const relative of relatives) {
     try {
-      paths.add(normalizeProjectRelativePath(String(item.relative_path || '')));
+      paths.add(normalizeProjectRelativePath(relative));
     } catch (error) {
       if (!(error instanceof FsToolError)) throw error;
       throw new AgentOrchestrationError('章纲的来源路径无法验证，请重新生成。');
