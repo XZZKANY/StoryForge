@@ -1,6 +1,6 @@
 import type { AssistantFileSuggestion } from './assistant-suggestions';
 import { createSuggestionChangeSet, type SuggestionChangeSet } from './suggestion-change-set';
-import { joinPath } from './fs-path-ops';
+import { joinPath, withProjectSeparator } from './fs-path-ops';
 import { relativeToProject } from './project-context';
 import { TauriFileSystem } from './host/tauri-fs';
 import { readReceiptAuditPayload, verifyReceiptAudit } from './writeback-audit';
@@ -120,17 +120,25 @@ function proposal(value: unknown): value is AssistantFileSuggestion {
   return value.operationView === undefined;
 }
 
-function decodeDescriptor(raw: string | null, file: string): PendingSuggestionDescriptor | null {
+function decodeDescriptor(
+  project: string,
+  raw: string | null,
+  file: string,
+): PendingSuggestionDescriptor | null {
   if (raw === null) return null;
   const value: unknown = JSON.parse(raw);
   if (value === null) return null; // A durable dismissal, not an applied-op authority.
+  // 旧版文件树拼出过混合分隔符的路径，日志里可能存着那种写法：读出时换成作品根的写法再核对。
+  const target = withProjectSeparator(project, file);
+  const sameFile = (path: unknown) =>
+    typeof path === 'string' && withProjectSeparator(project, path) === target;
   if (
     !object(value) ||
     value.version !== 1 ||
     typeof value.owner !== 'string' ||
     !value.owner ||
     !proposal(value.proposal) ||
-    value.proposal.filePath !== file ||
+    !sameFile(value.proposal.filePath) ||
     !Array.isArray(value.requests)
   )
     throw new Error('待确认修订的恢复信息损坏，请核对版本或重新生成；未自动写入正文');
@@ -144,22 +152,27 @@ function decodeDescriptor(raw: string | null, file: string): PendingSuggestionDe
       !['operationKey', 'source', 'path', 'content'].every(
         (field) => typeof fields[field] === 'string',
       ) ||
-      fields.path !== file ||
+      !sameFile(fields.path) ||
       keys.has(String(fields.operationKey))
     )
       throw new Error('待确认修订的请求描述无效；未自动写入正文');
-    const request = item.request as WritebackRequest;
+    const request = { ...(item.request as WritebackRequest), path: target };
     keys.add(request.operationKey);
     requests.push({ request, semanticPayload: item.semanticPayload });
   }
-  return { version: 1, owner: value.owner, proposal: value.proposal, requests };
+  return {
+    version: 1,
+    owner: value.owner,
+    proposal: { ...value.proposal, filePath: target },
+    requests,
+  };
 }
 
 export async function loadPendingSuggestion(
   project: string,
   file: string,
 ): Promise<PendingSuggestionDescriptor | null> {
-  return decodeDescriptor((await readJournal(project, file)).raw, file);
+  return decodeDescriptor(project, (await readJournal(project, file)).raw, file);
 }
 
 /**
@@ -177,7 +190,7 @@ export async function listPendingNewFileTargets(project: string): Promise<string
       const value: unknown = JSON.parse(raw);
       if (!object(value) || !object(value.proposal) || typeof value.proposal.filePath !== 'string')
         continue;
-      const descriptor = decodeDescriptor(raw, value.proposal.filePath);
+      const descriptor = decodeDescriptor(project, raw, value.proposal.filePath);
       if (!descriptor || descriptor.proposal.before !== '') continue;
       const file = descriptor.proposal.filePath;
       if (
@@ -217,7 +230,7 @@ export async function persistPendingSuggestion(
   deliveryTicket?: string,
 ): Promise<void> {
   const { path, raw } = await readJournal(project, descriptor.proposal.filePath);
-  const previous = decodeDescriptor(raw, descriptor.proposal.filePath);
+  const previous = decodeDescriptor(project, raw, descriptor.proposal.filePath);
   if (previous && (await verifyJournalSettled(project, previous)) && previous.proposal.runId) {
     const recovered = await recoverSuggestionOperations(project, previous);
     if (recovered.changeSet.operations.every((op) => recovered.appliedOpIds.has(op.id)))
@@ -241,7 +254,7 @@ export async function rememberSuggestionRequest(
   deliveryTicket?: string,
 ): Promise<void> {
   const { path, raw } = await readJournal(project, owner.proposal.filePath);
-  const stored = decodeDescriptor(raw, owner.proposal.filePath);
+  const stored = decodeDescriptor(project, raw, owner.proposal.filePath);
   // A replacement or explicit dismissal owns the slot; late writes cannot resurrect it.
   if (!stored || stored.owner !== owner.owner || raw === null) return;
   const existing = stored.requests.find(
@@ -302,7 +315,7 @@ export async function forgetPendingSuggestion(
 ): Promise<void> {
   await withNativeDelivery(project, async (ticket) => {
     const { path, raw } = await readJournal(project, owner.proposal.filePath);
-    const stored = decodeDescriptor(raw, owner.proposal.filePath);
+    const stored = decodeDescriptor(project, raw, owner.proposal.filePath);
     if (stored?.owner !== owner.owner || raw === null) return;
     await verifyJournalSettled(project, stored);
     // CAS a tombstone instead of read-then-delete, so a late completion cannot erase a replacement.

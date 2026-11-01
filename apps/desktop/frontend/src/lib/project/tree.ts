@@ -1,3 +1,4 @@
+import { joinPath } from '../fs-path-ops';
 import type { FileEntry } from '../host/tauri-fs';
 
 export type ProjectTreeNode = {
@@ -17,11 +18,13 @@ export function buildProjectTree(entries: FileEntry[], projectPath: string): Pro
     if (!relative) continue;
     const segments = relative.split(/[/\\]/);
     let currentLevel = rootNodes;
-    let currentPath = normalizedRoot;
+    // 文件夹节点可能先由下层条目推出来，手里没有它自己的条目路径：照作品根的分隔符拼，
+    // 与宿主列出的条目同一种写法。
+    let currentPath = projectPath;
 
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
-      currentPath = `${currentPath}/${segment}`;
+      currentPath = joinPath(currentPath, segment);
       const isFile = i === segments.length - 1 && !entry.isDir;
       if (isFile) {
         currentLevel.push({ name: segment, path: entry.path, isDir: false, children: [] });

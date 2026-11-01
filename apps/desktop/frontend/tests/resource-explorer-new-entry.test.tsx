@@ -123,6 +123,47 @@ test('每个文件夹行各自带按钮，互不串目录', async () => {
   ]);
 });
 
+test('反斜杠作品：文件夹行交给新建 / 右键操作的是宿主列出的那条路径，不是混合写法', async () => {
+  const book = 'D:\\连载\\末世吞噬';
+  const manuscriptDir = `${book}\\正文`;
+  vi.mocked(TauriFileSystem.listProjectDir).mockResolvedValue([
+    { name: '正文', path: manuscriptDir, isDir: true, size: 0, modified: 0 },
+    {
+      name: '第001章.md',
+      path: `${manuscriptDir}\\第001章.md`,
+      isDir: false,
+      size: 0,
+      modified: 0,
+      extension: 'md',
+    },
+  ]);
+  const { calls, actions } = stubActions();
+  const moved: string[] = [];
+  await act(async () => {
+    root.render(
+      <ResourceExplorer
+        projectPath={book}
+        currentFile={null}
+        onFileSelect={() => {}}
+        fileActions={{ ...actions, onMove: async (path) => void moved.push(path) }}
+      />,
+    );
+  });
+  const row = container.querySelector<HTMLElement>('[data-testid="tree-folder-row"]');
+  assert.equal(row?.getAttribute('data-folder-path'), manuscriptDir);
+  act(() => {
+    row!.querySelector<HTMLButtonElement>('[data-testid="tree-folder-new-file"]')!.click();
+  });
+  assert.deepEqual(calls, [['newFile', manuscriptDir]]);
+
+  openMenuOn(row!);
+  const move = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (node) => node.textContent === '移动到…',
+  )!;
+  act(() => move.click());
+  assert.deepEqual(moved, [manuscriptDir]);
+});
+
 test('点新建按钮不会把文件夹折叠起来', async () => {
   const { actions } = stubActions();
   await renderExplorer(actions);

@@ -47,4 +47,14 @@
 - 未覆盖：
   - 本地未跑三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话），以 CI `Windows Verify` 的 `pnpm verify` 为准；行间续写回归的 `scripts/fixtures/inline-continuation.jsx` 与 Agent 实跑探针 `scripts/fixtures/engine-p3-agent-real.ts` 里的 `tauri-fs` 路径已改，前者靠 CI 验，后者要花钱、没跑。
   - 没跑 Rust 测试与 Tauri 冒烟：Rust 只改了 `host_error.rs` 的一行文档注释；没打包、没在装机版上点。
-  - master 在本分支起点之后合了 #590 / #591，改到 `source-standards.test.ts` 末尾与 `ResourceExplorer` 的测试，但没有新写挪走文件的旧路径；#592 合并后需把本分支并上 master 再跑一遍。
+
+## 2026-11-01 并入 master（#590 / #591），让 PR 能在 CI 上跑
+
+本分支起点之后 master 合了 #590（文件树路径分隔符）与 #591（TODO），试合并有 2 处冲突，PR 会因此跑不了 CI，所以把 `origin/master`（`b3537706`）并进来。#592 本身与 master 无冲突。
+
+- 改动：两处冲突都是 #590 在 import 区加了行、本刀把相邻的 `tauri-fs` 路径改了：`src/lib/project/tree.ts` 保留 master 新加的 `joinPath` import、`FileEntry` 改从 `../host/tauri-fs` 取；`tests/pending-new-file-tabs.test.tsx` 保留 master 新加的两行 import、`TauriFileSystem` 改从 `../src/lib/host/tauri-fs` 取。两文件仍是 LF。其余（含 `source-standards.test.ts` 末尾 #590 新加的 `${a}/${b}` 守护，豁免路径都不在挪走的文件里）自动合并。
+- 验证：
+  - 合并后重跑旧路径残留扫描：结果同上（5 处，都不是残留）；相对路径解析：没有新增解析不到的路径（#590 改过的测试里没有新写挪走文件的旧路径）。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。`pnpm lint`：EXIT=0，仍是那 2 条原有 warning，prettier 全过。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，274 个文件，2833 passed（多出的 10 条是 #590 带来的测试）。
+- 未覆盖：同上一节。#592 合并前，本 PR 的改动列表里会带着 #592 的两个提交。

@@ -6,6 +6,8 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { useEditorWorkspaceTabs } from '../src/components/app/useEditorWorkspaceTabs';
 import { useProjectWorkspace } from '../src/components/app/useProjectWorkspace';
 import { useSessionRestore } from '../src/components/app/useSessionRestore';
+import { buildProjectTree } from '../src/lib/project/tree';
+import { loadPendingSuggestion } from '../src/lib/suggestion-recovery';
 import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import type { FileEntry } from '@storyforge/project-core';
@@ -213,4 +215,81 @@ test('目标已经落盘（作者已接受）时不重复挂回', async () => {
   await settle();
   assert.deepEqual(app.value.tabs.openFiles, [CHAPTER1, NEW_CHAPTER]);
   assert.equal(toasts.length, 0, '页签是恢复现场原样恢复的，不是待确认新稿');
+});
+
+test('旧版存下的混合写法路径（文件树给文件夹拼 /）升级后与文件树是同一个文件：页签不重复、新稿日志照样认', async () => {
+  // 作者机上的作品根是反斜杠；旧版从文件夹「新建文件」开出的页签、在它上面起的新稿日志都是混合写法。
+  const book = 'D:\\连载\\末世吞噬';
+  const chapter = `${book}\\正文\\第001章.md`;
+  const draft = `${book}\\正文\\第003章.md`;
+  const legacy = (path: string) => path.replace(`${book}\\正文\\`, `${book}/正文\\`);
+  const journals = `${book}\\.storyforge\\pending-suggestions`;
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode('正文\\第003章.md'),
+  );
+  const journal = `${journals}\\${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}.json`;
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      project: book,
+      openFiles: [legacy(chapter), chapter],
+      activeFile: legacy(chapter),
+      cursors: {},
+    }),
+  );
+  // 宿主认两种分隔符：同一个文件不管哪种写法都查得到。
+  const key = (path: string) => path.replace(/\\/g, '/');
+  const disk = new Map([
+    [key(chapter), '# 第1章'],
+    [key(journal), descriptor(legacy(draft))],
+  ]);
+  const exists = (path: string) =>
+    [book, `${book}\\正文`, journals].some((dir) => key(dir) === key(path)) || disk.has(key(path));
+  vi.spyOn(TauriFileSystem, 'projectFolderExists').mockImplementation(async (path) => exists(path));
+  vi.spyOn(TauriFileSystem, 'projectPathExists').mockImplementation(async (_root, path) =>
+    exists(path),
+  );
+  vi.spyOn(TauriFileSystem, 'listProjectDir').mockImplementation(async (_root, path) => {
+    assert.equal(path, journals);
+    const name = journal.slice(journals.length + 1);
+    return [{ name, path: journal, isDir: false, size: 0, modified: 0 }];
+  });
+  vi.spyOn(TauriFileSystem, 'readProjectFile').mockImplementation(async (_root, path) => {
+    const raw = disk.get(key(path));
+    if (raw === undefined) throw new Error(`missing ${path}`);
+    return raw;
+  });
+
+  const app = mountApp();
+  act(() => app.value.session.selectProjectManually(book));
+  await settle();
+  assert.deepEqual(
+    app.value.tabs.openFiles,
+    [chapter, draft],
+    '同一章只剩一个页签，新稿按新写法挂回',
+  );
+  assert.equal(app.value.workspace.currentFile, chapter);
+
+  const tree = buildProjectTree(
+    [
+      { name: '正文', path: `${book}\\正文`, isDir: true, size: 0, modified: 0 },
+      { name: '第001章.md', path: chapter, isDir: false, size: 0, modified: 0, extension: 'md' },
+    ],
+    book,
+  );
+  const treeChapter = tree[0].children[0].path;
+  await act(async () => app.value.tabs.previewFileOpen(treeChapter));
+  assert.deepEqual(app.value.tabs.openFiles, [chapter, draft], '从文件树点这一章不另开页签');
+  assert.equal(app.value.tabs.previewFile, null);
+  act(() => app.value.tabs.handleEditorDirtyChange(treeChapter, true));
+  assert.ok(
+    app.value.tabs.dirtyFiles.has(app.value.tabs.openFiles[0]),
+    '未保存标记落在同一个页签上',
+  );
+
+  // 编辑器打开新稿页签时按新写法领取旧日志：认得出是同一个文件，不报「恢复信息损坏」。
+  const stored = await loadPendingSuggestion(book, draft);
+  assert.equal(stored?.proposal.filePath, draft);
+  assert.equal(stored?.owner, 'owner-1');
 });
