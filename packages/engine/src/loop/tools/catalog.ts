@@ -50,6 +50,6 @@ export const buildLoopToolSchemas = (specs = AGENT_RUNTIME_TOOL_SPECS): JsonObje
 export const buildLoopToolNameMap = (specs = AGENT_RUNTIME_TOOL_SPECS): Map<string, string> =>
   new Map(listLoopToolSpecs(specs).map((spec) => [llmToolName(spec.name), spec.name]));
 
-/** 循环内会产出待确认补丁的工具：一次对话最多一个补丁，生成后撤下。 */
+/** 循环内会产出待确认补丁的工具：每一轮（作者发一句话）最多一个补丁，生成后撤下。 */
 export const loopPatchToolSpecs = (specs = AGENT_RUNTIME_TOOL_SPECS) =>
   listLoopToolSpecs(specs).filter((spec) => spec.risk_level === 'write_pending');
