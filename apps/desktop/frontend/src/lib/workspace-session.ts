@@ -12,6 +12,8 @@
  *   - 光标表只保留仍然打开的文件，否则一个长期项目会把几百个死路径攒在 localStorage 里。
  */
 
+import { withProjectSeparator } from './fs-path-ops';
+
 const SESSION_KEY = 'storyforge:workspace-session';
 
 /** 1-based 行列，与 Monaco 的 Position 同惯例。 */
@@ -50,22 +52,29 @@ export function parseWorkspaceSession(raw: string | null): WorkspaceSession | nu
   if (!parsed || typeof parsed !== 'object') return null;
 
   const candidate = parsed as Partial<WorkspaceSession>;
-  if (!isNonEmptyString(candidate.project)) return null;
+  const project = candidate.project;
+  if (!isNonEmptyString(project)) return null;
+  // 旧版文件树给文件夹拼路径一律用 `/`，反斜杠作品下存过混合写法：读出时换成作品根的写法，
+  // 同一个文件存了两种写法（旧版会开出两个页签）就并成一个。
+  const spell = (path: string) => withProjectSeparator(project, path);
 
   const openFiles = Array.isArray(candidate.openFiles)
-    ? candidate.openFiles.filter(isNonEmptyString)
+    ? [...new Set(candidate.openFiles.filter(isNonEmptyString).map(spell))]
     : [];
-  const activeFile = isNonEmptyString(candidate.activeFile) ? candidate.activeFile : null;
+  const activeFile = isNonEmptyString(candidate.activeFile) ? spell(candidate.activeFile) : null;
 
   const cursors: Record<string, FileCursor> = {};
   if (candidate.cursors && typeof candidate.cursors === 'object') {
     for (const [path, value] of Object.entries(candidate.cursors)) {
       const cursor = sanitizeCursor(value);
-      if (isNonEmptyString(path) && cursor) cursors[path] = cursor;
+      if (!isNonEmptyString(path) || !cursor) continue;
+      const key = spell(path);
+      // 两种写法各有一份光标时，留当时活动页签那份。
+      if (cursors[key] === undefined || path === candidate.activeFile) cursors[key] = cursor;
     }
   }
 
-  return { project: candidate.project, openFiles, activeFile, cursors };
+  return { project, openFiles, activeFile, cursors };
 }
 
 /**

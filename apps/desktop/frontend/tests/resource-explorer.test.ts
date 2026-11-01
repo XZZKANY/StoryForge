@@ -72,6 +72,34 @@ test('项目树忽略 listDir 返回的项目根条目', () => {
   );
 });
 
+test('反斜杠作品：文件夹节点的路径与宿主列出的文件夹条目同一种写法，不再是 `D:/书/正文` 混合写法', () => {
+  // 宿主在 Windows 上照传进去的作品根往下拼反斜杠；条目按名字排序，下层文件夹可能先于上层出现。
+  const book = 'D:\\连载\\末世吞噬';
+  const hostEntries = [
+    entry(`${book}\\正文\\卷一`, true),
+    entry(`${book}\\正文`, true),
+    entry(`${book}\\正文\\卷一\\第001章.md`, false, 'md'),
+    entry(`${book}\\大纲.md`, false, 'md'),
+  ];
+  const tree = buildProjectTree(hostEntries, book);
+  const manuscript = tree.find((node) => node.name === '正文')!;
+  const volume = manuscript.children.find((node) => node.name === '卷一')!;
+  assert.equal(manuscript.path, hostEntries[1].path);
+  assert.equal(volume.path, hostEntries[0].path);
+  assert.equal(volume.children[0].path, hostEntries[2].path);
+  assert.equal(
+    tree
+      .flatMap(function paths(node): string[] {
+        return [node.path, ...node.children.flatMap(paths)];
+      })
+      .filter((path) => path.includes('/')).length,
+    0,
+    '整棵树里没有一个正斜杠',
+  );
+  // 作品在盘符根上时，根自己的反斜杠也算数。
+  assert.equal(buildProjectTree([entry('D:\\正文', true)], 'D:\\')[0].path, 'D:\\正文');
+});
+
 test('作者自定义指令必须在产品内看得见、打得开', () => {
   // 诊断（2026-07-29）：`.storyforge/agent-instructions.md` 是作者写给 agent 的长期偏好，
   // 也是唯一跨会话的记忆载体，此前被这个白名单挡掉——文件树、快速打开、项目搜索三处

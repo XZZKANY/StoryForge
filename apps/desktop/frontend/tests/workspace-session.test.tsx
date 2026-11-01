@@ -11,7 +11,9 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test } from 'vitest';
 
+import { openEditorFile } from '../src/components/app/editor-tabs-state';
 import { useSessionRestore } from '../src/components/app/useSessionRestore';
+import { buildProjectTree } from '../src/lib/project/tree';
 import {
   isWorthPersisting,
   parseWorkspaceSession,
@@ -90,6 +92,41 @@ test('光标表只留仍打开的文件，长期项目不会攒出一大坨死�
   const cursors = { a: { line: 1, column: 1 }, b: { line: 2, column: 1 } };
   assert.deepEqual(pruneCursors(cursors, ['b']), { b: { line: 2, column: 1 } });
   assert.deepEqual(pruneCursors(cursors, []), {});
+});
+
+test('旧版存下的混合写法路径读出时换成作品根的写法，与新文件树的节点是同一个文件', () => {
+  // 旧版文件树给文件夹拼 `/`，从文件夹「新建文件」开出的页签存成了 `D:\书/正文\第001章.md`；
+  // 同一章再从文件树点开，又按宿主的写法开了第二个页签。
+  const book = 'D:\\连载\\末世吞噬';
+  const chapter = `${book}\\正文\\第001章.md`;
+  const legacy = `${book}/正文\\第001章.md`;
+  const outline = `${book}\\大纲.md`;
+  const parsed = parseWorkspaceSession(
+    JSON.stringify({
+      project: book,
+      openFiles: [legacy, outline, chapter],
+      activeFile: legacy,
+      cursors: { [chapter]: { line: 2, column: 1 }, [legacy]: { line: 40, column: 6 } },
+    }),
+  );
+  assert.deepEqual(parsed?.openFiles, [chapter, outline], '两种写法并成一个页签，顺序照旧');
+  assert.equal(parsed?.activeFile, chapter);
+  assert.deepEqual(parsed?.cursors, { [chapter]: { line: 40, column: 6 } }, '留活动页签那份光标');
+
+  const tree = buildProjectTree(
+    [
+      { name: '正文', path: `${book}\\正文`, isDir: true, size: 0, modified: 0 },
+      { name: '第001章.md', path: chapter, isDir: false, size: 0, modified: 0, extension: 'md' },
+    ],
+    book,
+  );
+  const treeFile = tree[0].children[0].path;
+  assert.equal(treeFile, parsed?.activeFile, '文件树节点与恢复出的页签是同一个路径');
+  assert.equal(
+    openEditorFile(parsed!.openFiles, treeFile),
+    parsed!.openFiles,
+    '从文件树再点这一章不会多开一个页签',
+  );
 });
 
 test('有项目但没有打开文件的会话仍值得存，用于重启回到作品总览', () => {
