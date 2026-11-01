@@ -29,13 +29,22 @@ const optional = (error: unknown) =>
   error instanceof ProjectTreeError ||
   error instanceof FsToolError;
 
+function fileNameOrdinal(name: string): number | null {
+  const match = ORDINAL.exec(name);
+  const value = match === null ? null : parseOrdinal(match[1]);
+  return value === null || value > BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(value);
+}
+
 /** 细纲文件对应的章号：路径里有「细纲」（文件名或所在文件夹），文件名里有「第N章」；别的文件为 null。 */
 export function chapterOutlineOrdinal(path: string): number | null {
   const segments = path.split('/');
   if (!segments.some((segment) => segment.includes('细纲'))) return null;
-  const match = ORDINAL.exec(segments[segments.length - 1]);
-  const value = match === null ? null : parseOrdinal(match[1]);
-  return value === null || value > BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(value);
+  return fileNameOrdinal(segments[segments.length - 1]);
+}
+
+/** 正文文件名里的章号（相对或绝对路径都行）；起草、章纲与来源签名按它挑总纲节点，三处要一致。 */
+export function chapterFileOrdinal(path: string): number | null {
+  return fileNameOrdinal(path.replace(/\\/gu, '/').split('/').pop() ?? path);
 }
 
 /**

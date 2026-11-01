@@ -2,6 +2,7 @@ import { ProjectReadError, type ProjectReader } from '../readPort';
 import { AuthorEditPolicyError } from '../kernel/authorEditPolicy';
 import { buildGenerationSystemPrompt, editPolicyFromGenerationPrompt } from '../kernel/authorVoice';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
+import { chapterFileOrdinal } from '../kernel/chapterOutline';
 import { FsToolError } from '../kernel/fsTools';
 import type { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import { GenerationSourceBudgetError, GenerationSourceCapture } from '../kernel/generationSources';
@@ -918,6 +919,7 @@ export async function draftFileContent(
       : await collectSettingSources(deps.reader, projectRoot, {
           secrets: llm.secrets,
           capture: sources,
+          ordinal: chapterFileOrdinal(payload.file_path),
         });
   const session = await existingOrNewSession(deps, {
     sessionId: payload.assistant_session_id,

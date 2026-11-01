@@ -4,6 +4,8 @@ import type { EncodedFile } from './contextFixture.test-support';
 import { GenerationSourceCapture } from './generationSources';
 import { memoryProject } from './memoryProject.test-support';
 import {
+  BOOK_OUTLINE_MAX_CHARS,
+  collectBookOutline,
   collectSettingSources,
   SETTING_FILE_MAX_CHARS,
   SETTING_MAX_FILES,
@@ -142,5 +144,90 @@ describe('collectSettingSources', () => {
       ['setting_files', result!.block],
     ]);
     expect(JSON.stringify(capture.selections)).not.toContain('别外传');
+  });
+});
+
+/** 人物写得长、章节节点排在最后：只取开头时第 5 章节点落在截断处之后（真书即如此）。 */
+function longOutline(): string {
+  const nodes = Array.from(
+    { length: 10 },
+    (_, index) => `### 第${index + 1}章：节点${index + 1}\n\n节点${index + 1}安排。`,
+  ).join('\n\n');
+  return [
+    '# 总纲',
+    `## 人物\n\n${'人物小传。'.repeat(1300)}`,
+    `## 第一卷：开篇\n\n${'第一卷安排。'.repeat(20)}`,
+    `## 开篇节点\n\n${nodes}`,
+  ].join('\n\n');
+}
+
+describe('collectSettingSources 按章挑总纲', () => {
+  it('puts the chapter node in when the outline is too long, where the head cut lost it', async () => {
+    const outline = longOutline();
+    expect([...outline].slice(0, SETTING_FILE_MAX_CHARS).join('')).not.toContain('节点5安排');
+    const result = await collectSettingSources(readerOf({ '大纲/总纲.md': outline }), ROOT, {
+      secrets: SECRETS,
+      ordinal: 5,
+    });
+    expect(result?.truncated).toEqual(['大纲/总纲.md']);
+    expect(result?.block).toContain('按第 5 章挑');
+    for (const node of [5, 6, 7]) expect(result?.block).toContain(`节点${node}安排`);
+    // 放不下的小节只留标题，模型仍看得到全书骨架。
+    expect(result?.block).toContain('### 第10章：节点10');
+    expect(result?.block).not.toContain('这里只放了开头');
+  });
+
+  it('keeps the headings in order when no chapter number is known', async () => {
+    const result = await collectSettingSources(readerOf({ '大纲/总纲.md': longOutline() }), ROOT, {
+      secrets: SECRETS,
+    });
+    expect(result?.block).toContain('小节按原顺序放到额度用完');
+    expect(result?.block).toContain('### 第5章：节点5');
+  });
+
+  it('cuts characters and settings at the head as before, and outlines without headings too', async () => {
+    const long = `## 第5章\n\n${'字'.repeat(SETTING_FILE_MAX_CHARS)}`;
+    const result = await collectSettingSources(
+      readerOf({ '人物/主角.md': long, '大纲/总纲.md': '无标题。'.repeat(2000) }),
+      ROOT,
+      { secrets: SECRETS, ordinal: 5 },
+    );
+    expect(result?.block).toContain('大纲/总纲.md\n<<<SETTING\n无标题。');
+    expect(result?.block.match(/这里只放了开头/gu)).toHaveLength(2);
+    expect(result?.block).not.toContain('按第 5 章挑');
+  });
+});
+
+describe('collectBookOutline', () => {
+  it('takes only the outline folder, without per-chapter outlines, characters or settings', async () => {
+    const outline = await collectBookOutline(
+      readerOf({
+        '大纲/总纲.md': '主线：对抗天命。',
+        '大纲/第3章细纲.md': '第三章细纲。',
+        '人物/主角.md': '主角十八岁。',
+        '设定/世界.md': '灵气三分。',
+      }),
+      ROOT,
+      { secrets: SECRETS, ordinal: 3 },
+    );
+    expect(outline).toBe('【大纲/总纲.md】\n主线：对抗天命。');
+  });
+
+  it('returns null when the book has no outline', async () => {
+    const outline = await collectBookOutline(readerOf({ '人物/主角.md': '主角。' }), ROOT, {
+      secrets: SECRETS,
+      ordinal: 1,
+    });
+    expect(outline).toBeNull();
+  });
+
+  it('picks the chapter node out of a long outline', async () => {
+    const outline = await collectBookOutline(readerOf({ '大纲/总纲.md': longOutline() }), ROOT, {
+      secrets: SECRETS,
+      ordinal: 5,
+    });
+    expect([...outline!].length).toBeLessThanOrEqual(BOOK_OUTLINE_MAX_CHARS + 200);
+    expect(outline).toContain('节点5安排');
+    expect(outline).toContain('按第 5 章挑');
   });
 });

@@ -66,6 +66,49 @@ describe('写章读本章细纲全文', () => {
     }
   });
 
+  it('gives the brief the book outline without pinning, and both steps the node of this chapter from a long one', async () => {
+    const nodes = Array.from(
+      { length: 6 },
+      (_, index) => `### 第${index + 1}章：节点${index + 1}\n\n节点${index + 1}安排。`,
+    ).join('\n\n');
+    // 人物写得长：只取开头时第 3 章节点落在 6000 字之后。
+    const book = `# 总纲\n\n## 人物\n\n${'人物小传。'.repeat(1300)}\n\n## 开篇节点\n\n${nodes}`;
+    const record = await run('write-brief-then-pass', (spec) => {
+      spec.extra_files = { '大纲/总纲.md': book };
+    });
+    const all = prompts(record);
+    const brief = only(all, (prompt) => prompt.includes(BRIEF_HEAD));
+    const draft = only(all, (prompt) => prompt.endsWith(DRAFT_TAIL));
+
+    expect(brief).toContain('全书总纲里与本章相关的部分');
+    expect(brief).toContain('<<<BOOK_OUTLINE\n【大纲/总纲.md】\n（这份共');
+    for (const prompt of [brief, draft]) {
+      expect(prompt).toContain('按第 3 章挑');
+      for (const node of [3, 4, 5]) expect(prompt).toContain(`节点${node}安排`);
+    }
+    expect(brief.indexOf('<<<BOOK_OUTLINE')).toBeLessThan(brief.indexOf('作者要求：'));
+  });
+
+  it('refuses to draft when the book outline node of this chapter changed while the brief waited', async () => {
+    const nodes = Array.from(
+      { length: 6 },
+      (_, index) =>
+        `### 第${index + 1}章：节点${index + 1}\n\n${'细节。'.repeat(130)}节点${index + 1}结尾。`,
+    ).join('\n\n');
+    // 不按章挑时额度在第 3 章节点之前用完：守卫只有按同一个章号签名，才盯得住这一段。
+    const book = `# 总纲\n\n## 人物\n\n${'人物小传。'.repeat(1000)}\n\n## 开篇节点\n\n${nodes}`;
+    const record = await run('write-source-drift', (spec) => {
+      expect(spec.ops[0]).toMatchObject({ op: 'edit', path: '.storyforge/agent-instructions.md' });
+      spec.extra_files = { '大纲/总纲.md': book };
+      spec.ops[0] = {
+        op: 'edit',
+        path: '大纲/总纲.md',
+        content: book.replace('节点3结尾。', '节点3改了。'),
+      };
+    });
+    expect(JSON.stringify(record.controls)).toContain(DRIFT);
+  });
+
   it('refuses to draft when the chapter outline changed while the brief waited', async () => {
     const record = await run('write-source-drift', (spec) => {
       expect(spec.ops[0]).toMatchObject({ op: 'edit', path: '.storyforge/agent-instructions.md' });

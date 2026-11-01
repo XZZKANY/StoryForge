@@ -369,6 +369,20 @@ function briefOutlineBlock(outline: ChapterOutline | null | undefined): string {
   );
 }
 
+/**
+ * 全书总纲里和本章相关的部分（按章号挑过，见 collectBookOutline）。章纲以前只看得到对话带的摘录：
+ * 作者不固定总纲就一个字没有，固定了也只有开头 1200 字，章纲排不出本章在全书里该走到哪一步，只能顺着上一章往下写。
+ */
+function bookOutlineBlock(bookOutline: string | null | undefined): string {
+  if (!bookOutline) return '';
+  return (
+    '全书总纲里与本章相关的部分（大纲目录里的总纲类资料，按本章章号挑过）：' +
+    '本章在全书里推进到哪一步、对应哪个节点，以这里为准落进 required_beats 或 continuity_constraints；' +
+    '和本章细纲冲突时以细纲为准，和种子里的 goal 冲突时以 goal 为准。\n' +
+    `<<<BOOK_OUTLINE\n${bookOutline}\nBOOK_OUTLINE>>>\n`
+  );
+}
+
 export function briefPrompt(
   seed: Obj,
   userMessage: string,
@@ -376,6 +390,7 @@ export function briefPrompt(
   conversation?: string | null,
   skillIndex?: string | null,
   outline?: ChapterOutline | null,
+  bookOutline?: string | null,
 ): string {
   const compare = hasWritten(written);
   const previous =
@@ -397,6 +412,7 @@ export function briefPrompt(
       : '') +
     (compare ? ADJUSTMENT_INSTRUCTION : '') +
     `后端确定种子：${dumpJson(seed, { ensureAscii: false })}\n` +
+    bookOutlineBlock(bookOutline) +
     briefOutlineBlock(outline) +
     previous +
     facts +

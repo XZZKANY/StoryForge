@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHAPTER_OUTLINE_MAX_CHARS,
+  chapterFileOrdinal,
   chapterOutlineFrom,
   chapterOutlineOrdinal,
   findChapterOutline,
@@ -38,6 +39,15 @@ describe('chapterOutlineOrdinal', () => {
     expect(chapterOutlineOrdinal('大纲/总纲.md')).toBeNull();
     expect(chapterOutlineOrdinal('大纲/第2章.md')).toBeNull();
     expect(chapterOutlineOrdinal('大纲/细纲总表.md')).toBeNull();
+  });
+});
+
+describe('chapterFileOrdinal', () => {
+  it('reads the chapter number from the file name of a relative or absolute path', () => {
+    expect(chapterFileOrdinal('正文/第055章.md')).toBe(55);
+    expect(chapterFileOrdinal('E:\\书\\第3章草稿\\正文\\第055章.md')).toBe(55);
+    expect(chapterFileOrdinal('正文/第十二章 入城.md')).toBe(12);
+    expect(chapterFileOrdinal('人物/主角.md')).toBeNull();
   });
 });
 
