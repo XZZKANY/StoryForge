@@ -246,7 +246,9 @@ export async function startChapterWriting(
     // 起草时会话里已多了「章纲已准备」那句，节选再取就是空的：章纲看到的这段原样留给起草。
     ...(conversation !== null ? { conversation_excerpt: conversation } : {}),
   });
-  const summary = `${BRIEF_READY_PREFIX}${brief.goal || relative}。`;
+  const goal = String(brief.goal || relative);
+  // 模型写的章纲目标常自带句末标点，再补句号就成了「。。」。
+  const summary = `${BRIEF_READY_PREFIX}${goal}${/[。！？!?…]$/u.test(goal) ? '' : '。'}`;
   const briefed = response({
     plan: [
       planStep('chapter.brief', '已生成章纲。', 'completed'),

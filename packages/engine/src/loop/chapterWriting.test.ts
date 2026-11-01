@@ -179,11 +179,16 @@ describe('the result line follows whether the author still has to accept the rev
     arcs: [],
   });
 
-  async function written(profile: string, files: Record<string, string> = {}) {
+  async function written(
+    profile: string,
+    files: Record<string, string> = {},
+    change: (spec: Obj) => void = () => undefined,
+  ) {
     const base = (golden.scenarios as Obj[]).find((item) => item.id === 'write-auto-profile')!;
     const spec = JSON.parse(base.spec_json);
     spec.message.permission_profile = profile;
     spec.extra_files = files;
+    change(spec);
     const { record, error } = await replay({ ...base, spec_json: JSON.stringify(spec) });
     if (error) throw error;
     return record as Obj;
@@ -215,6 +220,14 @@ describe('the result line follows whether the author still has to accept the rev
     const record = await written(profile, { '.storyforge/serial-plan.json': PLAN });
     expect(record.result.agent_result.chapter_brief.chapter_ordinal).toBe(3);
     expect(record.result.agent_result.summary).toBe(summary);
+  });
+
+  it('does not double the full stop when the brief goal already ends a sentence', async () => {
+    const record = await written('auto', {}, (spec) => {
+      spec.replies[0].body = spec.replies[0].body.replace('夜宿客栈\\"', '夜宿客栈。\\"');
+    });
+    expect(record.result.agent_result.chapter_brief.goal).toBe('沈禾带林舟入城，夜宿客栈。');
+    expect((record.messages as Obj[])[1].content).toBe('章纲已准备：沈禾带林舟入城，夜宿客栈。');
   });
 
   it('marks the brief in the session with the word the author sees', async () => {
