@@ -17,7 +17,7 @@
    - 观测镜重扫进行中恰好有一章写进文件，会报一次「派生缓存来源已变化」（下一次重扫成功）；手动删章不清派生缓存。修法记在 `.codex/verification/2026-10-31-fix-write-batch-review-findings.md`，待作者定。
    - 固定流程计划步骤里还有英文「proposed patch」，要改几条流程一起改。
    - 清单章名解析：章号和标题之间没有分隔时会整串当章名。
-   - 「架构与组件统一」（10-31 晚做，作者定在 0.2.4 之后；都未打包）：#559 #560 #562–#570 #572–#575 #577–#584 共 24 刀，同一件事各收成一种做法，每刀配扫源码的守护测试（`frontend/tests/ui-primitives.test.tsx`、`source-standards.test.ts`、`tauri-fs.test.ts`），写法长回来会红。要点：界面共享组件（Button / IconButton / PlainButton / Spinner / ModalDialog / MenuItem / MenuSurface）；`components` 下所有文件 ≤500 行；读 / 列 / 查作品文件只经带作品边界的宿主命令；宿主报错按类型（`HostError` kind、写入回执 `detailKind`）不按文字；引擎解码、字数（`project-core` 的 `countProseChars`）、取模型 JSON 各一处。审查时说的「工具参数两套校验」实为两份约定、各自单入口，没合并（#573）。
+   - 「架构与组件统一」（10-31 晚做，作者定在 0.2.4 之后；都未打包）：#559 #560 #562–#570 #572–#575 #577–#584 共 23 刀，同一件事各收成一种做法，每刀配扫源码的守护测试（`frontend/tests/ui-primitives.test.tsx`、`source-standards.test.ts`、`tauri-fs.test.ts`），写法长回来会红。要点：界面共享组件（Button / IconButton / PlainButton / Spinner / ModalDialog / MenuItem / MenuSurface）；`components` 下所有文件 ≤500 行；读 / 列 / 查作品文件只经带作品边界的宿主命令；宿主报错按类型（`HostError` kind、写入回执 `detailKind`）不按文字；引擎解码、字数（`project-core` 的 `countProseChars`）、取模型 JSON 各一处。审查时说的「工具参数两套校验」实为两份约定、各自单入口，没合并（#573）。
      - 等 #561（输入框顶边小条；开它的会话已不在）合了再做：撤掉守护里对它那批文件的豁免、拆 `chat-window/panels.tsx`、`components` 顶层组件挪进各自文件夹、宿主封装挪进 `lib/host/`。
      - 待作者定：`lib/project/tree.ts` 给目录节点拼路径一律用 `/`，反斜杠作品下会得到 `D:\book/正文` 这种混合路径（改要照顾页签 / 会话存档里的旧路径）；文件树右键「删除」是否保留危险色（图片和大文件留不了快照）。
      - 只往前兼容：写入回执加了可选 `detailKind`，装回 #580 之前的旧版会把「登记后漂移 / 派生缓存未失效」两类回执读成损坏。
