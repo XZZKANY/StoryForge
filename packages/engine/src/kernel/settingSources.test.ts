@@ -275,7 +275,7 @@ describe('settingSourcesWarnings', () => {
       '人物/c.md': piece,
       '人物/d.md': piece,
     });
-    expect(warnings.at(-1)).toBe(
+    expect(warnings[warnings.length - 1]).toBe(
       `另有 1 份立项资料放不进去（每章最多带 ${SETTING_MAX_FILES} 份、合计 ${SETTING_TOTAL_MAX_CHARS} 字），` +
         'AI 写章时一字不带：「人物/d.md」。',
     );

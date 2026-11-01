@@ -285,6 +285,7 @@ try {
               cap_tokens: 186000,
             },
             note: null,
+            source_warnings: [],
           });
           const batchState = window.__STORYFORGE_WRITE_BATCH__;
           const view = () => {
