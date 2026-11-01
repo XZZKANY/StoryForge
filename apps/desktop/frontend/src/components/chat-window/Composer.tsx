@@ -1,5 +1,5 @@
 import { completeSkillCommand, skillCommandQuery } from '@storyforge/project-core';
-import { IconButton } from '../ui';
+import { Button, IconButton, PlainButton } from '../ui';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { ReactNode } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
@@ -269,9 +269,10 @@ export function ComposerSurface({
                   {queued.content}
                 </span>
                 {onRemoveQueuedMessage && (
-                  <button
-                    type="button"
-                    className="-my-0.5 flex-shrink-0 rounded-sm px-1.5 py-0.5 text-3xs text-subtle transition-colors hover:bg-border hover:text-foreground"
+                  <Button
+                    size="mini"
+                    variant="ghost"
+                    className="-my-0.5"
                     aria-label={`取消待发送消息：${queued.content}`}
                     onClick={() => {
                       onRemoveQueuedMessage(queued.id);
@@ -279,7 +280,7 @@ export function ComposerSurface({
                     }}
                   >
                     取消
-                  </button>
+                  </Button>
                 )}
               </li>
             ))}
@@ -301,16 +302,16 @@ export function ComposerSurface({
           data-testid="agent-role-suggestions"
         >
           {roleSuggestions.map((item) => (
-            <button
+            <Button
               key={item.mention}
-              type="button"
-              className="h-7 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:border-accent hover:bg-accent hover:text-accent-foreground"
+              size="xs"
+              variant="secondary"
               onClick={() => insertRoleMention(item.mention)}
               data-testid="agent-role-suggestion"
               data-role-name={item.roleName}
             >
               {item.mention}
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -329,8 +330,7 @@ export function ComposerSurface({
             >
               <span className="truncate">{basename(path)}</span>
               {onTogglePinnedContext && (
-                <button
-                  type="button"
+                <PlainButton
                   className="-m-0.5 inline-flex flex-shrink-0 p-0.5 leading-none text-subtle transition-colors hover:text-foreground"
                   title="取消固定"
                   aria-label={`取消固定参考：${path}`}
@@ -338,13 +338,12 @@ export function ComposerSurface({
                   onClick={() => onTogglePinnedContext(path)}
                 >
                   ✕
-                </button>
+                </PlainButton>
               )}
             </span>
           ))}
           {overflowPins.length > 0 && (
-            <button
-              type="button"
+            <PlainButton
               className="flex-shrink-0 h-6 rounded-md bg-elevated px-2 text-muted hover:text-foreground"
               title={overflowPins.join('、')}
               aria-label={`查看全部 ${explicitContextPaths.length} 个固定参考`}
@@ -353,7 +352,7 @@ export function ComposerSurface({
               onClick={onAddContext}
             >
               +{overflowPins.length}
-            </button>
+            </PlainButton>
           )}
         </div>
       )}

@@ -373,6 +373,6 @@ test('reduced-motion 归零保留状态载体：animate-ping/pulse 降级为常�
   assert.match(reduced[1], /\.animate-ping,\s*\.animate-pulse\s*\{[^}]*animation:\s*none/s);
   // 贴底操作条的反向投影走 token，不再允许任意值/内联阴影漂移。
   assert.match(css, /--shadow-bar-top:\s*0 -4px 16px/);
-  const panels = readFileSync('src/components/chat-window/panels.tsx', 'utf8');
-  assert.doesNotMatch(panels, /shadow-\[0_-4px/);
+  const actionBar = readFileSync('src/components/chat-window/RunActionBar.tsx', 'utf8');
+  assert.doesNotMatch(actionBar, /shadow-\[0_-4px/);
 });

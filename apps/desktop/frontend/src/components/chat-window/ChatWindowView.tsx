@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
-import { IconButton } from '../ui';
+import { Button, IconButton } from '../ui';
 import { Layers } from '../icons/shell-icons';
 import { ChatSideRail } from './ChatSideRail';
 import { ContextPanelToggle } from './ContextPanel';
@@ -237,9 +237,9 @@ export function ChatWindowView({
               会话记录加载失败
             </span>
             <span className="min-w-0 flex-1 break-words">{state.sessionLoadError}</span>
-            <button
-              type="button"
-              className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
+            <Button
+              size="xs"
+              variant="secondary"
               onClick={() => {
                 setDismissedSessionError(null);
                 retryAssistantSessionLoad();
@@ -247,15 +247,15 @@ export function ChatWindowView({
               data-testid="assistant-session-load-retry"
             >
               重试
-            </button>
-            <button
-              type="button"
-              className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 text-xs transition-colors hover:bg-elevated"
+            </Button>
+            <Button
+              size="xs"
+              variant="secondary"
               onClick={() => setDismissedSessionError(state.sessionLoadError)}
               data-testid="assistant-session-load-error-dismiss"
             >
               关闭
-            </button>
+            </Button>
           </div>
         </div>
       )}

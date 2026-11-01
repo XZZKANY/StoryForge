@@ -37,8 +37,6 @@ const LIVE_MODULE_ROOTS = [
   'src/components/ui',
 ];
 const LIVE_MODULE_LINE_LIMIT = 500;
-// 拆分前就有的叶子视图，是冻结的旧账，不作为新模块的先例；另一会话 #561 正在改它，等那边合了再拆。
-const LIVE_MODULE_EXCEPTIONS = new Set(['src/components/chat-window/panels.tsx']);
 const ENGINE_GATEWAYS = ['src/lib/api/', 'src/lib/engine/'];
 
 function lineCount(path: string): number {
@@ -76,7 +74,6 @@ it('拆过的大文件不超过各自的硬上限', () => {
 it('components 下的文件不超过 500 行', () => {
   const over = [...topLevelSourceFiles(COMPONENTS_ROOT), ...LIVE_MODULE_ROOTS.flatMap(sourceFiles)]
     .map(relativePath)
-    .filter((path) => !LIVE_MODULE_EXCEPTIONS.has(path))
     .flatMap((path) => {
       const lines = lineCount(path);
       return lines > LIVE_MODULE_LINE_LIMIT ? [`${path}: ${lines}`] : [];

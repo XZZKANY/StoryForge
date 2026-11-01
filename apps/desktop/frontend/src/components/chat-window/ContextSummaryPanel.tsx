@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { basename } from '../app/helpers';
-import { Button } from '../ui';
+import { Button, PlainButton } from '../ui';
 import {
   semanticKindLabel,
   type ContextBundle,
@@ -71,9 +71,8 @@ function PinnedList({
     <div className="flex flex-wrap items-center gap-1" data-testid="pinned-context-list">
       <span>固定的：</span>
       {paths.map((path) => (
-        <button
+        <PlainButton
           key={path}
-          type="button"
           className={`inline-flex max-w-full items-center gap-1 transition-colors hover:text-foreground ${CHIP_CLASS[surface]}`}
           title={`${path} · 点击取消固定`}
           aria-label={`取消固定参考：${path}`}
@@ -83,7 +82,7 @@ function PinnedList({
           <span aria-hidden="true" className="text-subtle">
             ✕
           </span>
-        </button>
+        </PlainButton>
       ))}
     </div>
   );
@@ -174,9 +173,8 @@ function CandidatePicker({
         candidates.map((file) => {
           const pinned = pinnedPaths.includes(file.relativePath) || pinnedPaths.includes(file.path);
           return (
-            <button
+            <PlainButton
               key={file.path}
-              type="button"
               className={`flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-background'}`}
               onClick={() => onToggle(file.relativePath)}
               data-testid="context-candidate"
@@ -188,7 +186,7 @@ function CandidatePicker({
               </span>
               <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
               <span className="flex-shrink-0 text-subtle">{pinned ? '已固定' : '固定'}</span>
-            </button>
+            </PlainButton>
           );
         })
       )}
@@ -360,8 +358,7 @@ export function ContextSummaryPanel({
       data-expanded={detailsOpen ? 'true' : 'false'}
     >
       <div className="flex min-h-8 flex-shrink-0 items-center gap-2 px-3 py-0.5">
-        <button
-          type="button"
+        <PlainButton
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-muted transition-colors hover:text-foreground"
           onClick={() => {
             if (contextPickerOpen) onAddContext();
@@ -400,7 +397,7 @@ export function ContextSummaryPanel({
               </span>
             ),
           )}
-        </button>
+        </PlainButton>
         <Button
           size="compact"
           variant="ghost"

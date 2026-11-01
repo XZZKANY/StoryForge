@@ -1,7 +1,7 @@
 import { invokedSkillNames } from '@storyforge/project-core';
 import { useRef, useState } from 'react';
 
-import { Button, FloatingSurface, IconButton } from '../ui';
+import { Button, FloatingSurface, IconButton, MenuItem, MenuSurface, PlainButton } from '../ui';
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { FileText, Layers, Search } from '../icons/shell-icons';
 import { runContextReads, skillsUsedThisRun } from './context-panel';
@@ -194,32 +194,28 @@ function NewSkillButton({
         新建
       </Button>
       {open && (
-        <FloatingSurface
-          role="menu"
+        <MenuSurface
           aria-label="按模板新建技能"
           triggerRef={triggerRef}
           align="end"
           onDismiss={() => setOpen(false)}
-          className="w-64 animate-fade-in rounded-lg border border-border bg-surface p-1 shadow-dropdown"
+          className="w-64"
           data-testid="context-skills-templates"
         >
           {SKILL_TEMPLATES.map((skill) => (
-            <button
+            <MenuItem
               key={skill.name}
-              role="menuitem"
-              type="button"
-              className="flex w-full flex-col items-start rounded-sm px-2.5 py-1.5 text-left hover:bg-elevated"
               onClick={() => {
                 setOpen(false);
                 onCreate(skill);
               }}
               data-testid="context-skill-template"
             >
-              <span className="text-xs text-foreground">{skill.name}</span>
-              <span className="w-full truncate text-2xs text-subtle">{skill.when}</span>
-            </button>
+              <span className="block truncate text-foreground">{skill.name}</span>
+              <span className="block truncate text-2xs text-subtle">{skill.when}</span>
+            </MenuItem>
           ))}
-        </FloatingSurface>
+        </MenuSurface>
       )}
     </>
   );
@@ -305,15 +301,14 @@ function SkillsBlock({ projectPath, run }: { projectPath: string | null; run: Ag
                     {row}
                   </div>
                 ) : (
-                  <button
-                    type="button"
+                  <PlainButton
                     className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs transition-colors hover:bg-elevated"
                     onClick={() => emitOpenFileRequest(skill.filePath!)}
                     title={`在编辑器打开 ${skill.path}`}
                     data-testid="context-skill"
                   >
                     {row}
-                  </button>
+                  </PlainButton>
                 )}
               </li>
             );
@@ -340,8 +335,7 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
           {reads.files.map((file) => (
             <li key={file.path}>
               {file.filePath ? (
-                <button
-                  type="button"
+                <PlainButton
                   className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-xs text-foreground transition-colors hover:bg-elevated"
                   onClick={() => emitOpenFileRequest(file.filePath!)}
                   title="在编辑器打开"
@@ -349,7 +343,7 @@ function RunReadsBlock({ projectPath, run }: { projectPath: string | null; run: 
                 >
                   <FileText size={12} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
                   <span className="min-w-0 truncate">{file.path}</span>
-                </button>
+                </PlainButton>
               ) : (
                 <span
                   className="flex min-w-0 items-center gap-1.5 px-1.5 py-0.5 text-xs text-muted"
