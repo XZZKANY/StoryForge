@@ -1,4 +1,4 @@
-import { Button, IconButton } from '../ui';
+import { Button, IconButton, PlainButton, revealOnHover } from '../ui';
 
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AUTHOR_LOOP_RESULT_EVENT, type AuthorLoopResult } from '../../lib/assistant-events';
@@ -68,9 +68,8 @@ export function ConversationHeader({
       className="relative flex h-shell-row flex-shrink-0 items-center gap-2 bg-panel px-3 pr-2"
       data-testid="conversation-header"
     >
-      <button
+      <PlainButton
         ref={menuTriggerRef}
-        type="button"
         className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left transition-colors hover:bg-elevated"
         onClick={() => setMenuOpen((open) => !open)}
         aria-haspopup="menu"
@@ -81,7 +80,7 @@ export function ConversationHeader({
         <Sparkles size={13} strokeWidth={1.7} className="flex-shrink-0 text-agent" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{title}</span>
         <ChevronDown size={13} strokeWidth={1.6} className="flex-shrink-0 text-subtle" />
-      </button>
+      </PlainButton>
       {onNewSession && (
         <IconButton
           type="button"
@@ -342,8 +341,7 @@ export function MessageList({
         </div>
       </div>
       {hasUnread && !nearBottom && (
-        <button
-          type="button"
+        <PlainButton
           className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-agent/40 bg-surface px-3 py-1.5 text-xs text-foreground shadow-dropdown transition-colors hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-agent"
           data-testid="message-list-new-content"
           onMouseDown={(event) => event.preventDefault()}
@@ -353,7 +351,7 @@ export function MessageList({
           }}
         >
           有新内容 · 回到底部
-        </button>
+        </PlainButton>
       )}
     </div>
   );
@@ -682,7 +680,7 @@ export const MessageItem = memo(function MessageItem({
         <MessageActions
           content={message.content}
           copiedToast="已复制"
-          className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+          className={revealOnHover()}
         />
       </div>
     );
@@ -728,13 +726,9 @@ export function LightweightStatus({
           {text}
         </div>
         {retryVisible && (
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
-            onClick={onRetry}
-          >
+          <Button size="xs" variant="secondary" onClick={onRetry}>
             重试本轮
-          </button>
+          </Button>
         )}
       </div>
     </div>

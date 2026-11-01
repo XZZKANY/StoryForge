@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
-import { Button } from '../ui';
+import { Button, PlainButton } from '../ui';
 import { ContextPanel } from './ContextPanel';
 import type { AgentRun } from './types';
 import type { WriteBatchProgress } from './useWriteBatchScheduler';
@@ -57,14 +57,13 @@ function ChapterRow({
   return (
     <li data-testid="side-rail-chapter" data-state={writing ? 'writing' : chapter.state}>
       {filePath ? (
-        <button
-          type="button"
+        <PlainButton
           className={`${rowClass} text-left text-muted transition-colors hover:bg-elevated hover:text-foreground`}
           title={`打开 ${chapter.targetPath}`}
           onClick={() => emitOpenFileRequest(filePath)}
         >
           {body}
-        </button>
+        </PlainButton>
       ) : (
         <div className={`${rowClass} text-muted`} title={chapter.targetPath}>
           {body}
