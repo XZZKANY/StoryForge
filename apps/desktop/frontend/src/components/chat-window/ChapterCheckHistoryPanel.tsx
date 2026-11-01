@@ -4,6 +4,7 @@ import { Button, FloatingSurface, IconButton, Textarea } from '../ui';
 import { ListChecks } from '../icons/shell-icons';
 import type { ChapterCheckEntry } from '../../lib/api/chapter-checks';
 import { formatStoredTimeFull } from '../../lib/stored-time';
+import { CHECK_SCOPE_NOTE } from './check-scope';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
 
 const executionLabel = {
@@ -11,7 +12,11 @@ const executionLabel = {
   failed: '检查执行失败',
   incomplete: '检查未完整执行',
 };
-const manuscriptLabel = { pass: '自动检查通过', fail: '发现正文问题', unknown: '正文判断未知' };
+const manuscriptLabel = {
+  pass: '对照章纲没查出问题',
+  fail: '发现正文问题',
+  unknown: '正文判断未知',
+};
 
 function CheckEntry({ entry }: { entry: ChapterCheckEntry }) {
   const check = entry.check;
@@ -172,6 +177,9 @@ function ChapterCheckHistoryPanel({ history }: { history: ChapterCheckHistorySta
           重新读取
         </Button>
       </div>
+      <p className="text-3xs text-subtle" data-testid="chapter-check-scope">
+        {CHECK_SCOPE_NOTE}
+      </p>
       {history.loading && (
         <p className="text-xs text-muted" role="status">
           正在核对检查记录；已有内容是上次读取的历史。

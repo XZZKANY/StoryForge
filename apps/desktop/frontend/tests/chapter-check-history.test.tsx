@@ -337,6 +337,18 @@ test('没有记录就没有按钮；有记录时浮窗默认收着，点开出�
   expect(popover()).toBeNull();
 });
 
+test('没查出问题只说对照章纲，并写明前文和设定没有核对', async () => {
+  query.mockResolvedValueOnce(decodeChapterCheckHistory(wire(1, 'completed'), request));
+  await render();
+  await openHistory();
+  const text = popover()?.textContent ?? '';
+  expect(text).toContain('对照章纲没查出问题');
+  expect(text).not.toContain('自动检查通过');
+  expect(popover()?.querySelector('[data-testid="chapter-check-scope"]')?.textContent).toContain(
+    '章纲没写到的前文和设定没有核对',
+  );
+});
+
 function history(...entries: ReturnType<typeof wire>['entries']) {
   return decodeChapterCheckHistory({ ...wire(), entries }, request);
 }

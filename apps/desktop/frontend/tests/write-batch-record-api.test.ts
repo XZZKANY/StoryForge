@@ -223,7 +223,7 @@ describe('lib/api 经引擎记批量、问下一步', () => {
     expect(recorded.chapters[0]).toMatchObject({
       state: 'written',
       tokens: 1500,
-      check: { verdict: 'pass', issue_count: 0, summary: '通过' },
+      check: { verdict: 'pass', issue_count: 0, summary: '对照章纲没查出问题' },
       snapshot_version: 'snap-2',
       facts_added: 4,
     });

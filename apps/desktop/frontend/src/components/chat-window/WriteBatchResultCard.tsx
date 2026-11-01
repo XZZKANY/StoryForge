@@ -4,6 +4,7 @@ import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { Button, PlainButton } from '../ui';
 
+import { CHECK_SCOPE_NOTE } from './check-scope';
 import type { WriteBatchResult } from './write-batch-run';
 import {
   chapterRows,
@@ -295,6 +296,11 @@ export function WriteBatchResultCard({
               </li>
             ))}
           </ul>
+        )}
+        {batch && writtenChapterCount(batch) > 0 && (
+          <p className="mt-1 text-3xs text-subtle" data-testid="write-batch-check-scope">
+            {CHECK_SCOPE_NOTE}
+          </p>
         )}
       </div>
       <div

@@ -755,7 +755,11 @@ describe('记一章', () => {
       run_id: 'r2',
       written_sha256: sha256Hex(new TextEncoder().encode(text)),
       chars: countProseChars(text),
-      check: { verdict: 'pass', issue_count: 2, summary: '修过一次后通过，有 2 条建议' },
+      check: {
+        verdict: 'pass',
+        issue_count: 2,
+        summary: '修过一次后对照章纲没查出问题，有 2 条建议',
+      },
       tokens: 1500,
       snapshot_version: 'snap-2',
       facts_before: 'facts-v7',
