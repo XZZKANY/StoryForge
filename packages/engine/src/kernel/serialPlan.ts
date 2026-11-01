@@ -1,6 +1,7 @@
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import { platformTextBytes, type ProjectWriter } from '../writePort';
 import { chapterOrdinals } from './canonRebuild';
+import { chapterOutlinePaths, suggestedChapterOutlinePath } from './chapterOutline';
 import { FsToolError, nativeProjectPath, resolveProjectRoot } from './fsTools';
 import {
   dumpJson,
@@ -242,8 +243,17 @@ function driftSection(plan: SerialPlan): string | null {
   return '[计划与正文对不上]\n' + lines.join('\n');
 }
 
-/** 把计划投影拼成 system 块。 */
-export function renderPlanBlock(plan: SerialPlan): string {
+/** 下一章的细纲：path 为已有那份，没有为 null；suggested 是约定的存放处。 */
+export type NextChapterOutline = { readonly path: string | null; readonly suggested: string };
+
+/** 细纲只认「大纲/第N章细纲.md」这类路径，对话里的 AI 不知道就会存到别处，写章时用不上。 */
+const outlineLine = (outline: NextChapterOutline) =>
+  outline.path !== null
+    ? `· 本章细纲：${outline.path}（写章时整份交给章纲和起草）`
+    : `· 本章细纲：还没有；要写就用 file_create 存成 ${outline.suggested}`;
+
+/** 把计划投影拼成 system 块；给了 nextOutline 才写下一章的细纲状态。 */
+export function renderPlanBlock(plan: SerialPlan, nextOutline?: NextChapterOutline): string {
   const writtenPlanned = plan.chapters.filter((chapter) => chapter.written).length;
   const progress = [`计划共 ${plan.chapters.length} 章`, `其中 ${writtenPlanned} 章正文已写进文件`];
   if (plan.chapterWordCountMin && plan.chapterWordCountMax)
@@ -256,6 +266,7 @@ export function renderPlanBlock(plan: SerialPlan): string {
     const lines = [`· ${displayTitle(next)}`];
     if (next.goal) lines.push(`· 本章目标：${next.goal}`);
     if (next.note) lines.push(`· 备注：${next.note}`);
+    if (nextOutline) lines.push(outlineLine(nextOutline));
     lines.push(...arcLines(plan, next.ordinal));
     sections.push('[下一章待写]\n' + lines.join('\n'));
     const upcoming = plan.chapters
@@ -308,7 +319,14 @@ export async function buildPlanBlock(
     if (error instanceof FsToolError || error instanceof ProjectReadError) return null;
     throw error;
   }
-  return plan === null ? null : renderPlanBlock(plan);
+  if (plan === null) return null;
+  const next = nextChapter(plan);
+  if (next === null) return renderPlanBlock(plan);
+  const found = await chapterOutlinePaths(reader, root, [next.ordinal]);
+  return renderPlanBlock(plan, {
+    path: found.get(next.ordinal) ?? null,
+    suggested: suggestedChapterOutlinePath(next.ordinal),
+  });
 }
 
 /** 交给桌面端的只读投影：作者看见的就是模型看见的那一份。 */

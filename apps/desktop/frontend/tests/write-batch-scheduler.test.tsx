@@ -109,6 +109,7 @@ function plan(from: number, to: number, skip: number[] = []): ApiWriteBatchPlan 
       goal: `目标${ordinal}`,
       status: skip.includes(ordinal) ? ('skip_written' as const) : ('write' as const),
       written_path: skip.includes(ordinal) ? path(ordinal) : null,
+      outline_path: null,
     });
   const count = chapters.filter((chapter) => chapter.status === 'write').length;
   return {

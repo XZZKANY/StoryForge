@@ -213,6 +213,8 @@ export type ApiWriteBatchChapter = {
   target_path: string;
   title: string | null;
   written_path: string | null;
+  /** 这一章的细纲（写章时整份交给章纲与起草）；没有、或已有正文跳过时为 null。 */
+  outline_path: string | null;
 };
 
 export type ApiWriteBatchEstimate = {
