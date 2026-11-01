@@ -535,7 +535,9 @@ describe('连续作者流程的历史证据投影', () => {
       model: 'test',
       secrets: { values: [] },
     }))!;
-    const entry = (payload.entries as Obj[]).find((item) => item.source_id === 'artifact:1')!;
+    // 早先的检查点也摘机器证据；这条照旧式写法引了现在已省略的恢复全文。
+    const entry: Obj = { category: 'evidence', text: '恢复快照', source_id: 'artifact:1' };
+    (payload.entries as Obj[]).push(entry);
     const raw = rows.artifacts[0];
     const legacyContent = canonicalJson({
       kind: raw.kind,
@@ -584,10 +586,46 @@ describe('连续作者流程的历史证据投影', () => {
   });
 });
 
+// 预言机里的父检查点是早先逐条摘过机器证据的旧式检查点；新检查点只继承其中摘自对话的条目，
+// 带上 evidence_coverage 标记后按新规则验，下一轮历史用的就是它。旧式检查点照旧规则验，见 #5。
+describe('压缩只摘对话：接在旧式父检查点后面', () => {
+  it('子检查点只继承对话条目、带标记，下一轮历史用上它', async () => {
+    const args = parseJson((golden.records as Record_[])[4].args_json, 'args') as Obj;
+    const rows = args.rows as Obj;
+    const parentEntries = rows.artifacts.find((row: Obj) => row.id === 7).payload.entries as Obj[];
+    expect(parentEntries.some((entry) => !String(entry.source_id).startsWith('message:'))).toBe(
+      true,
+    );
+    const payload = (await createCompactionCheckpoint(sources(rows), args.session, {
+      provider: scriptedProvider('valid', []),
+      model: 'test',
+      secrets,
+    }))!;
+    expect(payload.evidence_coverage).toBe('reference');
+    expect((payload.parent as Obj).artifact_id).toBe(7);
+    const inherited = parentEntries.filter((entry) =>
+      String(entry.source_id).startsWith('message:'),
+    );
+    expect((payload.entries as Obj[]).slice(0, inherited.length)).toEqual(inherited);
+    expect(
+      (payload.entries as Obj[]).every((entry) => String(entry.source_id).startsWith('message:')),
+    ).toBe(true);
+    rows.artifacts.push({
+      id: 900,
+      run_id: 900,
+      kind: 'system_compaction',
+      requires_confirmation: false,
+      payload,
+    });
+    const history = await projectConversationHistory(sources(rows), args.session);
+    expect(history[1].content).toContain(payload.checkpoint_digest as string);
+  });
+});
+
 describe('长会话压缩按来源分份', () => {
-  /** 30 条消息 + 20 条工具记录：压缩时要覆盖 26 条消息与 20 条证据，共 46 个来源。 */
+  /** 50 条消息 + 20 条工具记录：压缩时模型要覆盖 46 条消息；证据只按引用覆盖、不交给模型。 */
   function longSession() {
-    const messages: MessageRow[] = Array.from({ length: 30 }, (_, i) => ({
+    const messages: MessageRow[] = Array.from({ length: 50 }, (_, i) => ({
       id: i + 1,
       role: i % 2 ? 'assistant' : 'user',
       content: i % 2 ? `第${i}轮回复：已按要求处理。` : `第${i}轮要求：周梨不能提前知道借阅者。`,
@@ -711,31 +749,22 @@ describe('长会话压缩按来源分份', () => {
     expect(new Set((payload.entries as Obj[]).map((entry) => entry.source_id)).size).toBe(46);
   });
 
-  it('机器证据补问后仍摘不出：检查点照常发布，这条证据不进检查点、继续整份留在覆盖里', async () => {
+  // 10-30 会话 23：检查点投进历史的 74 KB 里 39 KB 是模型逐条摘的机器证据，多是早已结算的「待确认」旧状态。
+  it('机器证据不交给模型摘：请求里只有对话，检查点按引用覆盖全部证据，下一轮不再重送', async () => {
     const { rows, store } = longSession();
     const calls: Obj[] = [];
-    const valid = scriptedProvider('valid', calls);
-    const corruptTool3 = {
-      complete: async (request: ChatRequest) => {
-        const response = await valid.complete(request);
-        const body = JSON.parse(response.content);
-        for (const entry of body.entries)
-          if (entry.source_id === 'tool:3') entry.quote = '"kind"…"tool_name"';
-        return chatResponse({ content: JSON.stringify(body), finishReason: 'stop' });
-      },
-    };
     const payload = (await createCompactionCheckpoint(store, 1, {
-      provider: corruptTool3,
+      provider: scriptedProvider('valid', calls),
       model: 'test',
       secrets: { values: [] },
     }))!;
-    const followUp = calls.find((call) => keysOf(call).length === 1)!;
-    expect(keysOf(followUp)).toEqual(['tool:3']);
-    expect(JSON.parse(followUp.user).retry_note).toContain('不要用省略号拼接');
-    expect(calls.filter((call) => 'retry_note' in JSON.parse(call.user))).toHaveLength(1);
-    const evidenceKeys = (payload.source_evidence as Obj[]).map((ref) => ref.key);
-    expect(evidenceKeys).not.toContain('tool:3');
-    expect(evidenceKeys).toHaveLength(19);
+    expect(calls.flatMap(keysOf).every((key) => key.startsWith('message:'))).toBe(true);
+    expect(
+      (payload.entries as Obj[]).every((entry) => String(entry.source_id).startsWith('message:')),
+    ).toBe(true);
+    expect((payload.source_evidence as Obj[]).map((ref) => ref.key)).toEqual(
+      rows.tool_calls.map((call) => `tool:${call.id}`),
+    );
     rows.artifacts.push({
       id: 1,
       run_id: 1,
@@ -744,8 +773,10 @@ describe('长会话压缩按来源分份', () => {
       payload,
     });
     const history = await projectConversationHistory(store, 1);
+    expect(history[1].content).toContain('历史检查点数据');
     const overlay = JSON.parse(history[history.length - 1].content.split('\n').slice(1).join('\n'));
-    expect(overlay.sources.map((source: Obj) => source.key)).toEqual(['tool:3']);
+    expect(overlay.sources).toEqual([]);
+    expect(overlay).toHaveProperty('permission_by_run');
   });
 
   it('回复把带换行的原文直接写进 JSON 字符串时，补上转义后照常核验', async () => {
@@ -867,9 +898,9 @@ describe('长会话压缩按来源分份', () => {
     expect(data.verbatim_messages.map((source: Obj) => source.content)).toEqual([reply]);
     rows.messages.push(
       ...Array.from({ length: 4 }, (_, i) => ({
-        id: 31 + i,
+        id: 51 + i,
         role: i % 2 ? 'assistant' : 'user',
-        content: `第${30 + i}轮：继续。`,
+        content: `第${50 + i}轮：继续。`,
       })),
     );
     const child = (await createCompactionCheckpoint(store, 1, {
@@ -913,7 +944,7 @@ describe('长会话压缩按来源分份', () => {
     payload.checkpoint_digest = contentDigest(unsigned);
     publish(rows, 1, payload);
     const history = await projectConversationHistory(store, 1);
-    expect(history.slice(0, 30)).toEqual(
+    expect(history.slice(0, 50)).toEqual(
       rows.messages.map(({ role, content }) => ({ role, content })),
     );
   });
