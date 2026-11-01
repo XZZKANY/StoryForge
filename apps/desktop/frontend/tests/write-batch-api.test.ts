@@ -190,6 +190,7 @@ describe('批量写章回包的解码', () => {
     basis: 'trial',
     estimate: null,
     note: '先只写第 2 章',
+    source_warnings: ['「大纲/总纲.md」共 7797 字，每章只放得下 6000 字。'],
   };
 
   it('keeps only the contract fields', () => {
@@ -197,6 +198,7 @@ describe('批量写章回包的解码', () => {
     expect(plan).not.toHaveProperty('internal');
     expect(plan.chapters[0]).not.toHaveProperty('extra');
     expect(plan.chapters[0].outline_path).toBe('大纲/第2章细纲.md');
+    expect(plan.source_warnings).toEqual(PLAN.source_warnings);
     expect(
       decodeRunUsage({
         run_id: 'r',
@@ -232,6 +234,8 @@ describe('批量写章回包的解码', () => {
     ],
     ['history basis without estimate', { basis: 'history', estimate: null }],
     ['missing can_start', { can_start: undefined }],
+    ['missing source warnings', { source_warnings: undefined }],
+    ['source warning that is not text', { source_warnings: [3] }],
   ])('rejects %s', (_name, change) => {
     expect(() => decodeWriteBatchPlan({ ...PLAN, ...change })).toThrow(WriteBatchShapeError);
   });

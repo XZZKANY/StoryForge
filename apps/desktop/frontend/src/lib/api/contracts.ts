@@ -249,6 +249,8 @@ export type ApiWriteBatchPlan = {
    */
   permission_profile: 'read' | 'ask' | 'auto' | 'full';
   project_root: string;
+  /** 哪些立项资料 AI 写章时看不全（引擎按起草与章纲的取法算好的说明）；不挡开跑，没有为空。 */
+  source_warnings: string[];
   to: number;
 };
 

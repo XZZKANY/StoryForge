@@ -10,6 +10,7 @@ import {
   SETTING_FILE_MAX_CHARS,
   SETTING_MAX_FILES,
   SETTING_TOTAL_MAX_CHARS,
+  settingSourcesWarnings,
 } from './settingSources';
 
 const ROOT = 'D:\\book';
@@ -229,5 +230,65 @@ describe('collectBookOutline', () => {
     expect([...outline!].length).toBeLessThanOrEqual(BOOK_OUTLINE_MAX_CHARS + 200);
     expect(outline).toContain('节点5安排');
     expect(outline).toContain('按第 5 章挑');
+  });
+});
+
+describe('settingSourcesWarnings', () => {
+  const warn = (files: Record<string, string>) =>
+    settingSourcesWarnings(readerOf(files), ROOT, { secrets: SECRETS });
+
+  it('says nothing when there is no setting material, or all of it fits', async () => {
+    expect(await warn({})).toEqual([]);
+    expect(await warn({ '大纲/总纲.md': '## 第1章\n开场。\n', '人物/主角.md': '林舟。' })).toEqual(
+      [],
+    );
+  });
+
+  it('tells the author an outline with chapter headings is picked per chapter', async () => {
+    const nodes = Array.from({ length: 12 }, (_, i) => `## 第${i + 1}章\n${'字'.repeat(600)}`);
+    const text = nodes.join('\n\n');
+    const warnings = await warn({ '大纲/总纲.md': text });
+    expect(warnings).toEqual([
+      `「大纲/总纲.md」共 ${[...text].length} 字，每章只放得下 ${SETTING_FILE_MAX_CHARS} 字：` +
+        '写每一章时按章号先挑相关的小节，放不下的小节只留标题。',
+    ]);
+  });
+
+  it('says what is lost when only the head fits, and hints headings only for outlines', async () => {
+    const long = '字'.repeat(SETTING_FILE_MAX_CHARS + 10);
+    const warnings = await warn({ '大纲/总纲.md': long, '人物/主角.md': long });
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('「大纲/总纲.md」');
+    expect(warnings[0]).toContain(
+      `只带开头 ${SETTING_FILE_MAX_CHARS} 字，后面的内容 AI 写章时看不到`,
+    );
+    expect(warnings[0]).toContain('加上标题就能按章挑相关小节');
+    expect(warnings[1]).toContain('「人物/主角.md」');
+    expect(warnings[1]).not.toContain('标题');
+  });
+
+  it('names the files left out by the total budget', async () => {
+    const piece = '甲'.repeat(5000);
+    const warnings = await warn({
+      '人物/a.md': piece,
+      '人物/b.md': piece,
+      '人物/c.md': piece,
+      '人物/d.md': piece,
+    });
+    expect(warnings[warnings.length - 1]).toBe(
+      `另有 1 份立项资料放不进去（每章最多带 ${SETTING_MAX_FILES} 份、合计 ${SETTING_TOTAL_MAX_CHARS} 字），` +
+        'AI 写章时一字不带：「人物/d.md」。',
+    );
+  });
+
+  it('adds the chapter-outline step only for outlines it cuts beyond what drafting cuts', async () => {
+    const piece = '纲'.repeat(4000);
+    const warnings = await warn({ '大纲/a.md': piece, '大纲/b.md': piece, '大纲/c.md': piece });
+    // 起草：三份全文，合计正好 12000。章纲：a 全文，b 截到 2000，c 不带。
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toBe(
+      `排章纲时大纲合计只带 ${BOOK_OUTLINE_MAX_CHARS} 字，这几份带不全或不带（起草时照上面的规矩带）：` +
+        '「大纲/b.md」「大纲/c.md」。',
+    );
   });
 });

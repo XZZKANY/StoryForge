@@ -11,6 +11,7 @@ import {
   type PlannedChapter,
   type SerialPlan,
 } from '../kernel/serialPlan';
+import { settingSourcesWarnings } from '../kernel/settingSources';
 import { sameProjectRoot } from '../kernel/writingContext';
 import { ProjectReadError, type ProjectReader } from '../readPort';
 import type { ArtifactRecord, RunStore } from '../store/runs';
@@ -251,6 +252,8 @@ export type WriteBatchPlan = {
   estimate: WriteBatchEstimate | null;
   /** 试写模式的说明；其余为 null。 */
   note: string | null;
+  /** 哪些立项资料 AI 写章时看不全（见 settingSourcesWarnings）；不挡开跑。没有要写的章为空。 */
+  source_warnings: string[];
 };
 
 export type WriteBatchDeps = WriteBatchStoreDeps & { readonly reader: ProjectReader };
@@ -425,6 +428,7 @@ export async function planBatch(
       basis: null,
       estimate: null,
       note: null,
+      source_warnings: [],
     };
   }
   const { plan, entry, writtenPath } = await bookChapters(reader, root, platform);
@@ -554,5 +558,9 @@ export async function planBatch(
     basis,
     estimate,
     note,
+    // 开跑前还没读模型配置：这里只数字数、不往外发，不需要按密钥脱敏。
+    source_warnings: toWrite.length
+      ? await settingSourcesWarnings(reader, root, { secrets: { values: [] } })
+      : [],
   };
 }

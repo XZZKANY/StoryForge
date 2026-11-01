@@ -133,6 +133,9 @@ export function decodeWriteBatchPlan(value: unknown): ApiWriteBatchPlan {
   const estimate = raw.estimate === null ? null : decodeEstimate(raw.estimate);
   if ((basis === 'history') !== (estimate !== null))
     throw new WriteBatchShapeError('批量计划的预估与依据对不上');
+  const sourceWarnings = field<unknown[]>(raw, 'source_warnings', Array.isArray, at);
+  if (!sourceWarnings.every(isString))
+    throw new WriteBatchShapeError(`${at}的 source_warnings 不对`);
   return {
     project_root: field(raw, 'project_root', isString, at),
     // 范围非法时引擎原样带回作者给的数，这里不要求是正整数。
@@ -145,6 +148,7 @@ export function decodeWriteBatchPlan(value: unknown): ApiWriteBatchPlan {
     basis,
     estimate,
     note: field(raw, 'note', orNull(isString), at),
+    source_warnings: sourceWarnings as string[],
   };
 }
 
