@@ -56,10 +56,10 @@ describe('chapter length', () => {
     const name = (ordinal: number) => `正文/第${String(ordinal).padStart(3, '0')}章.md`;
     const files: Record<string, EncodedFile> = { [name(1)]: encoded('第一章 待写\n') };
     for (let ordinal = 2; ordinal <= 40; ordinal += 1)
-      files[name(ordinal)] = encoded(ordinal <= 21 ? '甲'.repeat(1000) : '乙'.repeat(5000));
+      files[name(ordinal)] = encoded(ordinal <= 4 ? '甲'.repeat(1000) : '乙'.repeat(5000));
     const { reader } = memoryProject(ROOT, files);
     const counts = await earliestChapterChars(reader, ROOT, name(41), 'windows');
-    expect(counts).toEqual(Array(20).fill(1000));
+    expect(counts).toEqual(Array(3).fill(1000));
     expect(bookChapterRange(counts)).toEqual([800, 1200]);
   });
 
@@ -84,6 +84,19 @@ describe('chapter length', () => {
     [[], null],
   ])('ranges %j as %j', (counts, expected) => {
     expect(bookChapterRange(counts)).toEqual(expected);
+  });
+
+  // 10-31 实验书：没定字数，模型每章写到上限附近，前 20 章的目标从 1600–2600 抬到 4400–6700。
+  it('fixes the target once three chapters are written, however long later chapters run', async () => {
+    const name = (ordinal: number) => `正文/第${String(ordinal).padStart(3, '0')}章.md`;
+    const files: Record<string, EncodedFile> = {};
+    for (let ordinal = 1; ordinal <= 20; ordinal += 1)
+      files[name(ordinal)] = encoded('甲'.repeat(2400 + (ordinal - 1) * 250));
+    const { reader } = memoryProject(ROOT, files);
+    const range = async (ordinal: number) =>
+      bookChapterRange(await earliestChapterChars(reader, ROOT, name(ordinal), 'windows'));
+    expect(await range(3)).toEqual([1900, 2900]);
+    for (const ordinal of [4, 10, 21]) expect(await range(ordinal)).toEqual([2100, 3200]);
   });
 
   it('prefers the plan, then the book, then the default', () => {
