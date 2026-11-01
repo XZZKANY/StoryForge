@@ -602,6 +602,18 @@ function validateEntry(entry: unknown, sources: Map<string, SourceRecord>): Obj 
   return { ...item, quote_start: start, quote_end: end };
 }
 
+/**
+ * 新检查点只摘对话、机器证据按引用覆盖，带这个标记；没有标记的早先检查点（逐条摘过证据）照旧规则验，
+ * 旧检查点的判定一点不变。
+ */
+const EVIDENCE_BY_REFERENCE = 'reference';
+
+/** 检查点里摘自对话消息的条目；新检查点从父检查点只继承这些。 */
+const messageEntries = (entries: unknown): unknown[] =>
+  (Array.isArray(entries) ? entries : []).filter(
+    (entry) => isObj(entry) && String(entry.source_id).startsWith('message:'),
+  );
+
 /** 当前会话最后一份仍然有效（来源、摘要、父链都对得上）的模型检查点。 */
 export async function selectValidCheckpoint(
   store: ConversationSources,
@@ -672,10 +684,15 @@ export async function selectValidCheckpoint(
       }
       const entries = validateEntries(field(payload, 'entries'), scoped);
       const cited = new Set(entries.map((entry) => entry.source_id as string));
-      // 作者原话整段在账本里，没被引用也不丢。
+      // 作者原话整段在账本里，没被引用也不丢。新检查点的机器证据只按引用覆盖，不要求摘录。
       const inLedger = new Set(ledger.map((source) => source.key));
-      if ([...required].some((key) => !cited.has(key) && !inLedger.has(key) && !kept.has(key)))
-        continue;
+      const byReference = payload.evidence_coverage === EVIDENCE_BY_REFERENCE;
+      const mustCite = byReference
+        ? references.map((ref) => field(ref, 'key') as string)
+        : [...required];
+      if (mustCite.some((key) => !cited.has(key) && !inLedger.has(key) && !kept.has(key))) continue;
+      const inherited = (list: unknown) =>
+        byReference ? messageEntries(list) : (list as unknown[]);
       const parent = field(payload, 'parent');
       if (parent !== null) {
         const previous = valid.get(field(parent, 'artifact_id') as number);
@@ -684,8 +701,8 @@ export async function selectValidCheckpoint(
           previous === undefined ||
           !eq(field(parent, 'checkpoint_digest'), field(previousPayload, 'checkpoint_digest')) ||
           !eq(
-            entries.slice(0, (field(previousPayload, 'entries') as unknown[]).length),
-            field(previousPayload, 'entries'),
+            inherited(entries).slice(0, inherited(field(previousPayload, 'entries')).length),
+            inherited(field(previousPayload, 'entries')),
           )
         )
           continue;
@@ -816,9 +833,13 @@ export async function createCompactionCheckpoint(
           ...(parentPayload.source_evidence as Obj[]),
         ].map((item) => item.key as string),
   );
-  const newSources = [...covered, ...evidence].filter((source) => !oldKeys.has(source.key));
+  // 只把对话交给模型摘录。机器证据逐条摘下来又永远继承，检查点几乎和它替代的历史一样大（10-30 会话 23：
+  // 投进历史的 74 KB 里 39 KB 是早已结算的「待确认」之类旧状态）。压缩时已有的证据按引用记进检查点、
+  // 之后不再重送；权限状态每轮照旧按全部事件算，写没写进文件照旧读盘比对。
+  const newSources = covered.filter((source) => !oldKeys.has(source.key));
   if (!newSources.length) return null;
-  const previousEntries = parentPayload === null ? [] : (parentPayload.entries as Obj[]);
+  const previousEntries =
+    parentPayload === null ? [] : (messageEntries(parentPayload.entries) as Obj[]);
   const inputFor = (sources: SourceRecord[], note: string | null = null) => ({
     new_sources: sources,
     previous_entries: previousEntries,
@@ -881,7 +902,7 @@ export async function createCompactionCheckpoint(
     entries.push(...first.entries);
     if (!first.missing.length) continue;
     // 模型会跳过它觉得不重要的来源、也会把引文挂到别的来源上；只拿漏掉的几条补问一次。补问后仍没摘到的
-    // 不伪造摘要：作者原话本就整段在账本里，AI 回复原样留进检查点，机器证据继续整份留在证据覆盖里。
+    // 不伪造摘要：作者原话本就整段在账本里，AI 回复原样留进检查点。
     const retry = compactionReplyEntries(
       await ask(first.missing, { index, count: slices.length, follow_up: true }, FOLLOW_UP_NOTE),
       first.missing,
@@ -892,7 +913,6 @@ export async function createCompactionCheckpoint(
     entries.push(...retry.entries);
   }
   if (!entries.length) throw new CompactionRejected('压缩候选没有摘到任何来源，未发布检查点。');
-  const summarizedEvidence = evidence.filter((source) => !unsummarized.has(source.key));
   const verbatim = [
     ...((parentPayload?.verbatim_messages as Obj[] | undefined) ?? []),
     ...covered.filter((source) => source.role === 'assistant' && unsummarized.has(source.key)),
@@ -911,7 +931,8 @@ export async function createCompactionCheckpoint(
     coverage_digest: contentDigest(references),
     observed_messages_digest: contentDigest(messages.map(sourceReference)),
     observed_evidence_digest: contentDigest(evidence.map(sourceReference)),
-    source_evidence: summarizedEvidence.map(sourceReference),
+    source_evidence: evidence.map(sourceReference),
+    evidence_coverage: EVIDENCE_BY_REFERENCE,
     author_ledger: covered.filter((source) => source.role === 'user'),
     ...(verbatim.length ? { verbatim_messages: verbatim } : {}),
     entries: [...previousEntries, ...entries],

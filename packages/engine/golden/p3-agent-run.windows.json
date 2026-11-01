@@ -3898,7 +3898,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -3909,8 +3909,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "cb1f24ee2495e77114441f2bef2482a0daeac9f1b06ef47957afa7077aa43408",
-                  "length": 2938
+                  "sha256": "c87ae5d93ebfce60537acb034ed12ffc6a6ef553d1fc551ff6f4cc00ee29d1d7",
+                  "length": 2028
                 }
               }
             ],
@@ -4518,8 +4518,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "cb1f24ee2495e77114441f2bef2482a0daeac9f1b06ef47957afa7077aa43408",
-                    "length": 2938
+                    "sha256": "c87ae5d93ebfce60537acb034ed12ffc6a6ef553d1fc551ff6f4cc00ee29d1d7",
+                    "length": 2028
                   }
                 }
               ],
@@ -4533,7 +4533,7 @@
                 "prompt_version": 2
               }
             },
-            "request_digest": "eeef6aadb7c7e9b38b7a13ee44a88a7e77dafec9a7047ff7fe244d4d207ba8c3",
+            "request_digest": "c07aa6443b98c24c2ebd015fc010b26b882599105e1f4c12e991ac68d7142c11",
             "redacted": false,
             "omissions": [],
             "prompt_version": "42e6c004192b7f2fc4b29402cbd7f8454324655d9fad890a0f3de23dd1414766",
@@ -4550,8 +4550,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "0065c7b1fd995a93ddef59ad83124b9dd94bb5800204540411fb80c073881cc6",
-                "content_chars": 2938
+                "sha256": "7b6422f907842d7104fd1b87940c59e37f52ee2deabc3c7316a7dae16394d8ef",
+                "content_chars": 2028
               }
             ],
             "reconstruction": {
@@ -6963,7 +6963,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -6974,8 +6974,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "cb1f24ee2495e77114441f2bef2482a0daeac9f1b06ef47957afa7077aa43408",
-                  "length": 2938
+                  "sha256": "c87ae5d93ebfce60537acb034ed12ffc6a6ef553d1fc551ff6f4cc00ee29d1d7",
+                  "length": 2028
                 }
               }
             ],
@@ -7302,6 +7302,7 @@
                   "digest": "73c11d1d33f7f4981960e3c5871c44615eaacd1b12670516a812401fdcf5bbc0"
                 }
               ],
+              "evidence_coverage": "reference",
               "author_ledger": [
                 {
                   "key": "message:1",
@@ -7442,14 +7443,6 @@
                   "quote": "第11条消息。。。。",
                   "quote_start": 0,
                   "quote_end": 10
-                },
-                {
-                  "category": "decision",
-                  "text": "摘要 tool:1",
-                  "source_id": "tool:1",
-                  "quote": "{\"input_su",
-                  "quote_start": 0,
-                  "quote_end": 10
                 }
               ],
               "parent": null,
@@ -7465,7 +7458,7 @@
                 "token_usage_source": "provider_usage"
               },
               "model": "m-1",
-              "checkpoint_digest": "5ecbf1c563900a4c2f3b262ae9d60fb4e244bd88d5a2c943c58b65b174ffc07d"
+              "checkpoint_digest": "166442e75e619d1d2967d119b90a18eb5797f4625e5913a79133f64994a82398"
             }
           },
           "sequence": 9
@@ -7923,8 +7916,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "cb1f24ee2495e77114441f2bef2482a0daeac9f1b06ef47957afa7077aa43408",
-                    "length": 2938
+                    "sha256": "c87ae5d93ebfce60537acb034ed12ffc6a6ef553d1fc551ff6f4cc00ee29d1d7",
+                    "length": 2028
                   }
                 }
               ],
@@ -7938,7 +7931,7 @@
                 "prompt_version": 2
               }
             },
-            "request_digest": "eeef6aadb7c7e9b38b7a13ee44a88a7e77dafec9a7047ff7fe244d4d207ba8c3",
+            "request_digest": "c07aa6443b98c24c2ebd015fc010b26b882599105e1f4c12e991ac68d7142c11",
             "redacted": false,
             "omissions": [],
             "prompt_version": "42e6c004192b7f2fc4b29402cbd7f8454324655d9fad890a0f3de23dd1414766",
@@ -7955,8 +7948,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "0065c7b1fd995a93ddef59ad83124b9dd94bb5800204540411fb80c073881cc6",
-                "content_chars": 2938
+                "sha256": "7b6422f907842d7104fd1b87940c59e37f52ee2deabc3c7316a7dae16394d8ef",
+                "content_chars": 2028
               }
             ],
             "reconstruction": {
@@ -8188,6 +8181,7 @@
                 "digest": "73c11d1d33f7f4981960e3c5871c44615eaacd1b12670516a812401fdcf5bbc0"
               }
             ],
+            "evidence_coverage": "reference",
             "author_ledger": [
               {
                 "key": "message:1",
@@ -8328,14 +8322,6 @@
                 "quote": "第11条消息。。。。",
                 "quote_start": 0,
                 "quote_end": 10
-              },
-              {
-                "category": "decision",
-                "text": "摘要 tool:1",
-                "source_id": "tool:1",
-                "quote": "{\"input_su",
-                "quote_start": 0,
-                "quote_end": 10
               }
             ],
             "parent": null,
@@ -8351,7 +8337,7 @@
               "token_usage_source": "provider_usage"
             },
             "model": "m-1",
-            "checkpoint_digest": "5ecbf1c563900a4c2f3b262ae9d60fb4e244bd88d5a2c943c58b65b174ffc07d"
+            "checkpoint_digest": "166442e75e619d1d2967d119b90a18eb5797f4625e5913a79133f64994a82398"
           },
           "requires_confirmation": false
         }
