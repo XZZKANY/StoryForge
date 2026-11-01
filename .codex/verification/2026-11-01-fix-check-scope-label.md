@@ -1,0 +1,25 @@
+## 2026-11-01 写章检查「没查出问题」写明只对照了章纲
+
+- 问题：
+  - 写章检查器只拿到本章章纲和正文，章纲没写到的前文、设定都没核对。
+  - 界面却写「自动检查通过」「检查：通过」，作者会以为前后文也查过。
+  - 实证：另一台机器那份数据包里，检查器自己写着「缺上一章、大纲，无法核验」，结论仍是 pass。11-01 用真模型跑的 `/写 5-5` 三份里有两份也这样。实验书 25 章一条连续性问题都没报。
+- 改动（只改说法，判定、数据形状、提示词都不动）：
+  - `packages/engine/src/loop/writeBatchSteps.ts` 的 `checkSummary`：「通过」「修过一次后通过」改成「对照章纲没查出问题」「修过一次后对照章纲没查出问题」。只影响以后新记的批次；旧记录里存的字照旧显示。
+  - 新增 `apps/desktop/frontend/src/components/chat-window/check-scope.ts`，放一句检查范围说明：检查只对照这一章的章纲（含章纲里列出的前文要求），章纲没写到的前文和设定没有核对。
+  - `/写` 清单（`WriteBatchResultCard`）有写进文件的章时，在列表下出这句说明，出一次。
+  - 章节检查记录浮窗（`ChapterCheckHistoryPanel`）在标题下出这句说明；「自动检查通过」改成「对照章纲没查出问题」。
+  - 单章写章的结果说明（`chapterWritingPipeline.ts` 的「通过了章纲检查」）本来就点明了章纲，golden 里钉着 99 处，没动。
+- 验证：
+  - 新增 / 改测试：
+    - `chapter-check-history.test.tsx` 加 1 条：浮窗里是新说法，有范围说明。
+    - `write-batch-review.test.tsx`：清单有范围说明；加 1 条「一章都没写进文件就不出这句」。
+    - `writeBatchSteps.test.ts`、`write-batch-record-api.test.ts`：改成新说法。后者走真引擎，第一次跑 `pnpm verify` 时被它拦下（我先前漏改）。
+  - 其余测试里存着「通过」的地方都是旧批次记录的样例（旧记录确实存的是这两个字），没改。
+  - 变异：去掉清单里的说明、把浮窗标签改回「自动检查通过」，两套测试各红 1 条（2 failed / 29 passed）。用定点替换还原，文件与改前逐字一致。
+  - 定向：`npx vitest run tests/write-batch-review.test.tsx tests/chapter-check-history.test.tsx` 31 passed；`tests/write-batch-record-api.test.ts` 35 passed；引擎 `src/loop/writeBatchSteps.test.ts` 87 passed。
+  - `pnpm verify`（corepack 缓存的 pnpm 9.15.4 做临时入口）跑了三次：
+    - 第一次：prettier 报 `writeBatchSteps.test.ts` 格式不对，`prettier --write` 后行尾仍是 LF。
+    - 第二次：前端单测 `write-batch-record-api.test.ts` 1 条失败（走真引擎，期望还是「通过」），改成新说法。
+    - 第三次：**EXIT=0**，8 道门全过：lint；前端类型检查；project-core 48；引擎 14319 passed、2 skipped（golden 未改）；前端单测 274 个文件 2837 条；行间续写、浏览器冒烟、Agent 对话三项浏览器回归。
+- 未覆盖：没在真宿主或装机版上看样子；没改检查器本身（它仍然只看章纲和正文）。

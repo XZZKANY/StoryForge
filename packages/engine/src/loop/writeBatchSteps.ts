@@ -350,7 +350,9 @@ export function checkSummary(artifact: ArtifactRecord | null): WriteBatchCheck |
     return {
       verdict: 'pass',
       issue_count: issues,
-      summary: (repaired ? '修过一次后通过' : '通过') + (issues ? `，有 ${issues} 条建议` : ''),
+      summary:
+        (repaired ? '修过一次后对照章纲没查出问题' : '对照章纲没查出问题') +
+        (issues ? `，有 ${issues} 条建议` : ''),
     };
   }
   return {

@@ -309,12 +309,12 @@ test('清单：汇总、每章各列、待定事实标出来、对不上的如�
     view(
       [
         chapter(4, {
-          check: { verdict: 'pass', issue_count: 2, summary: '通过，有 2 条建议' },
+          check: { verdict: 'pass', issue_count: 2, summary: '对照章纲没查出问题，有 2 条建议' },
           facts_added: 3,
           fact_disputes: 1,
         }),
         chapter(5, {
-          check: { verdict: 'pass', issue_count: 0, summary: '修过一次后通过' },
+          check: { verdict: 'pass', issue_count: 0, summary: '修过一次后对照章纲没查出问题' },
           facts_added: 0,
           chars: 2800,
           tokens: 90_000,
@@ -371,8 +371,8 @@ test('清单：汇总、每章各列、待定事实标出来、对不上的如�
   );
   expect(text('write-batch-stop-reason')).toBe('第 6 章检查拦下了（检查拦下：1 个硬问题）。');
   expect(rows()).toEqual([
-    '第 4 章《标题4》 | · 3000 字 | · 检查：通过，有 2 条建议 | · 新记下的事实 4 条（其中待定 1 条） | · 用量 6 万 | 目标：目标4',
-    '第 5 章《标题5》 | · 2800 字 | · 检查：修过一次后通过 | · 新记下的事实 0 条 | · 用量 9 万 | 目标：目标5 | 这章没抽出新事实，事实台账可能漏了这章的内容。 | 第 5 章写进文件以后又改过，和写进去时的内容对不上：以正文为准。',
+    '第 4 章《标题4》 | · 3000 字 | · 检查：对照章纲没查出问题，有 2 条建议 | · 新记下的事实 4 条（其中待定 1 条） | · 用量 6 万 | 目标：目标4',
+    '第 5 章《标题5》 | · 2800 字 | · 检查：修过一次后对照章纲没查出问题 | · 新记下的事实 0 条 | · 用量 9 万 | 目标：目标5 | 这章没抽出新事实，事实台账可能漏了这章的内容。 | 第 5 章写进文件以后又改过，和写进去时的内容对不上：以正文为准。',
     '第 6 章《标题6》 | · 没写（停在这里），检查拦下：1 个硬问题 | · 用量 7 万 | 目标：目标6',
     '第 7 章 | · 没写',
   ]);
@@ -387,6 +387,8 @@ test('清单：汇总、每章各列、待定事实标出来、对不上的如�
     false,
     false,
   ]);
+  // 检查只对照章纲：清单下写明一次，免得「没查出问题」被读成前后文都核过。
+  expect(text('write-batch-check-scope')).toContain('章纲没写到的前文和设定没有核对');
   // 不放质量分、通过率之类的总评。
   const card = text('write-batch-result') ?? '';
   for (const word of ['通过率', '%', '评分', '质量', '得分']) expect(card).not.toContain(word);
@@ -440,6 +442,29 @@ test.each([
   expect(notice.textContent).toBe(sentence);
   expect(notice.dataset.emphasis).toBe(emphasis);
   expect(notice.className.includes('text-warning')).toBe(emphasis === 'true');
+});
+
+test('一章都没写进文件：不出检查范围那句说明', async () => {
+  await openBook(
+    view(
+      [
+        chapter(4, {
+          state: 'stopped_here',
+          chars: null,
+          check: { verdict: 'blocked', issue_count: 1, summary: '检查拦下：1 个硬问题' },
+          facts_added: null,
+          fact_disputes: null,
+          facts_before: null,
+          written_sha256: null,
+        }),
+      ],
+      {
+        status: 'stopped',
+        stop: { code: 'check_blocked', message: '第 4 章检查拦下了。', ordinal: 4 },
+      },
+    ),
+  );
+  expect(q('write-batch-check-scope')).toBeNull();
 });
 
 test('这几章都没记过账：不提台账', async () => {
