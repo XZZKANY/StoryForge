@@ -286,3 +286,18 @@ describe('real Python review project replay', () => {
     });
   }
 });
+
+// 10-31 实验书复盘：顿号列项的长指令被截在第 20 个字，「硬约束」只剩半个词。
+describe('revision constraints keep the whole clause', () => {
+  it('does not cut a long list of things to keep at 20 characters', () => {
+    const scope = resolveReviseScope(REPORT, {
+      instruction: '保留主角视角、三条暗线、旧账本与师门旧案的全部细节，其余按审稿意见改',
+    });
+    expect(scope.constraints).toEqual(['保留主角视角、三条暗线、旧账本与师门旧案的全部细节']);
+  });
+
+  it('still stops at the next punctuation mark', () => {
+    const scope = resolveReviseScope(REPORT, { instruction: '保留结尾。不要改主角名字，其余随意' });
+    expect(scope.constraints).toEqual(['保留结尾', '不要改主角名字']);
+  });
+});

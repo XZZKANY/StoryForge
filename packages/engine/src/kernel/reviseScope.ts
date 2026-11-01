@@ -148,9 +148,8 @@ function excludedCategoriesFromInstruction(instruction: string): string[] {
 
 function revisionConstraintsFromInstruction(instruction: string): string[] {
   const constraints: string[] = [];
-  for (const match of instruction.matchAll(
-    /(保留|不动|不要改|别改)([^，。；;,.!?！？\n]{1,20})/gu,
-  )) {
+  // 只在标点处断、不限字数：作者常用顿号列一长串，截在半个词上的约束会把模型带偏。
+  for (const match of instruction.matchAll(/(保留|不动|不要改|别改)([^，。；;,.!?！？\n]+)/gu)) {
     const constraint = pythonStrip(match[1] + match[2]);
     if (constraint) constraints.push(constraint);
   }
