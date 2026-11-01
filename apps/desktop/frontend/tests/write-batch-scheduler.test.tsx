@@ -133,6 +133,7 @@ function plan(from: number, to: number, skip: number[] = []): ApiWriteBatchPlan 
       cap_tokens: 186_000,
     },
     note: null,
+    source_warnings: [],
   };
 }
 

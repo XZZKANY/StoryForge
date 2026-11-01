@@ -257,6 +257,18 @@ describe('批量写章计划', () => {
     ]);
   });
 
+  it('lists the setting files the AI will not see in full, without blocking the batch', async () => {
+    const long = { ...book, '人物/主角.md': file('字'.repeat(6100)) };
+    const result = await plan(long, { from: 4, to: 5 });
+    expect(result.source_warnings).toEqual([
+      '「人物/主角.md」共 6100 字，每章只放得下 6000 字：只带开头 6000 字，后面的内容 AI 写章时看不到。',
+    ]);
+    expect(codes(result)).toEqual(codes(await plan(book, { from: 4, to: 5 })));
+    expect((await plan(book, { from: 4, to: 5 })).source_warnings).toEqual([]);
+    // 没有要写的章就不提。
+    expect((await plan(long, { from: 1, to: 3 })).source_warnings).toEqual([]);
+  });
+
   it('skips chapters whose manuscript exists, whatever the plan status says', async () => {
     const result = await plan(book, { from: 3, to: 6 });
     expect(statuses(result)).toEqual([

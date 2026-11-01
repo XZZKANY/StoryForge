@@ -217,6 +217,22 @@ export function WriteBatchCard({
             </ul>
           </div>
         )}
+        {plan && plan.source_warnings.length > 0 && (
+          // 不挡开跑：作者可以先拆分或给大纲加标题，也可以照样写。
+          <div
+            className="mt-2 rounded-md border border-warning/30 px-2.5 py-2"
+            data-testid="write-batch-source-warnings"
+          >
+            <div className="text-xs font-medium text-warning">这些资料 AI 写章时看不全</div>
+            <ul className="mt-1 space-y-1 text-xs text-foreground">
+              {plan.source_warnings.map((warning) => (
+                <li key={warning} data-testid="write-batch-source-warning">
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {chapters.length > 0 && (
           // 限高 11rem：每章两行字加上下内边距约 2.9rem，露出将近 4 行，最后一行露半截提示下面还有。
           <ul

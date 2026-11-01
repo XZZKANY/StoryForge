@@ -35,11 +35,21 @@ const optional = (error: unknown) =>
   error instanceof ProjectTreeError ||
   error instanceof FsToolError;
 
+type Cut = {
+  readonly path: string;
+  readonly chars: number;
+  readonly room: number;
+  /** 按章挑了小节（见 outlineFocus）；false 是只取了开头。 */
+  readonly focused: boolean;
+  readonly outline: boolean;
+};
+
 type Gathered = {
   readonly sections: { readonly path: string; readonly body: string }[];
   readonly used: number;
   readonly truncated: string[];
   readonly omitted: string[];
+  readonly cuts: Cut[];
 };
 
 /** 按类目顺序读资料全文，每份、总量、份数都有上限；放不下的大纲按本章挑小节，其余照旧取开头。 */
@@ -76,6 +86,7 @@ async function gather(
   const sections: { path: string; body: string }[] = [];
   const truncated: string[] = [];
   const omitted: string[] = [];
+  const cuts: Cut[] = [];
   let used = 0;
   for (const item of ordered) {
     const room = Math.min(options.fileMaxChars, options.totalMaxChars - used);
@@ -101,11 +112,20 @@ async function gather(
       : focused !== null
         ? `${outlineFocusNote(points.length, options.ordinal)}\n${focused}`
         : `${points.slice(0, room).join('')}\n……（这份共 ${points.length} 字，这里只放了开头 ${room} 字）`;
-    if (cut) truncated.push(item.path);
+    if (cut) {
+      truncated.push(item.path);
+      cuts.push({
+        path: item.path,
+        chars: points.length,
+        room,
+        focused: focused !== null,
+        outline: item.source_type === 'outline',
+      });
+    }
     used += Math.min(points.length, room);
     sections.push({ path: item.path, body });
   }
-  return sections.length ? { sections, used, truncated, omitted } : null;
+  return sections.length ? { sections, used, truncated, omitted, cuts } : null;
 }
 
 /**
@@ -183,4 +203,65 @@ export async function collectBookOutline(
   return (
     gathered.sections.map((section) => `【${section.path}】\n${section.body}`).join('\n\n') + tail
   );
+}
+
+const namedList = (paths: readonly string[]) =>
+  paths
+    .slice(0, OMITTED_NAMED)
+    .map((path) => `「${path}」`)
+    .join('') + (paths.length > OMITTED_NAMED ? ' 等' : '');
+
+function cutWarning(cut: Cut): string {
+  const head = `「${cut.path}」共 ${cut.chars} 字，每章只放得下 ${cut.room} 字：`;
+  if (cut.focused) return `${head}写每一章时按章号先挑相关的小节，放不下的小节只留标题。`;
+  return (
+    `${head}只带开头 ${cut.room} 字，后面的内容 AI 写章时看不到。` +
+    (cut.outline
+      ? '大纲没有「## 第N章」这样的 Markdown 标题时只能取开头；加上标题就能按章挑相关小节。'
+      : '')
+  );
+}
+
+/**
+ * 开跑前告诉作者：哪些立项资料 AI 写章时看不全（起草与章纲按同样的规矩取，截不截与在写第几章无关）。
+ * 只读文件、不调模型、不记证据；没有要提醒的返回空数组。
+ */
+export async function settingSourcesWarnings(
+  reader: ProjectReader,
+  root: string,
+  options: { secrets: SecretContext },
+): Promise<string[]> {
+  const draft = await gather(reader, root, {
+    secrets: options.secrets,
+    types: SOURCE_ORDER,
+    fileMaxChars: SETTING_FILE_MAX_CHARS,
+    totalMaxChars: SETTING_TOTAL_MAX_CHARS,
+    ordinal: null,
+  });
+  if (draft === null) return [];
+  const warnings = draft.cuts.map(cutWarning);
+  if (draft.omitted.length)
+    warnings.push(
+      `另有 ${draft.omitted.length} 份立项资料放不进去（每章最多带 ${SETTING_MAX_FILES} 份、` +
+        `合计 ${SETTING_TOTAL_MAX_CHARS} 字），AI 写章时一字不带：${namedList(draft.omitted)}。`,
+    );
+  const outline = await gather(reader, root, {
+    secrets: options.secrets,
+    types: ['outline'],
+    fileMaxChars: BOOK_OUTLINE_MAX_CHARS,
+    totalMaxChars: BOOK_OUTLINE_MAX_CHARS,
+    ordinal: null,
+  });
+  if (outline !== null) {
+    const reported = new Set([...draft.truncated, ...draft.omitted]);
+    const short = [...outline.cuts.map((cut) => cut.path), ...outline.omitted].filter(
+      (path) => !reported.has(path),
+    );
+    if (short.length)
+      warnings.push(
+        `排章纲时大纲合计只带 ${BOOK_OUTLINE_MAX_CHARS} 字，这几份带不全或不带（起草时照上面的规矩带）：` +
+          `${namedList(short)}。`,
+      );
+  }
+  return warnings;
 }

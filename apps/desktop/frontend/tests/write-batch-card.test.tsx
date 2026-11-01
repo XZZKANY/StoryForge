@@ -77,6 +77,7 @@ function historyPlan(overrides: Partial<ApiWriteBatchPlan> = {}): ApiWriteBatchP
       cap_tokens: 186_000,
     },
     note: null,
+    source_warnings: [],
     ...overrides,
   };
 }
@@ -170,6 +171,7 @@ describe('确认卡', () => {
     );
     expect(q('write-batch-blockers')).toBeNull();
     expect(q('write-batch-trial')).toBeNull();
+    expect(q('write-batch-source-warnings')).toBeNull();
   });
 
   test('有细纲的章挂「有细纲」，悬停看得到细纲路径；没细纲的章不挂', async () => {
@@ -187,6 +189,22 @@ describe('确认卡', () => {
     expect(tags.map((tag) => tag.textContent)).toEqual(['有细纲']);
     expect(tags[0].title).toBe('大纲/第5章细纲.md：写这一章时照它写');
     expect(all('write-batch-chapter')[1].contains(tags[0])).toBe(true);
+  });
+
+  test('有立项资料 AI 看不全：逐条列出引擎的说明，照样能开始写', async () => {
+    const warnings = [
+      '「大纲/总纲.md」共 7797 字，每章只放得下 6000 字：写每一章时按章号先挑相关的小节，放不下的小节只留标题。',
+      '另有 1 份立项资料放不进去（每章最多带 12 份、合计 12000 字），AI 写章时一字不带：「设定/地理.md」。',
+    ];
+    plan.mockResolvedValue(historyPlan({ source_warnings: warnings }));
+    await card(range(4, 6), { onStart: vi.fn() });
+    expect(q('write-batch-source-warnings')?.textContent).toContain('这些资料 AI 写章时看不全');
+    expect(all('write-batch-source-warning').map((item) => item.textContent)).toEqual(warnings);
+    expect(q('write-batch-blockers')).toBeNull();
+    expect(buttons()).toEqual([
+      { label: '取消', disabled: false },
+      { label: '开始写', disabled: false },
+    ]);
   });
 
   test('没接 onStart 时「开始写」显示但禁用，带提示「下一步接上」；接了点一下把计划交出去', async () => {
