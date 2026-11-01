@@ -175,12 +175,13 @@ export async function resolveTarget(
 // 没有连载计划时，章纲默认字数取本书已写的章：写死的 1600–2600 不认书，一章三四千字的书按它起草，
 // 检查要么以「字数严重偏离」拦下整章，要么修复把稿子压短。不足 MIN_SAMPLE_CHARS 的占位短章不算样本。
 // 取全书最早的章、不取最近几章：稿子常写到目标上限附近，按最近几章定，目标会跟着越抬越高（擂台二只看最近 3 章，
-// 第 40 章目标涨到 9900–15000 字；按 E1 的真实比值模拟，看最近 20 章到第 40 章仍涨三成）。写满 20 章后基准不再变。
-const LENGTH_SAMPLES = 20;
+// 第 40 章目标涨到 9900–15000 字；按 E1 的真实比值模拟，看最近 20 章到第 40 章仍涨三成）。
+// 只取最早 3 章、写满 3 章后基准不再变：原来取最早 20 章，10-31 实验书前 20 章照样一路抬（2600 → 6700）。
+const LENGTH_SAMPLES = 3;
 const LENGTH_SCAN = 40;
 const MIN_SAMPLE_CHARS = 500;
 
-/** 阅读序上目标章之前、全书最早至多 20 章的字数（早的在前）；读不到、二进制、超预算或太短的跳过。 */
+/** 阅读序上目标章之前、全书最早至多 3 章的字数（早的在前）；读不到、二进制、超预算或太短的跳过。 */
 export async function earliestChapterChars(
   reader: ProjectReader,
   root: string,
@@ -222,7 +223,7 @@ export async function earliestChapterChars(
   return counts;
 }
 
-/** 全书最早至多 20 章的字数中位数下浮两成、上浮两成，分别向下、向上取整到百位；不足两章不下结论。 */
+/** 全书最早至多 3 章的字数中位数下浮两成、上浮两成，分别向下、向上取整到百位；不足两章不下结论。 */
 export function bookChapterRange(counts: readonly number[]): readonly [number, number] | null {
   if (counts.length < 2) return null;
   const middle = [...counts].sort((a, b) => a - b)[Math.floor((counts.length - 1) / 2)];
