@@ -28,6 +28,20 @@ export function joinPath(base: string, ...parts: string[]): string {
   return [base.replace(/[\\/]+$/, ''), ...segments].join(separator);
 }
 
+/**
+ * 作品里的路径换成作品根那一种分隔符（文件树节点、宿主列出的条目、joinPath 拼出来的都是这种写法）；
+ * 根照 projectPath 原样，只换分隔符、不改大小写；作品外的路径原样返回。
+ * 早先文件树给文件夹拼路径一律用 `/`，反斜杠作品下存过 `D:\书/正文\第001章.md` 这种混合写法，
+ * 从存档里读出路径时过一遍这里。
+ */
+export function withProjectSeparator(projectPath: string, path: string): string {
+  const root = projectPath.replace(/[\\/]+$/, '');
+  const slashed = (value: string) => value.replace(/\\/g, '/');
+  const rest = path.slice(root.length);
+  if (slashed(path.slice(0, root.length)) !== slashed(root) || /^[^\\/]/.test(rest)) return path;
+  return joinPath(projectPath, rest);
+}
+
 /** 同目录改名：用 from 的父目录 + 新名。 */
 export function siblingPath(from: string, newName: string): string {
   return joinPath(parentDir(from), newName);

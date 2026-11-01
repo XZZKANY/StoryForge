@@ -7,6 +7,7 @@ import {
   parentDir,
   sanitizeEntryName,
   siblingPath,
+  withProjectSeparator,
 } from '../../src/lib/fs-path-ops';
 
 // 换成 joinPath 之前，前端 17 个文件里各自手拼的两种写法（按 base 认分隔符；去不去 base 末尾的分隔符各有）。
@@ -89,6 +90,53 @@ describe('joinPath', () => {
         expect(joinPath(base, ...parts), `${base} + ${parts.join(' + ')}`).toBe(
           oldUntrimmedJoin(base, ...parts),
         );
+  });
+});
+
+describe('withProjectSeparator', () => {
+  const BOOK = 'D:\\连载\\末世吞噬';
+
+  it('旧版文件树存下的混合写法换成作品根的分隔符，与宿主列出的条目逐字一致', () => {
+    expect(withProjectSeparator(BOOK, 'D:\\连载\\末世吞噬/正文\\第001章.md')).toBe(
+      'D:\\连载\\末世吞噬\\正文\\第001章.md',
+    );
+    expect(withProjectSeparator(BOOK, 'D:\\连载\\末世吞噬/正文/卷一\\第001章.md')).toBe(
+      'D:\\连载\\末世吞噬\\正文\\卷一\\第001章.md',
+    );
+    expect(withProjectSeparator(`${BOOK}\\`, `${BOOK}/正文`)).toBe(`${BOOK}\\正文`);
+    expect(withProjectSeparator('/home/a/书', '/home/a/书\\正文\\第001章.md')).toBe(
+      '/home/a/书/正文/第001章.md',
+    );
+  });
+
+  it('已经是作品根写法的原样不动', () => {
+    for (const path of [BOOK, `${BOOK}\\正文`, `${BOOK}\\正文\\第001章.md`])
+      expect(withProjectSeparator(BOOK, path)).toBe(path);
+    expect(withProjectSeparator('/home/a/书', '/home/a/书/正文/第001章.md')).toBe(
+      '/home/a/书/正文/第001章.md',
+    );
+  });
+
+  it('盘符根、UNC、posix 根都跟着作品根走', () => {
+    expect(withProjectSeparator('D:\\', 'D:/正文/第001章.md')).toBe('D:\\正文\\第001章.md');
+    expect(withProjectSeparator('\\\\nas\\书', '\\\\nas\\书/正文\\a.md')).toBe(
+      '\\\\nas\\书\\正文\\a.md',
+    );
+    expect(withProjectSeparator('/', '/正文\\a.md')).toBe('/正文/a.md');
+  });
+
+  it('作品外的路径、只是前缀相同的兄弟目录、相对路径原样返回', () => {
+    expect(withProjectSeparator(BOOK, 'D:\\连载\\别的书/正文\\a.md')).toBe(
+      'D:\\连载\\别的书/正文\\a.md',
+    );
+    expect(withProjectSeparator(BOOK, `${BOOK}2/正文\\a.md`)).toBe(`${BOOK}2/正文\\a.md`);
+    expect(withProjectSeparator(BOOK, '正文/a.md')).toBe('正文/a.md');
+    expect(withProjectSeparator(BOOK, 'D:')).toBe('D:');
+  });
+
+  it('只换分隔符，不改大小写', () => {
+    expect(withProjectSeparator('D:\\Book', 'D:\\Book/Draft\\A.md')).toBe('D:\\Book\\Draft\\A.md');
+    expect(withProjectSeparator('D:\\Book', 'd:\\book/Draft\\A.md')).toBe('d:\\book/Draft\\A.md');
   });
 });
 

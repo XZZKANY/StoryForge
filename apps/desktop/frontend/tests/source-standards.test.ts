@@ -326,3 +326,32 @@ it('按 base 认分隔符拼路径只写在 fs-path-ops 的 joinPath 里', () =>
     'export function joinPath(base: string, ...parts: string[]): string {',
   );
 });
+
+// 绝对路径一律经 joinPath 拼：文件树曾用 `${currentPath}/${segment}` 给文件夹拼路径，反斜杠作品下
+// 拼出 `D:\书/正文` 这种与宿主条目对不上的写法。`${a}/${b}` 只许出现在下面这些不是绝对路径的地方。
+const SLASH_TEMPLATE = /\$\{[^}]+\}\/\$\{/;
+const SLASH_TEMPLATE_EXEMPT: Record<string, string> = {
+  'src/components/chat-window/ModelProfileSelector.tsx': '选项的 key',
+  'src/components/chat-window/review.ts': '问题编号 / 严重度',
+  'src/components/editor/suggestion-op-state.ts': '计数',
+  'src/components/shell/ManuscriptView.tsx': '计数',
+  'src/components/chat-window/useConversationSkills.ts':
+    '作品内相对路径，再交 resolveProjectRelativePath',
+  'src/lib/writing-skill-adopt.ts': '作品内相对路径，再交 resolveProjectRelativePath',
+};
+
+it('不用 `${a}/${b}` 手拼绝对路径；文件树的文件夹路径经 joinPath 拼', () => {
+  expect(SLASH_TEMPLATE.test('currentPath = `${currentPath}/${segment}`;')).toBe(true);
+  expect(SLASH_TEMPLATE.test('`${projectRoot}/.storyforge`')).toBe(false);
+  const flagged = sourceFiles('src')
+    .map(relativePath)
+    .filter((path) => SLASH_TEMPLATE.test(readFileSync(path, 'utf8')));
+  expect(flagged.filter((path) => !(path in SLASH_TEMPLATE_EXEMPT))).toEqual([]);
+  expect(
+    Object.keys(SLASH_TEMPLATE_EXEMPT).filter((path) => !flagged.includes(path)),
+    '不再这样写了：从豁免里去掉',
+  ).toEqual([]);
+  const tree = readFileSync('src/lib/project/tree.ts', 'utf8');
+  expect(tree).toContain('joinPath(currentPath, segment)');
+  expect(tree).not.toMatch(/['"`]\/['"`]/);
+});
