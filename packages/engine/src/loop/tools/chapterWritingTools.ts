@@ -5,6 +5,7 @@ import {
   draftFileContent,
   reviseFileContent,
 } from '../../assistant/service';
+import { chapterOutlineFrom } from '../../kernel/chapterOutline';
 import { dumpJson, type Obj } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
 import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
@@ -17,6 +18,7 @@ import {
   briefPrompt,
   draftConversationBlock,
   draftInstruction,
+  draftOutlineBlock,
   parseBrief,
   repairInstruction,
   type BriefWritten,
@@ -53,6 +55,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
           written,
           (payload.conversation ?? null) as string | null,
           skills.length ? writingSkillIndex(skills) : null,
+          chapterOutlineFrom(payload.chapter_outline),
         ),
         contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
         assistantSessionId: context.assistantSessionId,
@@ -115,6 +118,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         file_path: payload.target_absolute as string,
         instruction:
           draftInstruction(confirmed) +
+          draftOutlineBlock(chapterOutlineFrom(payload.chapter_outline)) +
           (skillsBlock === null ? '' : `\n${skillsBlock}`) +
           draftConversationBlock(
             typeof payload.conversation_excerpt === 'string' ? payload.conversation_excerpt : null,

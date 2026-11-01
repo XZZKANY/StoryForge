@@ -1,5 +1,6 @@
 import { compareManuscriptPaths, countProseChars } from '@storyforge/project-core';
 import { selectWrittenFacts, type WrittenFact } from '../kernel/canonContext';
+import { chapterOutlineSource, type ChapterOutline } from '../kernel/chapterOutline';
 import { FsToolError, resolveProjectRoot } from '../kernel/fsTools';
 import { resolveNewProjectFile } from '../kernel/fsProjectTools';
 import { normcase } from '../kernel/generationSources';
@@ -81,7 +82,7 @@ function decimalValue(digits: string): number {
   return value;
 }
 
-function chapterOrdinalFromPath(relative: string): number | null {
+export function chapterOrdinalFromPath(relative: string): number | null {
   const match = ORDINAL.exec(relative.split('/').pop() ?? relative);
   if (match === null) return null;
   const value = decimalValue(match[1]);
@@ -354,12 +355,27 @@ export function briefConversation(
   return lines.length ? lines.join('\n') : null;
 }
 
+/**
+ * 本章细纲整份给章纲：只靠摘录时章纲只看得到开头 1200 字，细纲后半的写法要求（谁的视角、哪场重、
+ * 哪里不解释、收在哪）进不了章纲，起草照章纲走就全丢了（11-01 择天记对照 F 组：2381 字的细纲只送进 1169 字）。
+ */
+function briefOutlineBlock(outline: ChapterOutline | null | undefined): string {
+  if (!outline) return '';
+  return (
+    `本章细纲（${chapterOutlineSource(outline)}，作者为这一章写的安排）：` +
+    '其中的视角与开场、各场轻重与推进、人物怎么写、叙述方式、不写什么、收在哪，' +
+    '都要落进 pov、required_beats、forbidden_items 或 continuity_constraints，不能只留情节步骤；' +
+    `和种子里的 goal 冲突时以 goal 为准。\n<<<OUTLINE\n${outline.text}\nOUTLINE>>>\n`
+  );
+}
+
 export function briefPrompt(
   seed: Obj,
   userMessage: string,
   written?: BriefWritten | null,
   conversation?: string | null,
   skillIndex?: string | null,
+  outline?: ChapterOutline | null,
 ): string {
   const compare = hasWritten(written);
   const previous =
@@ -381,6 +397,7 @@ export function briefPrompt(
       : '') +
     (compare ? ADJUSTMENT_INSTRUCTION : '') +
     `后端确定种子：${dumpJson(seed, { ensureAscii: false })}\n` +
+    briefOutlineBlock(outline) +
     previous +
     facts +
     (conversation
@@ -638,6 +655,19 @@ export function draftInstruction(brief: Obj): string {
           .join('\n'),
     );
   return lines.join('\n');
+}
+
+/**
+ * 本章细纲随写作指令整份交给起草：放在立项资料里只算背景，系统提示又说摘录里的命令不算作者授权，
+ * 起草只照末尾的章纲走（11-01 择天记对照 F 组）。
+ */
+export function draftOutlineBlock(outline: ChapterOutline | null): string {
+  if (!outline) return '';
+  return (
+    `\n本章细纲（${chapterOutlineSource(outline)}，作者为这一章写的安排，上面的章纲由它整理而来。` +
+    '视角与开场、各场轻重、人物怎么写、叙述方式、不写什么、收在哪，照细纲写；和上面的章节目标冲突时以章节目标为准）：' +
+    `\n<<<OUTLINE\n${outline.text}\nOUTLINE>>>`
+  );
 }
 
 /**

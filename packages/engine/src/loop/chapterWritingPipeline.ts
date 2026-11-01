@@ -6,6 +6,7 @@ import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptCont
 import { pythonStrip } from '../kernel/pythonText';
 import { newChapterTruncationWarning } from '../kernel/revisionTruncation';
 import { buildPlan } from '../kernel/serialPlan';
+import { findChapterOutline } from '../kernel/chapterOutline';
 import { PROGRAM_ADVISORY_RULES } from './chapterCheckProtocol';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
 import {
@@ -17,6 +18,7 @@ import {
   CHAPTER_CANDIDATE_ARTIFACT_KIND,
   CHAPTER_CHECK_ARTIFACT_KIND,
   CHAPTER_WRITE_INTENT,
+  chapterOrdinalFromPath,
   confirmBrief,
   earliestChapterChars,
   positiveInt,
@@ -159,12 +161,19 @@ export async function startChapterWriting(
     { platform: host.platform, secrets: host.secrets },
   );
   const promptBundle = llmContextSnapshotToPromptContextBundle(snapshot, host.secrets) as Obj;
+  const outline = await findChapterOutline(
+    host.reader,
+    root,
+    planned !== null ? planned.ordinal : chapterOrdinalFromPath(relative),
+    { secrets: host.secrets },
+  );
   const sourceGuard = await captureChapterSources(deps, {
     root,
     target,
     bundle: promptBundle,
     snapshot,
     userMessage,
+    extraPaths: outline !== null ? [outline.path] : [],
   });
   const seed = buildBriefSeed({
     userMessage,
@@ -213,6 +222,7 @@ export async function startChapterWriting(
     seed,
     written,
     conversation,
+    ...(outline !== null ? { chapter_outline: outline } : {}),
     llm_context_snapshot: snapshot,
     llm_prompt_context_bundle: promptBundle,
   });
@@ -245,6 +255,8 @@ export async function startChapterWriting(
     llm_prompt_context_bundle: safePromptBundle,
     // 起草时会话里已多了「章纲已准备」那句，节选再取就是空的：章纲看到的这段原样留给起草。
     ...(conversation !== null ? { conversation_excerpt: conversation } : {}),
+    // 章纲看到的那份细纲原样留给起草；起草前改过细纲由来源守卫拦下。
+    ...(outline !== null ? { chapter_outline: outline } : {}),
   });
   const goal = String(brief.goal || relative);
   // 模型写的章纲目标常自带句末标点，再补句号就成了「。。」。
@@ -368,6 +380,7 @@ async function draftFromBrief(
     ...(typeof payload.conversation_excerpt === 'string'
       ? { conversation_excerpt: payload.conversation_excerpt }
       : {}),
+    ...(isObj(payload.chapter_outline) ? { chapter_outline: payload.chapter_outline } : {}),
   };
   const traces: AgentToolTrace[] = [];
   // 每步做完就落一条轨迹，思考过程跟着走，不等整章查完才一起出现。

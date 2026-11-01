@@ -1,5 +1,6 @@
 import { compareChapterPaths, isUntouchedProjectGuide } from '@storyforge/project-core';
 import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
+import { isChapterOutlineCandidate } from './chapterOutline';
 import { FsToolError } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
 import { projectKnowledgeCandidates } from './projectKnowledge';
@@ -32,7 +33,7 @@ const optional = (error: unknown) =>
   error instanceof FsToolError;
 
 /**
- * 大纲 / 人物 / 设定 / 时间线 / 伏笔目录里的资料全文（每份、总量、份数都有上限）。
+ * 大纲 / 人物 / 设定 / 时间线 / 伏笔目录里的资料全文（每份、总量、份数都有上限）；各章细纲不在内（见 chapterOutline）。
  * 项目摘录只给每份开头 1200 字，设定文件后半的内容起草时一章都看不到。
  * 读不到是「少一块加分上下文」，不挡起草：没有可用资料时返回 null。
  */
@@ -50,7 +51,10 @@ export async function collectSettingSources(
   }
   const ordered = candidates
     .filter(
-      (item) => SOURCE_ORDER.includes(item.source_type) && TEXT_SUFFIXES.has(suffixOf(item.path)),
+      (item) =>
+        SOURCE_ORDER.includes(item.source_type) &&
+        TEXT_SUFFIXES.has(suffixOf(item.path)) &&
+        !isChapterOutlineCandidate(item),
     )
     .sort(
       (a, b) =>
