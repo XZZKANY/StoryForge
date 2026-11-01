@@ -125,7 +125,7 @@ export function DecisionChoices({
         {choices.map((choice, index) => {
           const isActive = index === active;
           const rowClass = `rounded-md px-2 py-1 text-left text-sm transition-colors ${
-            isActive ? 'bg-elevated' : ''
+            isActive ? 'bg-background' : ''
           } ${choice.tone === 'danger' ? 'text-error' : 'text-foreground'}`;
           const marker = (
             <>

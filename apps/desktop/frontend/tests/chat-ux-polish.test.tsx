@@ -4,13 +4,14 @@ import { test } from 'vitest';
 
 import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
 import { AssistantMarkdown } from '../src/components/chat-window/AssistantMarkdown';
-import { contextBudgetText, runStatusText } from '../src/components/chat-window/display-utils';
-import { formatElapsed } from '../src/components/chat-window/RunElapsed';
 import {
-  ContextSummaryPanel,
-  MessageItem,
-  RunActionBar,
-} from '../src/components/chat-window/panels';
+  contextBudgetText,
+  contextCoverageWarnings,
+  runStatusText,
+} from '../src/components/chat-window/display-utils';
+import { formatElapsed } from '../src/components/chat-window/RunElapsed';
+import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
+import { MessageItem, RunActionBar } from '../src/components/chat-window/panels';
 import type { AgentRun } from '../src/components/chat-window/types';
 
 test('assistant message renders markdown structure, not raw markers', () => {
@@ -266,10 +267,10 @@ test('compact context summary surfaces truncation on the fold header, not only w
   );
   assert.match(html, /data-compact="true"/);
   assert.match(html, /data-expanded="false"/);
-  assert.match(html, /data-testid="context-truncated-badge"[^>]*>已截断（原因未记录）</);
+  assert.match(html, /data-testid="context-truncated-badge"[^>]*>没带全</);
 });
 
-test('参考覆盖警告按原因分开，只送摘录不算警告，分类计数标明是项目口径', () => {
+test('参考覆盖按原因分开：份数满了挤掉是常态不亮警告色，读不出才亮；只送摘录不算', () => {
   const base = {
     projectRoot: 'D:/book',
     currentFile: null,
@@ -287,31 +288,45 @@ test('参考覆盖警告按原因分开，只送摘录不算警告，分类计�
       missingPinnedFiles: [],
     },
   } as unknown as Parameters<typeof contextBudgetText>[0] & object;
-  const excerptOnly = contextBudgetText(base);
-  assert.equal(excerptOnly, '上下文 8/8 文件，9600 字符；作品里：大纲2、设定1、正文10');
-  const both = contextBudgetText({
-    ...base,
-    budget: { ...base.budget, truncated: true, overflowCount: 3, unreadableCount: 1 },
+  assert.equal(contextBudgetText(base), '这一轮带了 8 份参考资料，共 9600 字。');
+  assert.equal(
+    contextBudgetText({ ...base, budget: { ...base.budget, pinnedFileCount: 2 } }),
+    '这一轮带了 8 份参考资料，共 9600 字，其中固定 2 份。',
+  );
+  assert.deepEqual(contextCoverageWarnings(base.budget), []);
+  const both = contextCoverageWarnings({
+    ...base.budget,
+    truncated: true,
+    overflowCount: 3,
+    unreadableCount: 1,
   });
-  assert.match(both, /；超出席位 3；读取失败 1；/);
-  assert.doesNotMatch(both, /已截断/);
-  const onlyUnreadable = contextBudgetText({
-    ...base,
-    budget: { ...base.budget, truncated: true, unreadableCount: 2 },
+  assert.deepEqual(
+    both.map((warning) => [warning.text, warning.tone]),
+    [
+      ['3 份没带上', 'note'],
+      ['1 份读不出', 'warning'],
+    ],
+  );
+  assert.match(both[0].detail, /每轮最多带 8 份/);
+  const onlyUnreadable = contextCoverageWarnings({
+    ...base.budget,
+    truncated: true,
+    unreadableCount: 2,
   });
-  assert.match(onlyUnreadable, /读取失败 2/);
-  assert.doesNotMatch(onlyUnreadable, /超出席位/);
-  const legacy = contextBudgetText({
-    ...base,
-    budget: {
-      ...base.budget,
-      truncated: true,
-      overflowCount: undefined,
-      unreadableCount: undefined,
-    },
+  assert.deepEqual(
+    onlyUnreadable.map((warning) => warning.text),
+    ['2 份读不出'],
+  );
+  const legacy = contextCoverageWarnings({
+    ...base.budget,
+    truncated: true,
+    overflowCount: undefined,
+    unreadableCount: undefined,
   });
-  assert.match(legacy, /已截断（原因未记录）/);
-  assert.doesNotMatch(legacy, /超出席位|读取失败/);
+  assert.deepEqual(
+    legacy.map((warning) => warning.text),
+    ['没带全'],
+  );
 
   const panel = (budget: typeof base.budget) =>
     renderToStaticMarkup(
@@ -332,8 +347,9 @@ test('参考覆盖警告按原因分开，只送摘录不算警告，分类计�
     );
   assert.equal(panel(base.budget), '');
   const warned = panel({ ...base.budget, truncated: true, overflowCount: 3, unreadableCount: 1 });
-  assert.match(warned, /data-testid="context-truncated-badge"[^>]*>超出席位 3</);
-  assert.match(warned, /data-testid="context-truncated-badge"[^>]*>读取失败 1</);
+  assert.match(warned, /data-testid="context-truncated-badge"[^>]*>3 份没带上</);
+  assert.match(warned, /data-testid="context-truncated-badge"[^>]*>1 份读不出</);
+  assert.doesNotMatch(warned, /超出席位|读取失败|作品里/);
 });
 
 test('the typing dot hangs after the last character, inside the deepest last block', () => {

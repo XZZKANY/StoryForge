@@ -1,12 +1,14 @@
 import { completeSkillCommand, skillCommandQuery } from '@storyforge/project-core';
 import { IconButton } from '../ui';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import type { ReactNode } from 'react';
 import { AGENT_ROLE_SUGGESTIONS } from '../../lib/agent-roles';
 import { COMPOSER_HINT_TAB_SUFFIX } from '../../lib/composer-hint';
 import { type AgentPermissionProfile } from '../../lib/agent-permission';
 import { basename } from '../app/helpers';
 import { ArrowUp, Plus, Square } from '../icons/shell-icons';
 import { CHAT_COLUMN } from './column';
+import { ComposerDock } from './ComposerDock';
 import { roleMentionQuery } from './display-utils';
 import { ModelProfileSelector } from './ModelProfileSelector';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
@@ -38,6 +40,7 @@ export function ComposerBox({
   onRemoveQueuedMessage,
   onStop,
   hint = null,
+  dock = null,
 }: {
   inputRef?: MutableRefObject<HTMLTextAreaElement | null>;
   value: string;
@@ -62,10 +65,13 @@ export function ComposerBox({
   onStop?: () => void;
   /** 输入框空着时的「下一句」提示；Tab 填入。 */
   hint?: string | null;
+  /** 贴在输入框顶边小条里的各行（`ComposerDock`）。 */
+  dock?: ReactNode;
 }) {
   return (
     <div className="flex-shrink-0 p-3">
       <div className={CHAT_COLUMN}>
+        <ComposerDock>{dock}</ComposerDock>
         <form
           onSubmit={(event) => {
             event.preventDefault();

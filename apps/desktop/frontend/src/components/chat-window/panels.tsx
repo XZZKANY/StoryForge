@@ -1,11 +1,6 @@
 import { Button, IconButton } from '../ui';
 
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  semanticKindLabel,
-  type ContextBundle,
-  type SemanticFile,
-} from '../../lib/project-context';
 import { AUTHOR_LOOP_RESULT_EVENT, type AuthorLoopResult } from '../../lib/assistant-events';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import { AgentStepsPanel, hasProcess } from '../AgentStepsPanel';
@@ -24,7 +19,6 @@ import { CHAT_COLUMN } from './column';
 import { DecisionChoices } from './DecisionChoices';
 import { SessionMenu } from './SessionMenu';
 import { MessageActions } from './MessageActions';
-import { contextBudgetText, contextCoverageWarnings } from './display-utils';
 import { shouldShowAgentRunRecovery, type AgentRunRecoveryDisplay } from './recovery';
 import { StreamPhase } from './StreamPhase';
 import type { AgentRun, AgentRunControlHandlers, Message } from './types';
@@ -474,7 +468,7 @@ export function RunActionBar({
 
   const stopButton = (
     <Button
-      size="sm"
+      size="compact"
       variant="danger"
       className={runActionButtonClass}
       onClick={handleStopClick}
@@ -490,32 +484,30 @@ export function RunActionBar({
 
   if (run.deliveryUnknown)
     return (
-      <div className="flex-shrink-0 px-3 pt-2" data-testid="run-action-bar">
-        <div
-          className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-background px-3 py-2`}
-        >
+      <div className="px-3 py-1.5" data-testid="run-action-bar">
+        <div className="flex flex-wrap items-center gap-2">
           <span role="status" className="text-xs text-warning" data-testid="run-action-status">
             本轮结果未知；连接结束不代表执行失败。请核对原运行，不会自动重放。
           </span>
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             onClick={controls.onReconcileRun}
             data-testid="run-reconcile"
           >
             核对状态
           </Button>
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             onClick={controls.onPauseRun}
             data-testid="run-pause"
           >
             请求暂停
           </Button>
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             onClick={handleStopClick}
             onBlur={cancelStopConfirm}
             data-testid="run-stop"
@@ -533,10 +525,8 @@ export function RunActionBar({
     const approval = run.steps.find((step) => step.id === 'approval');
     const target = approval?.filePath?.split(/[\\/]/).pop();
     return (
-      <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
-        <div
-          className={`${CHAT_COLUMN} flex flex-col gap-1 rounded-lg border border-border bg-background px-2 py-2`}
-        >
+      <div className="px-1.5 py-1.5" data-testid="run-action-bar">
+        <div className="flex flex-col gap-1">
           {waitingForPermission ? (
             <DecisionChoices
               key={`${run.id}:permission`}
@@ -612,10 +602,8 @@ export function RunActionBar({
   const resume = recovery?.checkpointResume;
   // 暂停是一行字加三颗键：恢复的前提说明放在悬停提示里，不再在条上、卡片上各写一遍。
   return (
-    <div className="flex-shrink-0 animate-slide-in-up px-3 pt-2" data-testid="run-action-bar">
-      <div
-        className={`${CHAT_COLUMN} flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2`}
-      >
+    <div className="px-3 py-0.5" data-testid="run-action-bar">
+      <div className="flex min-h-8 flex-wrap items-center gap-2">
         <span
           className="min-w-0 flex-1 text-xs font-medium text-muted"
           role="status"
@@ -625,7 +613,7 @@ export function RunActionBar({
           已暂停
         </span>
         <Button
-          size="sm"
+          size="compact"
           variant="primary"
           className={runActionButtonClass}
           onClick={controls.onResumeRun}
@@ -637,8 +625,8 @@ export function RunActionBar({
         </Button>
         {resume && controls.onReconcileRun && (
           <Button
-            size="sm"
-            variant="secondary"
+            size="compact"
+            variant="ghost"
             className={runActionButtonClass}
             onClick={controls.onReconcileRun}
             data-testid="run-reconcile"
@@ -650,238 +638,6 @@ export function RunActionBar({
         {stopButton}
       </div>
     </div>
-  );
-}
-
-export function ContextSummaryPanel({
-  compact = false,
-  currentFileLabel,
-  explicitContextPaths,
-  contextCandidates,
-  contextCandidatesLoading,
-  contextCandidatesError,
-  contextPickerOpen,
-  lastContextBundle,
-  missingContextPaths,
-  onAddContext,
-  onTogglePinnedContext,
-  onRetryContextCandidates,
-}: {
-  compact?: boolean;
-  currentFileLabel: string | null;
-  explicitContextPaths: string[];
-  contextCandidates: SemanticFile[];
-  contextCandidatesLoading: boolean;
-  contextCandidatesError: string | null;
-  contextPickerOpen: boolean;
-  lastContextBundle: ContextBundle | null;
-  missingContextPaths: string[];
-  onAddContext: () => void;
-  onTogglePinnedContext: (path: string) => void;
-  onRetryContextCandidates: () => void;
-}) {
-  const [expanded, setExpanded] = useState(!compact);
-  // 上下文索引错误条可关闭：按错误串记忆已关内容，新错误会重新出现；打开选择器时
-  // 无论是否已关都在列表区保留重试入口，避免关掉后找不到恢复路径。
-  const [dismissedError, setDismissedError] = useState<string | null>(null);
-  const errorBannerVisible =
-    Boolean(contextCandidatesError) && contextCandidatesError !== dismissedError;
-  const handleRetryCandidates = () => {
-    setDismissedError(null);
-    onRetryContextCandidates();
-  };
-  const coverageWarnings = lastContextBundle
-    ? contextCoverageWarnings(lastContextBundle.budget)
-    : [];
-  const hasWarning = Boolean(
-    missingContextPaths.length || contextCandidatesError || coverageWarnings.length,
-  );
-  // 空会话不展示上下文占位；只有作者主动打开或真实警告才占用空间。
-  if (!contextPickerOpen && !hasWarning) return null;
-
-  const visibleCandidates = contextCandidates
-    .filter((file) => file.relativePath !== currentFileLabel)
-    .slice(0, 24);
-  const detailsOpen = !compact || expanded || contextPickerOpen;
-
-  return (
-    <section
-      className="mx-auto mb-2 mt-2 max-h-[40%] w-[calc(100%-1.5rem)] max-w-[800px] flex-shrink-0 overflow-y-auto rounded-lg bg-background px-3 py-2"
-      data-testid="context-summary"
-      data-compact={compact ? 'true' : 'false'}
-      data-expanded={detailsOpen ? 'true' : 'false'}
-    >
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={() => {
-            if (contextPickerOpen) onAddContext();
-            else setExpanded((value) => !value);
-          }}
-          data-testid="context-summary-toggle"
-          aria-expanded={detailsOpen}
-        >
-          <span
-            className={`flex-shrink-0 text-3xs text-subtle transition-transform ${detailsOpen ? '' : '-rotate-90'}`}
-          >
-            ▾
-          </span>
-          <span className="min-w-0 flex-1 truncate text-xs text-subtle">
-            参考上下文
-            {explicitContextPaths.length > 0 ? ` · 固定 ${explicitContextPaths.length}` : ''}
-          </span>
-          {coverageWarnings.map((warning) => (
-            <span
-              key={warning}
-              className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs leading-4 text-warning"
-              data-testid="context-truncated-badge"
-            >
-              {warning}
-            </span>
-          ))}
-        </button>
-        <button
-          type="button"
-          className="h-7 flex-shrink-0 rounded-md border border-border-strong px-2.5 text-xs text-foreground transition-colors hover:bg-elevated"
-          onClick={onAddContext}
-          data-testid="context-picker-toggle"
-        >
-          {contextPickerOpen ? '完成' : '添加上下文'}
-        </button>
-      </div>
-
-      {detailsOpen && (
-        <>
-          {lastContextBundle && (
-            <div className="mt-2 text-xs text-subtle">
-              <div>{contextBudgetText(lastContextBundle)}</div>
-              {lastContextBundle.files.length > 0 && (
-                <div className="mt-1">本轮参考资料（发送前选入，工具另读的不在此列）</div>
-              )}
-              {lastContextBundle.files.length > 0 && (
-                <ul className="mt-1 space-y-0.5" aria-label="本轮参考资料（发送前选入）">
-                  {lastContextBundle.files.map((file) => (
-                    <li key={file.path} className="break-words">
-                      {file.relativePath}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          {explicitContextPaths.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="pinned-context-list">
-              {explicitContextPaths.map((path) => (
-                <button
-                  key={path}
-                  type="button"
-                  className="max-w-full truncate rounded-md border border-accent bg-accent px-2 py-1 text-xs text-accent-foreground transition-colors hover:bg-accent/90"
-                  title={path}
-                  aria-label={`取消固定参考：${path}`}
-                  onClick={() => onTogglePinnedContext(path)}
-                >
-                  已固定 {path}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {missingContextPaths.length > 0 && (
-        <div
-          className="mt-2 break-words text-xs text-warning"
-          data-testid="missing-context-warning"
-        >
-          未读到：{missingContextPaths.join('、')}
-        </div>
-      )}
-      {errorBannerVisible && (
-        <div
-          className="mt-2 flex items-center gap-2 text-xs text-warning"
-          data-testid="context-candidates-error"
-        >
-          <span className="flex-shrink-0 rounded-sm bg-warning/15 px-1.5 py-px text-3xs font-medium leading-4 text-warning">
-            作品上下文索引失败
-          </span>
-          <span className="min-w-0 flex-1 break-words">{contextCandidatesError}</span>
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
-            onClick={handleRetryCandidates}
-            data-testid="context-candidates-retry"
-          >
-            重试
-          </button>
-          <button
-            type="button"
-            className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
-            onClick={() => setDismissedError(contextCandidatesError)}
-            data-testid="context-candidates-error-dismiss"
-          >
-            关闭
-          </button>
-        </div>
-      )}
-      {contextPickerOpen && (
-        <div
-          className="mt-3 grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pt-2"
-          data-testid="context-picker"
-        >
-          {contextCandidatesLoading ? (
-            <div className="px-2 py-1 text-xs text-subtle" data-testid="context-candidates-loading">
-              正在读取作品上下文…
-            </div>
-          ) : contextCandidatesError ? (
-            errorBannerVisible ? null : (
-              <div
-                className="flex items-center gap-2 px-2 py-1 text-xs text-warning"
-                data-testid="context-candidates-picker-error"
-              >
-                <span className="min-w-0 flex-1 break-words">
-                  作品上下文索引失败：{contextCandidatesError}
-                </span>
-                <button
-                  type="button"
-                  className="h-7 flex-shrink-0 rounded-md border border-warning px-2.5 transition-colors hover:bg-elevated"
-                  onClick={handleRetryCandidates}
-                  data-testid="context-candidates-picker-retry"
-                >
-                  重试
-                </button>
-              </div>
-            )
-          ) : visibleCandidates.length === 0 ? (
-            <div className="px-2 py-1 text-xs text-subtle">
-              当前作品还没有可选的 Markdown 上下文。
-            </div>
-          ) : (
-            visibleCandidates.map((file) => {
-              const pinned =
-                explicitContextPaths.includes(file.relativePath) ||
-                explicitContextPaths.includes(file.path);
-              return (
-                <button
-                  key={file.path}
-                  type="button"
-                  className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs ${pinned ? 'bg-accent text-accent-foreground' : 'text-muted hover:bg-elevated'}`}
-                  onClick={() => onTogglePinnedContext(file.relativePath)}
-                  data-testid="context-candidate"
-                  data-context-path={file.relativePath}
-                  title={file.relativePath}
-                >
-                  <span className="w-14 flex-shrink-0 whitespace-nowrap text-subtle">
-                    {semanticKindLabel(file.kind)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{file.relativePath}</span>
-                  <span className="flex-shrink-0 text-subtle">{pinned ? '已固定' : '固定'}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      )}
-    </section>
   );
 }
 

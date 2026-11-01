@@ -477,6 +477,8 @@ test('开始写：逐章按自动档发起，等写进文件与记账落定才�
       '批量写章 · 第 4 章（1 / 3）· 已用 0 万 / 上限 18.6 万',
     ),
   );
+  // 进度是输入框顶边小条里的一行，不是悬在输入框上方的一张卡。
+  expect(q('composer-dock')?.contains(q('write-batch-progress'))).toBe(true);
 
   // 修订交回来了，但还没写进文件、记账也没落定：不记，也不问下一步。
   await act(async () => first.resolve(autoOutcome(first)));

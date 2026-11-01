@@ -2,17 +2,15 @@ import { useRef, useState } from 'react';
 import { emitToast } from '../../lib/toast';
 import { ComposerBox } from './Composer';
 import { ChapterBriefCard } from './ChapterBriefCard';
+import { IconButton } from '../ui';
+import { Layers } from '../icons/shell-icons';
+import { ChatSideRail } from './ChatSideRail';
 import { ContextPanelToggle } from './ContextPanel';
 import { CHAT_COLUMN } from './column';
 import { isAuthorRejection, runLivePhaseText, runStatusText } from './display-utils';
 import { LiveStatus } from '../shell/LiveStatus';
-import {
-  ContextSummaryPanel,
-  ConversationHeader,
-  LightweightStatus,
-  MessageList,
-  RunActionBar,
-} from './panels';
+import { ContextSummaryPanel } from './ContextSummaryPanel';
+import { ConversationHeader, LightweightStatus, MessageList, RunActionBar } from './panels';
 import type { AgentRunControlHandlers, ChatWindowProps } from './types';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AssistantSessionRecord } from '../../lib/api-client';
@@ -21,6 +19,7 @@ import type { QueuedChatMessage, WriteBatchRequest } from './useChatSubmission';
 import { WriteBatchPanel, WriteBatchProgressBar } from './WriteBatchPanel';
 import type { WriteBatchStartFeedback } from './WriteBatchCard';
 import type { WriteBatchScheduler } from './useWriteBatchScheduler';
+import { useChatSideRail } from './useChatSideRail';
 import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
 import { ChapterCheckHistoryToggle } from './ChapterCheckHistoryPanel';
 import type { ChapterCheckHistoryState } from './useChapterCheckHistory';
@@ -114,6 +113,32 @@ export function ChatWindowView({
   // 并让编辑器里尚未处理的补丁失去对应操作条。先完成本轮作者决策再允许发送。
   const awaitingConfirm = Boolean(state.chapterBrief) || state.agentRun?.status === 'waiting';
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  // 对话占满中右且够宽：批量写章进度、参考资料、上下文进右边侧栏，输入框顶边小条和对话头浮窗就不再放它们。
+  const sideRail = useChatSideRail(rootRef, layoutMode === 'chat');
+  const batchProgress =
+    writeBatchScheduler?.phase.kind === 'running' ? writeBatchScheduler.phase.progress : null;
+  const references = (variant: 'dock' | 'rail' | 'picker') => (
+    <ContextSummaryPanel
+      variant={variant}
+      compact={variant === 'dock'}
+      currentFileLabel={state.contextRef}
+      explicitContextPaths={state.explicitContextPaths}
+      contextCandidates={state.contextCandidates}
+      contextCandidatesLoading={state.contextCandidatesLoading}
+      contextCandidatesError={state.contextCandidatesError}
+      contextPickerOpen={state.contextPickerOpen}
+      lastContextBundle={state.lastContextBundle}
+      missingContextPaths={state.missingContextPaths}
+      onAddContext={() => {
+        addExplicitContext();
+        // 显式关闭会移除面板按钮，回到原 Composer，不能把焦点丢给 body。
+        if (state.contextPickerOpen) inputRef.current?.focus();
+      }}
+      onTogglePinnedContext={togglePinnedContext}
+      onRetryContextCandidates={retryContextCandidates}
+    />
+  );
   // 会话加载错误条可关闭：按错误串记忆已关内容，新错误（含换会话）会重新出现；重试先摘标记。
   const [dismissedSessionError, setDismissedSessionError] = useState<string | null>(null);
   // 第14条：run 控制统一到 RunActionBar，运行/等待/暂停三态都显示操作条；completed 的
@@ -143,7 +168,7 @@ export function ChatWindowView({
     await handleSubmit();
   };
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel">
+    <div ref={rootRef} className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-panel">
       {/* D5 状态变化反馈：Agent 运行相位（运行 → 等待确认 → 暂停 → 终态）对读屏作者不可见。
           常驻 sr-only live region 播报相位级措辞；可见操作条/轻状态条原样保留。 */}
       <LiveStatus
@@ -178,11 +203,27 @@ export function ChatWindowView({
           ) : undefined
         }
         contextToggle={
-          <ContextPanelToggle
-            projectPath={projectPath}
-            run={state.agentRun}
-            onOpenSettings={onOpenSettings}
-          />
+          sideRail.available ? (
+            <IconButton
+              type="button"
+              onClick={sideRail.toggle}
+              data-testid="conversation-side-rail-toggle"
+              size="xs"
+              className={sideRail.open ? 'relative bg-elevated' : 'relative'}
+              aria-pressed={sideRail.open}
+              label={sideRail.open ? '收起侧栏' : '展开侧栏'}
+              tooltip={
+                sideRail.open ? '收起侧栏' : '展开侧栏：批量写章进度、参考资料、长期规矩与技能'
+              }
+              icon={<Layers size={14} strokeWidth={1.6} />}
+            />
+          ) : (
+            <ContextPanelToggle
+              projectPath={projectPath}
+              run={state.agentRun}
+              onOpenSettings={onOpenSettings}
+            />
+          )
         }
       />
 
@@ -219,131 +260,132 @@ export function ChatWindowView({
         </div>
       )}
 
-      <MessageList
-        conversationScope={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
-        messages={state.messages}
-        agentRun={state.agentRun}
-        agentRunRecovery={state.agentRunRecovery}
-        onRegenerate={
-          state.agentBusy ? undefined : (userText) => void handleComposerSubmit(userText)
-        }
-        emptyState={
-          opening && onOpeningDraft ? (
-            <PartnerOpening
-              handoff={opening}
-              onDraft={onOpeningDraft}
-              onAsk={(prompt) => void handleComposerSubmit(prompt)}
-              actionsHidden={writeBatch !== null || Boolean(writeBatchScheduler?.occupied)}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <MessageList
+            conversationScope={
+              conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`
+            }
+            messages={state.messages}
+            agentRun={state.agentRun}
+            agentRunRecovery={state.agentRunRecovery}
+            onRegenerate={
+              state.agentBusy ? undefined : (userText) => void handleComposerSubmit(userText)
+            }
+            emptyState={
+              opening && onOpeningDraft ? (
+                <PartnerOpening
+                  handoff={opening}
+                  onDraft={onOpeningDraft}
+                  onAsk={(prompt) => void handleComposerSubmit(prompt)}
+                  actionsHidden={writeBatch !== null || Boolean(writeBatchScheduler?.occupied)}
+                />
+              ) : null
+            }
+          />
+
+          {/* 要作者拍板的事一次只在这里出一件（章纲、权限、补丁），不弹居中窗口、不盖住编辑器。 */}
+          {state.chapterBrief && (
+            <section
+              className="max-h-[60%] flex-shrink-0 overflow-y-auto px-5 py-3"
+              aria-label="确认章纲后开始起草"
+              data-testid="chapter-brief-decision"
+            >
+              <div className={CHAT_COLUMN}>
+                <ChapterBriefCard
+                  key={`${state.chapterBrief.briefId}:${state.chapterBrief.revision}`}
+                  brief={state.chapterBrief}
+                  onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
+                  // 取消就是停掉这一轮：章纲待确认时后端不认「拒绝」，那个「拒绝」只会落到之后的补丁上。
+                  onCancel={agentRunControls.onStopRun}
+                  busy={state.agentBusy}
+                />
+              </div>
+            </section>
+          )}
+
+          <WriteBatchPanel
+            projectPath={projectPath}
+            permissionProfile={agentPermissionProfile}
+            request={writeBatch}
+            scheduler={writeBatchScheduler}
+            onStart={onStartWriteBatch}
+            onClose={onCloseWriteBatch ?? (() => undefined)}
+          />
+
+          {showLightweightStatus && statusText && (
+            <LightweightStatus
+              text={statusText}
+              retryVisible={
+                state.agentRun?.status === 'failed' &&
+                !isAuthorRejection(state.agentRun) &&
+                state.retryRequest !== null &&
+                !state.agentBusy &&
+                !state.agentRunRecovery?.checkpointResume &&
+                !state.agentRun?.deliveryUnknown
+              }
+              onRetry={retryLastFailedRun}
             />
-          ) : null
-        }
-      />
+          )}
 
-      {/* 要作者拍板的事一次只在这里出一件（章纲、权限、补丁），不弹居中窗口、不盖住编辑器。 */}
-      {state.chapterBrief && (
-        <section
-          className="max-h-[60%] flex-shrink-0 overflow-y-auto px-5 py-3"
-          aria-label="确认章纲后开始起草"
-          data-testid="chapter-brief-decision"
-        >
-          <div className={CHAT_COLUMN}>
-            <ChapterBriefCard
-              key={`${state.chapterBrief.briefId}:${state.chapterBrief.revision}`}
-              brief={state.chapterBrief}
-              onConfirm={agentRunControls.onConfirmChapterBrief ?? (() => undefined)}
-              // 取消就是停掉这一轮：章纲待确认时后端不认「拒绝」，那个「拒绝」只会落到之后的补丁上。
-              onCancel={agentRunControls.onStopRun}
-              busy={state.agentBusy}
-            />
-          </div>
-        </section>
-      )}
-
-      <WriteBatchPanel
-        projectPath={projectPath}
-        permissionProfile={agentPermissionProfile}
-        request={writeBatch}
-        scheduler={writeBatchScheduler}
-        onStart={onStartWriteBatch}
-        onClose={onCloseWriteBatch ?? (() => undefined)}
-      />
-
-      {showLightweightStatus && statusText && (
-        <LightweightStatus
-          text={statusText}
-          retryVisible={
-            state.agentRun?.status === 'failed' &&
-            !isAuthorRejection(state.agentRun) &&
-            state.retryRequest !== null &&
-            !state.agentBusy &&
-            !state.agentRunRecovery?.checkpointResume &&
-            !state.agentRun?.deliveryUnknown
-          }
-          onRetry={retryLastFailedRun}
-        />
-      )}
-
-      {state.agentRun && !state.chapterBrief && (
-        <RunActionBar
-          run={state.agentRun}
-          controls={agentRunControls}
-          recovery={state.agentRunRecovery}
-          resumePending={state.agentBusy}
-          onTypeAhead={() => inputRef.current?.focus()}
-        />
-      )}
-
-      {writeBatchScheduler?.phase.kind === 'running' && (
-        <WriteBatchProgressBar
-          progress={writeBatchScheduler.phase.progress}
-          onStop={writeBatchScheduler.stop}
-        />
-      )}
-
-      <ContextSummaryPanel
-        compact
-        currentFileLabel={state.contextRef}
-        explicitContextPaths={state.explicitContextPaths}
-        contextCandidates={state.contextCandidates}
-        contextCandidatesLoading={state.contextCandidatesLoading}
-        contextCandidatesError={state.contextCandidatesError}
-        contextPickerOpen={state.contextPickerOpen}
-        lastContextBundle={state.lastContextBundle}
-        missingContextPaths={state.missingContextPaths}
-        onAddContext={() => {
-          addExplicitContext();
-          // 显式关闭会移除面板按钮，回到原 Composer，不能把焦点丢给 body。
-          if (state.contextPickerOpen) inputRef.current?.focus();
-        }}
-        onTogglePinnedContext={togglePinnedContext}
-        onRetryContextCandidates={retryContextCandidates}
-      />
-
-      <ComposerBox
-        key={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
-        inputRef={inputRef}
-        value={state.input}
-        disabled={!projectPath}
-        busy={state.agentBusy}
-        explicitContextPaths={state.explicitContextPaths}
-        history={userMessageHistory}
-        onAddContext={addExplicitContext}
-        contextPickerOpen={state.contextPickerOpen}
-        onTogglePinnedContext={togglePinnedContext}
-        onChange={state.setInput}
-        onSubmit={submitGuarded}
-        permissionProfile={composerPermissionProfile}
-        onPermissionProfileChange={onAgentPermissionProfileChange}
-        projectPath={projectPath}
-        onOpenSettings={onOpenSettings}
-        queuedMessages={queuedMessages}
-        onRemoveQueuedMessage={onRemoveQueuedMessage}
-        onStop={
-          // 恢复请求等最终结果才更新状态；期间仍可能是 waiting（章纲）或 paused。
-          state.agentBusy && actionBarVisible ? agentRunControls.onStopRun : undefined
-        }
-        hint={composerHint}
-      />
+          <ComposerBox
+            dock={
+              <>
+                {!sideRail.visible && batchProgress && writeBatchScheduler && (
+                  <WriteBatchProgressBar
+                    progress={batchProgress}
+                    onStop={writeBatchScheduler.stop}
+                  />
+                )}
+                {references(sideRail.visible ? 'picker' : 'dock')}
+                {/* 暂停、要作者拍板的事（权限、要不要写进文件）紧挨着输入框，有侧栏时也在这里。 */}
+                {state.agentRun && !state.chapterBrief && (
+                  <RunActionBar
+                    run={state.agentRun}
+                    controls={agentRunControls}
+                    recovery={state.agentRunRecovery}
+                    resumePending={state.agentBusy}
+                    onTypeAhead={() => inputRef.current?.focus()}
+                  />
+                )}
+              </>
+            }
+            key={conversationScope ?? `${projectPath}:${assistantSessionId ?? 'draft'}`}
+            inputRef={inputRef}
+            value={state.input}
+            disabled={!projectPath}
+            busy={state.agentBusy}
+            explicitContextPaths={state.explicitContextPaths}
+            history={userMessageHistory}
+            onAddContext={addExplicitContext}
+            contextPickerOpen={state.contextPickerOpen}
+            onTogglePinnedContext={togglePinnedContext}
+            onChange={state.setInput}
+            onSubmit={submitGuarded}
+            permissionProfile={composerPermissionProfile}
+            onPermissionProfileChange={onAgentPermissionProfileChange}
+            projectPath={projectPath}
+            onOpenSettings={onOpenSettings}
+            queuedMessages={queuedMessages}
+            onRemoveQueuedMessage={onRemoveQueuedMessage}
+            onStop={
+              // 恢复请求等最终结果才更新状态；期间仍可能是 waiting（章纲）或 paused。
+              state.agentBusy && actionBarVisible ? agentRunControls.onStopRun : undefined
+            }
+            hint={composerHint}
+          />
+        </div>
+        {sideRail.visible && (
+          <ChatSideRail
+            projectPath={projectPath}
+            run={state.agentRun}
+            writeBatch={batchProgress}
+            onStopWriteBatch={writeBatchScheduler?.stop ?? (() => undefined)}
+            references={references('rail')}
+            onOpenSettings={onOpenSettings}
+          />
+        )}
+      </div>
     </div>
   );
 }
