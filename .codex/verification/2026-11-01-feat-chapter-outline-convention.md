@@ -1,0 +1,47 @@
+## 2026-11-01 让「大纲/第N章细纲.md」这个约定被对话 AI 和作者看见
+
+从 `origin/master`（`ebd3bb7d`，#596、#598 已合）开分支。#596 之后，只有存成 `大纲/第N章细纲.md` 的细纲，写章时才会被整份照着写。但这个约定只写在代码里，对话里的 AI 和作者都看不到。作者 11-01 看过方案同意，还定了两件事：起书基础包一起改；用作者的模型配置真跑一次。
+
+- 改动：
+  - `kernel/chapterOutline.ts`：
+    - 抽出「按章号查细纲」：扫一遍作品，按章号分组。
+    - `chapterOutlinePaths` 只回答哪几章有能读出内容的细纲，认法与 `findChapterOutline` 相同。
+    - `suggestedChapterOutlinePath` 给出约定路径。
+  - `kernel/serialPlan.ts`：
+    - `renderPlanBlock` 多一个可选参数，不给时输出一字不变。
+    - `buildPlanBlock`（对话循环每轮用的那份）会查下一章有没有细纲，并在「下一章待写」里多一行：
+      - 有细纲：「本章细纲：<路径>（写章时整份交给章纲和起草）」；
+      - 没有：「本章细纲：还没有；要写就用 file_create 存成 大纲/第N章细纲.md」。
+    - `toPlanPayload` 不读文件，不带这一行；桌面端运行时也没用到它。
+  - `loop/tools/specs/patch.ts`：file_create 的说明加一句命名约定。
+  - `loop/writeBatch.ts`：批量计划每章多一个 `outline_path`（要写的章才查，已有正文跳过的为 null）。
+  - 界面：
+    - `contracts.ts` / `write-batch.ts` 跟着加字段并严格解码；
+    - `WriteBatchCard` 给有细纲的章挂「有细纲」，悬停显示路径。
+  - `bundled-plugins/starter/setup.md`：立项流程第 4 步「第一章章纲」改成「第一章细纲，存成 `大纲/第1章细纲.md`」。
+  - `CONTEXT.md`：用词表下补「细纲 / 章纲」的区分，英文词汇表加 Chapter outline。没进「界面用词」表，因为那张表的「不再用」一栏会被拿去检查界面文案。
+  - `scripts/verify-agent-conversation.mjs`：浏览器回归里手造的批量计划补 `outline_path: null`。漏了这一项，界面严格解码就会报错，确认卡出不来，第一次跑 `pnpm verify` 就是这样红的。
+- golden（引擎对照样本）：
+  - 工具说明随每次对话请求发出，计划块也进对话系统提示，所以 10 份样本跟着变：`p1-plans`、`p3-agent-control`、`p3-agent-run`、`p3-chat-loop`、`p3-deep-consistency`、`p3-host`、`p3-patch-tools`、`p3-polish`、`p3-tool-catalog`、`p3-wiring`。
+  - 核对做法：在 `origin/master` 与本分支两个 worktree 的测试比较处装临时导出钩子，导出实际值，以及被压成 sha256 的长字符串原文和请求哈希（`request_digest`）的原文。逐项核对 3201 个比较项，371 个有变化。
+  - 结论：去掉新增的「本章细纲」那一行、把工具说明还原成旧句后，每一处都与旧值逐字相同，其中 1083 处来自工具说明，6 处来自计划块。解释不了的差异为 0。
+  - 写回：按原样本键序合并写回。写回前先确认每份样本经 Python `json.dumps(indent=2, ensure_ascii=False)` 往返字节一致。`p3-tool-catalog` 直接替换两处说明。钩子用完从 HEAD 还原，`grep TEMP-GOLDEN-DUMP` 为空。脚本在 `output/outline-convention-golden/`（不入库）。
+- 验证：
+  - 新测试：
+    - `kernel/serialPlanOutline.test.ts`（5 条）：按章号查细纲并跳过空文件；约定路径；不给参数时计划块不变；没有细纲时提示存放处；有细纲时写出路径，且不提别章的细纲。
+    - `loop/writeBatch.test.ts` +1 条：只给要写的章查细纲，已写、空文件、没有细纲的都是 null。
+    - 前端 `write-batch-card.test.tsx` +1 条：「有细纲」只挂在有细纲的那一章，悬停显示路径。
+    - `write-batch-api.test.ts`：解码保留 `outline_path`，类型不对时拒绝。
+  - 变异验证：六处接线逐个拆掉，每处都有测试变红，脚本无条件还原，还原后 `git diff --numstat` 不变。
+    - 计划块不写那一行：红 4；
+    - 计划块不查细纲：红 4；
+    - 批量计划不带路径：红 2；
+    - 工具说明不加约定：红 4；
+    - 解码丢掉路径：红 4；
+    - 确认卡不挂标记：红 2。
+  - `pnpm verify`：EXIT=0（project-core 48、引擎 116 个文件 14318 passed / 2 skipped、前端单测 274 个文件 2835 条、三个浏览器回归通过）。
+  - 真宿主：用本分支提交 `7aa072d8` 编出隔离调试版宿主，标识 `com.storyforge.outlineconv`。真模型一轮（对话里说「给第 2 章写个细纲，写好存起来。」，看 AI 提出的新建文件路径）见下一条补记。
+- 未覆盖：
+  - 没跑 Rust 测试与 Tauri 冒烟（宿主 Rust 代码零改动；起书基础包是随包资源，只改了一行文字）。
+  - 没有连载计划的作品，AI 只能从工具说明里得知这个约定，这一路没有单独真跑。
+  - 起书基础包里旧的「第一章章纲」说法，已经被作者按旧流程存在别处的文件不会自动迁移。
