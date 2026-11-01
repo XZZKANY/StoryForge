@@ -362,6 +362,8 @@ export async function reviseFileContent(
     preparedContext?: PreparedWritingContext | null;
     /** 整章修订带上台账里的已写事实；Ctrl+K 这类局部改不带。 */
     writtenFacts?: boolean;
+    /** 发起这次调用的写章 run；对话历史据此把这条记录收进那一章的摘要。 */
+    relatedRunId?: number | null;
   } = {},
 ): Promise<ReviseResponse> {
   const llm = await configuredLlm(deps);
@@ -399,6 +401,7 @@ export async function reviseFileContent(
   const toolCall = await deps.store.createToolCall(session.id, {
     tool_name: 'assistant.revise',
     status: 'running',
+    ...relatedRun(options.relatedRunId),
     input_summary: {
       file_path: payload.file_path,
       instruction: cpSlice(payload.instruction, 500),
@@ -880,7 +883,7 @@ export type DraftResponse = {
 export async function draftFileContent(
   deps: AssistantDeps,
   request: DraftRequest,
-  options: { preparedContext?: PreparedWritingContext | null } = {},
+  options: { preparedContext?: PreparedWritingContext | null; relatedRunId?: number | null } = {},
 ): Promise<DraftResponse> {
   const llm = await configuredLlm(deps);
   const sources = await GenerationSourceCapture.create({
@@ -927,6 +930,7 @@ export async function draftFileContent(
   const toolCall = await deps.store.createToolCall(session.id, {
     tool_name: 'assistant.draft',
     status: 'running',
+    ...relatedRun(options.relatedRunId),
     input_summary: {
       file_path: payload.file_path,
       instruction: cpSlice(payload.instruction, 500),
@@ -978,16 +982,26 @@ export async function draftFileContent(
   };
 }
 
+/** 写章 run 发起的模型调用记录挂到 run 上；没给 run 时一个字段都不加，记录与以前一样。 */
+const relatedRun = (runId: number | null | undefined) =>
+  runId ? { related_type: 'agent_run', related_id: runId } : {};
+
 // ---- 项目对话的一次真实回复（agent 循环用，P3 接线） ----
 
 export async function chatReply(
   deps: AssistantDeps,
-  options: { userMessage: string; contextBlock: string; assistantSessionId: number },
+  options: {
+    userMessage: string;
+    contextBlock: string;
+    assistantSessionId: number;
+    relatedRunId?: number | null;
+  },
 ): Promise<{ reply: string; model: string; completion_tokens: unknown; latency_ms: number }> {
   const llm = await configuredLlm(deps);
   const toolCall = await deps.store.createToolCall(options.assistantSessionId, {
     tool_name: 'assistant.chat',
     status: 'running',
+    ...relatedRun(options.relatedRunId),
     input_summary: {
       message: cpSlice(options.userMessage, 500),
       context_chars: cpLen(options.contextBlock),

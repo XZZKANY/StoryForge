@@ -108,6 +108,7 @@ async function runHandler(h: ReturnType<typeof harness>, call: Call, spec: Obj) 
   const args = { ...(spec.args as Obj) };
   const context: ToolExecutionContext = {
     run: {
+      id: 1,
       public_id: 'run-1',
       permission_profile: 'ask',
       goal: '帮我看看',
@@ -258,6 +259,7 @@ describe('P3-3b 接受的差异', () => {
     });
     const context = {
       run: {
+        id: 1,
         public_id: 'r',
         permission_profile: 'ask',
         goal: '',
