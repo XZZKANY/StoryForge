@@ -6,9 +6,9 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { EditorTabs } from '../src/components/shell/EditorTabs';
-import { listLlmProfiles, type LlmProfile } from '../src/lib/desktop-llm-config';
+import { listLlmProfiles, type LlmProfile } from '../src/lib/host/desktop-llm-config';
 
-vi.mock('../src/lib/desktop-llm-config', () => ({
+vi.mock('../src/lib/host/desktop-llm-config', () => ({
   listLlmProfiles: vi.fn(() => Promise.reject(new Error('no host'))),
 }));
 const profiles = vi.mocked(listLlmProfiles);

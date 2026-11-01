@@ -29,7 +29,7 @@ vi.mock('../src/components/chat-window/useAgentRunControls', () => ({
   useAgentRunControls: () => ({ retryLastFailedRun: () => {}, agentRunControls: {} }),
 }));
 vi.mock('../src/lib/api/cross-chapter', () => import('./support/http-cross-chapter-double'));
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { emitAgentPromptRequest, emitNewSessionRequest } from '../src/lib/assistant-events';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

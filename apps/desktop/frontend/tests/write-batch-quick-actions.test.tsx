@@ -10,8 +10,8 @@ import { RECENT_PROJECTS_KEY } from '../src/components/app/helpers';
 import { setWriteBatchCardOpen } from '../src/lib/write-batch-card';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
-vi.mock('../src/components/ChatWindow', () => ({ ChatWindow: () => null }));
+vi.mock('../src/components/editor/Editor', () => ({ Editor: () => null }));
+vi.mock('../src/components/chat-window/ChatWindow', () => ({ ChatWindow: () => null }));
 
 // 冷启动要编整个 App，满载时会越过默认 5 秒。
 test('卡开着时总览不出「AI 起草下一章」，卡关掉恢复', { timeout: 30_000 }, async () => {

@@ -11,7 +11,9 @@ vi.mock('../src/lib/api/author-instructions', () => ({
 vi.mock('../src/lib/api/conversation-skills', () => ({
   loadConversationSkills: vi.fn(async () => []),
 }));
-vi.mock('../src/lib/plugin-library', () => ({ pluginLibraryDir: vi.fn(async () => 'C:\\库') }));
+vi.mock('../src/lib/host/plugin-library', () => ({
+  pluginLibraryDir: vi.fn(async () => 'C:\\库'),
+}));
 vi.mock('../src/lib/api/plugins', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api/plugins')>()),
   listPlugins: vi.fn(async () => []),
@@ -20,10 +22,8 @@ vi.mock('../src/lib/api/plugins', async (importOriginal) => ({
 
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
-import type {
-  WriteBatchProgress,
-  WriteBatchScheduler,
-} from '../src/components/chat-window/useWriteBatchScheduler';
+import type { WriteBatchScheduler } from '../src/components/chat-window/useWriteBatchScheduler';
+import type { WriteBatchProgress } from '../src/components/chat-window/write-batch-run';
 import { CHAT_SIDE_RAIL_MIN_WIDTH } from '../src/components/chat-window/useChatSideRail';
 import { REQUEST_OPEN_FILE_EVENT } from '../src/lib/assistant-events';
 import type { LayoutMode } from '../src/components/shell/useShellState';

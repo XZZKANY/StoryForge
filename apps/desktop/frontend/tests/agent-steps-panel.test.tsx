@@ -3,7 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import { AgentStepsPanel, hasProcess } from '../src/components/AgentStepsPanel';
+import { AgentStepsPanel, hasProcess } from '../src/components/chat-window/AgentStepsPanel';
 import type { AgentRun, AgentRunStatus, AgentStep } from '../src/components/chat-window/types';
 
 function makeSteps(finalStatus: 'completed' | 'failed'): AgentStep[] {

@@ -7,9 +7,9 @@ import {
   restartToInstall,
   useAppUpdate,
   type AppUpdateState,
-} from '../../lib/app-update';
+} from '../../lib/host/app-update';
 import { useAsyncEffect } from '../../lib/async-guards';
-import { currentAppVersion } from '../../lib/update-check';
+import { currentAppVersion } from '../../lib/host/update-check';
 import { Button } from '../ui';
 import { useSettingsRowVisible } from './search-context';
 import { RowShell } from './SettingRows';

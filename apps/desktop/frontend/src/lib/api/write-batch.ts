@@ -3,7 +3,7 @@
  * 回包按契约逐字段解码（只留契约里的字段），形状不对就报错，不拿空值冒充「没有要写的章」「没有批量」。
  */
 import type { AgentPermissionProfile } from '../agent-permission';
-import { listLlmProfiles } from '../desktop-llm-config';
+import { listLlmProfiles } from '../host/desktop-llm-config';
 import type {
   ApiRunUsage,
   ApiWriteBatch,

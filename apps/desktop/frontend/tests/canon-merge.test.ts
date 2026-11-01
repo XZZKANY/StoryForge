@@ -21,7 +21,7 @@ import {
 } from '../src/lib/canon-merge';
 import { writeCanonGuarded } from '../src/lib/canon-write';
 import { mapObservatoryPayload } from '../src/lib/observations';
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: vi.fn(async () => null) }));
 

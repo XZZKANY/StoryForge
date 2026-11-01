@@ -1,5 +1,5 @@
-import { ModalDialog, Button, Input } from './ui';
-import { AppDialogHost, useAppDialog } from './app/AppDialog';
+import { ModalDialog, Button, Input } from '../ui';
+import { AppDialogHost, useAppDialog } from '../app/AppDialog';
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
@@ -7,21 +7,17 @@ import {
   sanitizeAppSettings,
   type AppSettings,
   type EditorLineNumbersMode,
-} from '../lib/user-settings';
-import { Info, Palette, Puzzle, Sparkles, Type } from './icons/shell-icons';
-import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from './editor/options';
-import { useModelProfiles } from './settings/useModelProfiles';
-import { ModelProfilesSection } from './settings/ModelProfilesSection';
-import { AppearanceSection } from './settings/AppearanceSection';
-import {
-  SettingsSearchContext,
-  settingsTextMatches,
-  useSettingsQuery,
-} from './settings/search-context';
-import { usePlugins } from './settings/usePlugins';
-import { PluginsSection } from './settings/PluginsSection';
-import { takeRequestedSettingsSection } from '../lib/settings-section';
-import { AboutRows } from './settings/AboutRows';
+} from '../../lib/user-settings';
+import { Info, Palette, Puzzle, Sparkles, Type } from '../icons/shell-icons';
+import { PROSE_MEASURE_LABELS, PROSE_MEASURE_ORDER, type ProseMeasure } from '../editor/options';
+import { useModelProfiles } from './useModelProfiles';
+import { ModelProfilesSection } from './ModelProfilesSection';
+import { AppearanceSection } from './AppearanceSection';
+import { SettingsSearchContext, settingsTextMatches, useSettingsQuery } from './search-context';
+import { usePlugins } from './usePlugins';
+import { PluginsSection } from './PluginsSection';
+import { takeRequestedSettingsSection } from '../../lib/settings-section';
+import { AboutRows } from './AboutRows';
 import {
   ActionRow,
   RangeRow,
@@ -31,7 +27,7 @@ import {
   SettingGroup,
   ToggleRow,
   UnsavedBadge,
-} from './settings/SettingRows';
+} from './SettingRows';
 
 type SettingsViewProps = {
   settings: AppSettings;

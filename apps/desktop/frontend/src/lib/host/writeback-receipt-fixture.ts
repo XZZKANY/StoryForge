@@ -1,9 +1,9 @@
 /** Browser smoke fixture only. Production admission/durability belongs to the Rust commands. */
-import { joinPath } from './fs-path-ops';
-import { DiskDriftError } from './host-file-errors';
-import { relativePathInsideProject } from './project/path';
+import { joinPath } from '../fs-path-ops';
+import { DiskDriftError } from '../host-file-errors';
+import { relativePathInsideProject } from '../project/path';
 import type { DiskBaseline } from './tauri-fs';
-import type { WritebackReceipt, WritebackRequest } from './writeback-receipt-types';
+import type { WritebackReceipt, WritebackRequest } from '../writeback-receipt-types';
 
 type FixtureFs = {
   readFile?: (path: string) => Promise<string> | string;

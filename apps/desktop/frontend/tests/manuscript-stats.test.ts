@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, test } from 'vitest';
 
 import { scanManuscriptTotals } from '../src/lib/manuscript-stats';
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 
 type MockEntry = { path: string; content?: string };
 

@@ -5,21 +5,13 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAsyncEffect } from '../lib/async-guards';
-import { TauriFileSystem, FileEntry } from '../lib/tauri-fs';
-import { isOpenableProjectFileEntry } from '../lib/project/entry-visibility';
-import { Command as CommandIcon, FileText } from './icons/shell-icons';
-import { Button, ModalDialog, PlainButton, Spinner } from './ui';
-import {
-  fuzzyMatch,
-  fuzzyScore,
-  HighlightedLabel,
-  relativeToProject,
-} from './command-palette/palette-items';
-import {
-  usePaletteCommands,
-  type PaletteCommandSources,
-} from './command-palette/usePaletteCommands';
+import { useAsyncEffect } from '../../lib/async-guards';
+import { TauriFileSystem, FileEntry } from '../../lib/host/tauri-fs';
+import { isOpenableProjectFileEntry } from '../../lib/project/entry-visibility';
+import { Command as CommandIcon, FileText } from '../icons/shell-icons';
+import { Button, ModalDialog, PlainButton, Spinner } from '../ui';
+import { fuzzyMatch, fuzzyScore, HighlightedLabel, relativeToProject } from './palette-items';
+import { usePaletteCommands, type PaletteCommandSources } from './usePaletteCommands';
 
 export type PaletteMode = 'files' | 'commands';
 

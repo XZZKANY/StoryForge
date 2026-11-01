@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor';
 
 import { useAsyncLayoutEffect } from '../../lib/async-guards';
-import { TauriFileSystem, type DiskBaseline } from '../../lib/tauri-fs';
+import { TauriFileSystem, type DiskBaseline } from '../../lib/host/tauri-fs';
 import type { EditorModelCache } from './useMonacoEditor';
 
 export function useEditorFileLoader({

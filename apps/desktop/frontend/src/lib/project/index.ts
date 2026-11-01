@@ -1,4 +1,4 @@
-import { TauriFileSystem, type FileEntry } from '../tauri-fs';
+import { TauriFileSystem, type FileEntry } from '../host/tauri-fs';
 import { relativePathInsideProject } from './path';
 import { classifyRelativePath, emptyCounts, isProjectKnowledgeRelativePath } from './semantics';
 import type { ProjectIndex } from './types';

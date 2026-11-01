@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, test, vi } from 'vitest';
-import { SettingsView } from '../src/components/SettingsView';
+import { SettingsView } from '../src/components/settings/SettingsView';
 import { DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';
 
 const host = vi.hoisted(() => ({
@@ -19,13 +19,13 @@ vi.mock('@tauri-apps/api/core', () => ({
     }
   },
 }));
-vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../src/lib/desktop-llm-config')>()),
+vi.mock('../src/lib/host/desktop-llm-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/host/desktop-llm-config')>()),
   listLlmProfiles: vi.fn(async () => null),
 }));
 vi.mock('../src/lib/api-client', () => ({ probeProviderHealth: vi.fn() }));
-vi.mock('../src/lib/update-check', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../src/lib/update-check')>()),
+vi.mock('../src/lib/host/update-check', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/lib/host/update-check')>()),
   currentAppVersion: async () => '0.2.3',
 }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

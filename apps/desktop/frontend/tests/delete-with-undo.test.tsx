@@ -10,11 +10,11 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import type { AppDialogApi } from '../src/components/app/AppDialog';
 import { useFileTreeActions, type FileTreeActions } from '../src/components/app/useFileTreeActions';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { emitToast, type ToastAction } from '../src/lib/toast';
 import { snapshotBeforeDelete } from '../src/lib/versions';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(async () => false),
     listProjectDir: vi.fn(async () => []),

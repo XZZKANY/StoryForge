@@ -4,9 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import { open as chooseDirectory } from '@tauri-apps/plugin-dialog';
 import { App } from '../src/App';
-import type { Editor as DesktopEditor } from '../src/components/Editor';
+import type { Editor as DesktopEditor } from '../src/components/editor/Editor';
 import { RECENT_PROJECTS_KEY } from '../src/components/app/helpers';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { APP_SETTINGS_KEY, DEFAULT_APP_SETTINGS } from '../src/lib/user-settings';
 import { parseWorkspaceSession, type WorkspaceSession } from '../src/lib/workspace-session';
 
@@ -21,7 +21,7 @@ type EditorProbeProps = Pick<
   | 'onDirtyChange'
   | 'onCursorPersist'
 >;
-vi.mock('../src/components/Editor', () => ({
+vi.mock('../src/components/editor/Editor', () => ({
   Editor: ({
     projectPath,
     filePath,
@@ -55,8 +55,8 @@ vi.mock('../src/components/Editor', () => ({
     </output>
   ),
 }));
-vi.mock('../src/components/ChatWindow', () => ({ ChatWindow: () => null }));
-vi.mock('../src/components/SettingsView', () => ({ SettingsView: () => null }));
+vi.mock('../src/components/chat-window/ChatWindow', () => ({ ChatWindow: () => null }));
+vi.mock('../src/components/settings/SettingsView', () => ({ SettingsView: () => null }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const SESSION_KEY = 'storyforge:workspace-session';

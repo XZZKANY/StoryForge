@@ -9,7 +9,7 @@ import {
   type ContextBundle,
   type ContextBundleFile,
 } from '../src/lib/project-context';
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 
 const PROJECT = 'D:/Books/context-files';
 const disk = new Map<string, string>();

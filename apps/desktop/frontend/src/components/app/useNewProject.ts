@@ -3,7 +3,7 @@ import { usePassiveMountedRef } from '../../lib/async-guards';
 import { createBlankStoryProject } from '../../lib/project-context';
 import { blankStoryProjectPath } from '../../lib/project/create';
 import { parentDir } from '../../lib/fs-path-ops';
-import { pickDirectory } from '../../lib/tauri-fs';
+import { pickDirectory } from '../../lib/host/tauri-fs';
 import { RECENT_PROJECTS_KEY } from './helpers';
 
 // 书直接放在盘符根下时父目录是「D:」——在 Windows 上那是 D 盘的当前目录，要补成「D:\」。

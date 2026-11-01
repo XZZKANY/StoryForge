@@ -15,7 +15,7 @@ import {
 import { toAssistantContextBundlePayload } from '../api/codecs';
 import type { AssistantReviseResult, ContinueProseResult } from '../api/assistant';
 import type { ReviseRequest } from '../api/types';
-import { pluginLibraryDir } from '../plugin-library';
+import { pluginLibraryDir } from '../host/plugin-library';
 import type { ProviderHealth } from '../provider-config';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';

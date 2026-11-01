@@ -2,8 +2,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it } from 'vitest';
 
-import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
-import { RunActionBar } from '../src/components/chat-window/panels';
+import { AgentStepsPanel } from '../src/components/chat-window/AgentStepsPanel';
+import { RunActionBar } from '../src/components/chat-window/RunActionBar';
 import {
   stepFromAgentPlanEvent,
   stepsFromAgentResult,

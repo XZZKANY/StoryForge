@@ -6,7 +6,7 @@ vi.mock('../src/lib/api-client', () => ({
   getApiConfig: vi.fn(async () => ({ baseUrl: 'http://fixture.invalid', apiKey: 'synthetic' })),
 }));
 
-import { TauriFileSystem, type DiskBaseline } from '../src/lib/tauri-fs';
+import { TauriFileSystem, type DiskBaseline } from '../src/lib/host/tauri-fs';
 import type { WritebackReceipt, WritebackRequest } from '../src/lib/writeback-receipt-types';
 import '../src/lib/smoke';
 

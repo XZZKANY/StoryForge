@@ -9,7 +9,7 @@ import {
   type SecretContext,
 } from '@storyforge/engine';
 import { currentReasoningEffortSourceValue } from '../reasoning-effort';
-import { assertTauriRuntime } from '../tauri-env';
+import { assertTauriRuntime } from '../host/tauri-env';
 
 export type LlmSlot = 'main' | 'polish';
 

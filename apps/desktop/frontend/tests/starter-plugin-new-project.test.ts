@@ -7,9 +7,9 @@ import {
   enableStarterPlugin,
   initializeStoryProject,
 } from '../src/lib/project/initialize';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(),
     createDir: vi.fn(),

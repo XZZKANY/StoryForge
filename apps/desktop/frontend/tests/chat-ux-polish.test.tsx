@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vitest';
 
-import { AgentStepsPanel } from '../src/components/AgentStepsPanel';
+import { AgentStepsPanel } from '../src/components/chat-window/AgentStepsPanel';
 import { AssistantMarkdown } from '../src/components/chat-window/AssistantMarkdown';
 import {
   contextBudgetText,
@@ -11,7 +11,8 @@ import {
 } from '../src/components/chat-window/display-utils';
 import { formatElapsed } from '../src/components/chat-window/RunElapsed';
 import { ContextSummaryPanel } from '../src/components/chat-window/ContextSummaryPanel';
-import { MessageItem, RunActionBar } from '../src/components/chat-window/panels';
+import { MessageItem } from '../src/components/chat-window/panels';
+import { RunActionBar } from '../src/components/chat-window/RunActionBar';
 import type { AgentRun } from '../src/components/chat-window/types';
 
 test('assistant message renders markdown structure, not raw markers', () => {

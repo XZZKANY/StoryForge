@@ -15,14 +15,16 @@ import {
   relativePathInsideProject,
 } from '../../lib/project-context';
 import { registerSmokeFileLoader, registerSmokeProjectLoader } from '../../lib/smoke';
-import { FS_MUTATION_EVENT, invalidateFileSystemCache, pickDirectory } from '../../lib/tauri-fs';
+import {
+  FS_MUTATION_EVENT,
+  invalidateFileSystemCache,
+  pickDirectory,
+} from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 import type { AppDialogApi } from './AppDialog';
 import { useBookBreakdown } from './useBookBreakdown';
 import { useNewProject } from './useNewProject';
 import { normalizePathForMatch, normalizeRoot } from '../../lib/project/path';
-
-export type { BookBreakdownPreview } from './useBookBreakdown';
 
 type UseProjectCommandsOptions = {
   activeProject: string | null;

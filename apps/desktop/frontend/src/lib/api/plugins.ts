@@ -1,6 +1,6 @@
 /** 插件：装在本机插件库里，每本书在 `.storyforge/plugins.json` 里自己选用。 */
 import type { PluginDescription } from '@storyforge/engine';
-import { pluginLibraryDir } from '../plugin-library';
+import { pluginLibraryDir } from '../host/plugin-library';
 
 export type {
   PluginDescription,

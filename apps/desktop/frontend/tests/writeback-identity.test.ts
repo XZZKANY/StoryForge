@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import vectors from '../../src-tauri/test-fixtures/writeback-receipt-v1.json';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn() }));
 

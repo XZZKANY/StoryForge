@@ -29,7 +29,7 @@ import {
   SIDE_PANEL_WIDTH_MIN,
 } from '../../lib/side-panel-width';
 import { usePanelResize } from './usePanelResize';
-import { StoryNavigator } from '../StoryNavigator';
+import { StoryNavigator } from './StoryNavigator';
 import { basename } from '../app/helpers';
 import { isSameOrInsidePath } from '../app/editor-tabs-state';
 import { entryName, parentDir } from '../../lib/fs-path-ops';

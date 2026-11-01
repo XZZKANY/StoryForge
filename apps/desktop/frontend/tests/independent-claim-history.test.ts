@@ -17,7 +17,7 @@ vi.mock('../src/lib/api/agent-socket', () => ({
   sendAgentControlMessage: state.control,
   isAgentErrorMessage: () => false,
 }));
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: async () => true,
     readProjectFile: async () => JSON.stringify(state.descriptor),

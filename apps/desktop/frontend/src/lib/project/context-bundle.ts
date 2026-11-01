@@ -1,6 +1,6 @@
 import { compareManuscriptPaths, MAX_CONTEXT_FILES } from '@storyforge/project-core';
-import { TauriFileSystem } from '../tauri-fs';
-import { FS_MUTATION_EVENT } from '../tauri-fs';
+import { TauriFileSystem } from '../host/tauri-fs';
+import { FS_MUTATION_EVENT } from '../host/tauri-fs';
 import { buildProjectIndex } from './index';
 import { normalizePathForMatch, normalizeRoot, relativePathInsideProject } from './path';
 import type {

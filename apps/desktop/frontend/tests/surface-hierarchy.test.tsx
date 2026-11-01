@@ -7,7 +7,7 @@ import { test } from 'vitest';
 import { AppDialogHost } from '../src/components/app/AppDialog';
 import { ProjectLibrary } from '../src/components/app/ProjectLibrary';
 import { ComposerSurface } from '../src/components/chat-window/Composer';
-import { ConversationHeader } from '../src/components/chat-window/panels';
+import { ConversationHeader } from '../src/components/chat-window/ConversationHeader';
 import { ActivityBar } from '../src/components/shell/ActivityBar';
 import { AssistantPanelFrame } from '../src/components/shell/AssistantPanelFrame';
 import { EditorTabs } from '../src/components/shell/EditorTabs';
@@ -362,7 +362,7 @@ test('复合输入框焦点反馈只由外层负责，内层控件豁免全局�
   }
 
   // CommandPalette 状态下放且挂载即 focus，走源文本断言（同 app.test.tsx）。
-  const paletteSource = readFileSync('src/components/CommandPalette.tsx', 'utf8');
+  const paletteSource = readFileSync('src/components/command-palette/CommandPalette.tsx', 'utf8');
   assert.match(paletteSource, /className="sf-inner-input [^"]*outline-none/);
 });
 

@@ -5,7 +5,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { factsLedgerPathFor, restoreFactsLedger } from '../src/lib/fact-write';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { listVersions, readVersionState, snapshotBeforeWrite } from '../src/lib/versions';
 
 vi.mock('../src/lib/versions', () => ({

@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import type { invoke } from '@tauri-apps/api/core';
 
-import { checkForUpdate } from '../src/lib/update-check';
+import { checkForUpdate } from '../src/lib/host/update-check';
 
 const host = (outcome: () => Promise<unknown>) => vi.fn(outcome) as unknown as typeof invoke;
 

@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { countsAsChapter } from '../../lib/api/manuscript-paths';
 import { relativePathInsideProject, invalidateContextBundleCache } from '../../lib/project-context';
 import { isVisibleProjectTreeEntry } from '../../lib/project/entry-visibility';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import {
   copyName,
   displayDocName,

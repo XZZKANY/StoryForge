@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { emitPatchRejected, replacePendingFileSuggestion } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
 import { joinPath } from '../../lib/fs-path-ops';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import type { SuggestionIntake } from './useSuggestionIntake';
 import type { SuggestionState, UseSuggestionWritebackParams } from './useSuggestionState';
 

@@ -7,11 +7,11 @@
  */
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { isModelRequestStep, processSteps } from './chat-window/agent-step-mapping';
-import { isAuthorRejection } from './chat-window/display-utils';
-import { RunElapsed } from './chat-window/RunElapsed';
-import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './chat-window/types';
-import { PlainButton } from './ui';
+import { isModelRequestStep, processSteps } from './agent-step-mapping';
+import { isAuthorRejection } from './display-utils';
+import { RunElapsed } from './RunElapsed';
+import type { AgentRun, AgentRunStatus, AgentStep, AgentStepStatus } from './types';
+import { PlainButton } from '../ui';
 
 // 「整理回答」是每轮对话都有的循环收尾步，本身不是作者要看的过程。
 const isLoopSummary = (step: AgentStep) => step.tool === 'agent.loop';

@@ -4,7 +4,7 @@ import type { FileEntry } from '@storyforge/project-core';
 import { streamContinueProse } from '../src/lib/api/assistant';
 import { loadInlineContinueContext } from '../src/lib/inline-continue-context';
 import { buildContextBundle, invalidateContextBundleCache } from '../src/lib/project-context';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({

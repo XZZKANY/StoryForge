@@ -13,11 +13,11 @@ import type { AppDialogApi } from '../src/components/app/AppDialog';
 import { useFileTreeActions, type FileTreeActions } from '../src/components/app/useFileTreeActions';
 import { countsAsChapter } from '../src/lib/api/manuscript-paths';
 import { copyName } from '../src/lib/fs-path-ops';
-import { TauriFileSystem, type FileEntry } from '../src/lib/tauri-fs';
+import { TauriFileSystem, type FileEntry } from '../src/lib/host/tauri-fs';
 import { emitToast, type ToastAction } from '../src/lib/toast';
 import { recordRenameLineage } from '../src/lib/versions';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(async () => false),
     listProjectDir: vi.fn(async () => []),
@@ -226,8 +226,9 @@ test.each(['外部作者刚刚写入的内容', ''])(
     const copy = `${PROJECT}\\正文\\第006章 副本.md`;
     const original = '# 第006章\n\n原稿内容。\n';
     const disk = new Map([[CHAPTER, original]]);
-    const actual =
-      await vi.importActual<typeof import('../src/lib/tauri-fs')>('../src/lib/tauri-fs');
+    const actual = await vi.importActual<typeof import('../src/lib/host/tauri-fs')>(
+      '../src/lib/host/tauri-fs',
+    );
     const previousFixture = window.__STORYFORGE_MOCK_FS__;
     let enterRead!: () => void;
     const entered = new Promise<void>((resolve) => {

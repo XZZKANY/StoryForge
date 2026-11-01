@@ -8,7 +8,7 @@ vi.mock('../src/lib/api/chapter-checks', () => ({
 }));
 import { ChatWindowView } from '../src/components/chat-window/ChatWindowView';
 import { DecisionChoices } from '../src/components/chat-window/DecisionChoices';
-import { RunActionBar } from '../src/components/chat-window/panels';
+import { RunActionBar } from '../src/components/chat-window/RunActionBar';
 import { emitAuthorLoopResult } from '../src/lib/assistant-events';
 import { useChatWindowState } from '../src/components/chat-window/useChatWindowState';
 import type { AgentRun, ChapterBrief } from '../src/components/chat-window/types';

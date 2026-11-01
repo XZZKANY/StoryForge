@@ -6,8 +6,8 @@ import {
 } from './helpers';
 import { useAsyncEffect } from '../../lib/async-guards';
 import { bindReasoningEffortProject } from '../../lib/reasoning-effort';
-import { isTauriRuntime } from '../../lib/tauri-env';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { isTauriRuntime } from '../../lib/host/tauri-env';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 
 /** 过滤掉磁盘上已不存在的作品文件夹；校验出错时保守保留，避免误删有效项。 */
 async function filterExistingPaths(paths: string[]): Promise<string[]> {

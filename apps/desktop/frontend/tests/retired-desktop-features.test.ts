@@ -14,7 +14,7 @@ test('retired UI islands and native watcher have no source implementation', () =
 
 test('retired IPC commands and exclusive notify dependency stay removed', () => {
   const main = readFileSync('../src-tauri/src/main.rs', 'utf8');
-  const adapter = readFileSync('src/lib/tauri-fs.ts', 'utf8');
+  const adapter = readFileSync('src/lib/host/tauri-fs.ts', 'utf8');
   const manifest = readFileSync('../src-tauri/Cargo.toml', 'utf8');
   assert.doesNotMatch(main, /watcher::|shadow_git::shadow_git_status|fs::get_file_info/);
   assert.doesNotMatch(adapter, /watchFile|stopWatching|getFileInfo|FileChangeEvent|file-change/);

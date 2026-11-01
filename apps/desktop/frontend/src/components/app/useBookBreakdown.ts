@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { executeIdeCommand } from '../../lib/api-client';
 import { flushActiveEditorToDisk } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
-import { invalidateFileSystemCache, TauriFileSystem } from '../../lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../../lib/host/tauri-fs';
 import {
   adoptableSkills,
   adoptWritingSkills,

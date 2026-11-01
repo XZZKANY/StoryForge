@@ -10,7 +10,7 @@ import {
   type VersionState,
 } from '../../lib/versions';
 import { PanelError } from '../shell/PanelError';
-import { BranchCanvas } from '../BranchCanvas';
+import { BranchCanvas } from './BranchCanvas';
 import { Clock, X } from '../icons/shell-icons';
 import { versionLabel } from '../../lib/version-label';
 import { LiveStatus } from '../shell/LiveStatus';

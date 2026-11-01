@@ -1,5 +1,5 @@
-import { isTauriRuntime } from './tauri-env';
-import { TauriFileSystem } from './tauri-fs';
+import { isTauriRuntime } from './host/tauri-env';
+import { TauriFileSystem } from './host/tauri-fs';
 
 export type WritebackProbeMode = 'drop-first-write-reply' | 'observe';
 export type WritebackProbeSnapshot = {

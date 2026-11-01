@@ -42,7 +42,7 @@ node apps/desktop/scripts/verify-tauri-smoke.mjs --release      # 发行版 exe 
 npm --prefix apps/desktop run verify:nsis-install                # 隔离身份静默安装 → 启动 → 卸载
 ```
 
-改动涉及自动更新（`app_update.rs`、`host_close.rs`、`close_guard.rs`、`update_smoke.rs`、`tauri.conf.json` 的 `plugins.updater`、`lib/app-update.ts`）时，再跑升级冒烟：隔离测试身份 + 一次性密钥 + 本机清单，装 0.0.1 → 应用里点「检查更新 → 下载新版 → 重启安装」→ 安装器装好并重新打开 0.0.2 → 再查是「已是最新」，核对装上的是新版、原稿没动、装机版没被碰。要先关掉 StoryForge（NSIS 按进程名结束同名进程），会弹出测试版窗口与安装进度，约 10 分钟。新 worktree 里可用 `STORYFORGE_UPDATE_SMOKE_TARGET_DIR` 指到主仓库的 `apps/desktop/.tauri-target-install-smoke` 复用编译缓存。
+改动涉及自动更新（`app_update.rs`、`host_close.rs`、`close_guard.rs`、`update_smoke.rs`、`tauri.conf.json` 的 `plugins.updater`、`lib/host/app-update.ts`）时，再跑升级冒烟：隔离测试身份 + 一次性密钥 + 本机清单，装 0.0.1 → 应用里点「检查更新 → 下载新版 → 重启安装」→ 安装器装好并重新打开 0.0.2 → 再查是「已是最新」，核对装上的是新版、原稿没动、装机版没被碰。要先关掉 StoryForge（NSIS 按进程名结束同名进程），会弹出测试版窗口与安装进度，约 10 分钟。新 worktree 里可用 `STORYFORGE_UPDATE_SMOKE_TARGET_DIR` 指到主仓库的 `apps/desktop/.tauri-target-install-smoke` 复用编译缓存。
 
 ```powershell
 npm --prefix apps/desktop run verify:update-smoke

@@ -6,8 +6,8 @@
  */
 
 import { joinPath } from './fs-path-ops';
-import type { FileEntry } from './tauri-fs';
-import { TauriFileSystem } from './tauri-fs';
+import type { FileEntry } from './host/tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { relativePathInsideProject } from './project/path';
 import {
   createShadowSnapshot,
@@ -15,7 +15,7 @@ import {
   readShadowSnapshotFile,
   releaseShadowSnapshot,
   retainShadowSnapshot,
-} from './shadow-git';
+} from './host/shadow-git';
 
 const VERSION_ROOT = '.storyforge/versions';
 const SNAPSHOT_SUFFIX = '.snapshot.md';

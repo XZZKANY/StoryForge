@@ -5,10 +5,10 @@ import { test } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { CommandPalette } from '../src/components/CommandPalette';
+import { CommandPalette } from '../src/components/command-palette/CommandPalette';
 import { ModalDialog } from '../src/components/ui';
 import { REQUEST_EDITOR_COMMAND_EVENT } from '../src/lib/assistant-events';
-import { invalidateFileSystemCache } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 
 const noop = () => {};
 

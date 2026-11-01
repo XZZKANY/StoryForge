@@ -4,24 +4,24 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
-import { ChatWindowView } from './chat-window/ChatWindowView';
-import type { ChatWindowProps } from './chat-window/types';
-import { AppDialogHost, useAppDialog } from './app/AppDialog';
-import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../lib/agent-permission';
-import { useAgentRunControls } from './chat-window/useAgentRunControls';
-import { useAgentRunRecovery } from './chat-window/useAgentRunRecovery';
-import { useAgentStreamEvent } from './chat-window/useAgentStreamEvent';
-import { useChatSessionContext } from './chat-window/useChatSessionContext';
-import { useSessionManagement } from './chat-window/useSessionManagement';
-import { useChatSubmission } from './chat-window/useChatSubmission';
-import { useChatWindowState } from './chat-window/useChatWindowState';
-import { useChapterCheckHistory } from './chat-window/useChapterCheckHistory';
-import { projectOverviewActivity } from './chat-window/overview-activity';
-import { useRunAuthorAgent } from './chat-window/useRunAuthorAgent';
-import { useWriteBatchScheduler } from './chat-window/useWriteBatchScheduler';
-import type { ApiWriteBatchPlan } from '../lib/api/contracts';
-import { useComposerHint } from './chat-window/useComposerHint';
-import { useChapterHandoff } from './app/useChapterHandoff';
+import { ChatWindowView } from './ChatWindowView';
+import type { ChatWindowProps } from './types';
+import { AppDialogHost, useAppDialog } from '../app/AppDialog';
+import { DEFAULT_AGENT_PERMISSION_PROFILE } from '../../lib/agent-permission';
+import { useAgentRunControls } from './useAgentRunControls';
+import { useAgentRunRecovery } from './useAgentRunRecovery';
+import { useAgentStreamEvent } from './useAgentStreamEvent';
+import { useChatSessionContext } from './useChatSessionContext';
+import { useSessionManagement } from './useSessionManagement';
+import { useChatSubmission } from './useChatSubmission';
+import { useChatWindowState } from './useChatWindowState';
+import { useChapterCheckHistory } from './useChapterCheckHistory';
+import { projectOverviewActivity } from './overview-activity';
+import { useRunAuthorAgent } from './useRunAuthorAgent';
+import { useWriteBatchScheduler } from './useWriteBatchScheduler';
+import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
+import { useComposerHint } from './useComposerHint';
+import { useChapterHandoff } from '../app/useChapterHandoff';
 import {
   emitChapterWriteRequest,
   REQUEST_CHAPTER_POLISH_EVENT,
@@ -32,38 +32,9 @@ import {
   type ChapterPolishRequest,
   type ChapterWriteRequest,
   type RetryWithoutKnowledge,
-} from '../lib/assistant-events';
-import { emitToast } from '../lib/toast';
-import { isWriteBatchCardOpen, setWriteBatchCardOpen } from '../lib/write-batch-card';
-
-export {
-  filePathFromAgentResult,
-  repairPatchApproval,
-  resolveProposedPatchFilePath,
-  shouldApplyAgentControlAck,
-  writableFilePatch,
-} from './chat-window/agent-result';
-export { buildStableAgentRequestPayload } from './chat-window/request-payload';
-export { buildAgentRunRecoveryDisplay } from './chat-window/recovery';
-export {
-  extractIssueScopeFromInstruction,
-  lengthHintFromAgentResult,
-  reviewIssuesFromReport,
-  scopeWarningFromAgentResult,
-  truncationWarningFromAgentResult,
-} from './chat-window/review';
-export {
-  displayFromResumeDiagnostic,
-  statusFromAgentResult,
-  stepsFromResumedAgentResult,
-} from './chat-window/resumed-result';
-export { AgentRunRecoveryPanel } from './chat-window/panels';
-export type { StableAgentRequestPayload } from './chat-window/types';
-export {
-  overviewActivityActionLabel,
-  overviewActivityLabel,
-  projectOverviewActivity,
-} from './chat-window/overview-activity';
+} from '../../lib/assistant-events';
+import { emitToast } from '../../lib/toast';
+import { isWriteBatchCardOpen, setWriteBatchCardOpen } from '../../lib/write-batch-card';
 
 export function ChatWindow(props: ChatWindowProps) {
   const { onAgentRunSummaryChange, projectPath, assistantSessionId } = props;

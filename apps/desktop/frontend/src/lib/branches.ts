@@ -9,7 +9,7 @@
  */
 
 import { joinPath } from './fs-path-ops';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { versionDirFor, type VersionEntry } from './versions';
 
 export const MAIN_BRANCH_ID = 'main';

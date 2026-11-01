@@ -17,9 +17,11 @@ function Probe({ name }: { name: string }) {
     />
   );
 }
-vi.mock('../src/components/Editor', () => ({ Editor: () => <Probe name="editor" /> }));
-vi.mock('../src/components/ChatWindow', () => ({ ChatWindow: () => <Probe name="agent" /> }));
-vi.mock('../src/components/SettingsView', () => ({ SettingsView: () => null }));
+vi.mock('../src/components/editor/Editor', () => ({ Editor: () => <Probe name="editor" /> }));
+vi.mock('../src/components/chat-window/ChatWindow', () => ({
+  ChatWindow: () => <Probe name="agent" />,
+}));
+vi.mock('../src/components/settings/SettingsView', () => ({ SettingsView: () => null }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const mounted: Array<{ root: ReturnType<typeof createRoot>; host: HTMLElement }> = [];
 beforeEach(() => {

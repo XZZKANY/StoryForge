@@ -15,8 +15,8 @@ import {
 // SettingsView / Editor 的内容与本文件无关：② 用例测的是 App 的 onReopenWelcome 会一并收起
 // 设置页、露出欢迎页，而非设置页或编辑器本身。桩掉这两个中栏重组件，避免其挂载副作用（读本机
 // LLM 配置 / 版本历史）在无 tauri、无后端的测试环境里出网。
-vi.mock('../src/components/SettingsView', () => ({ SettingsView: () => null }));
-vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
+vi.mock('../src/components/settings/SettingsView', () => ({ SettingsView: () => null }));
+vi.mock('../src/components/editor/Editor', () => ({ Editor: () => null }));
 
 // App 挂载后走真实状态机：useProjectWorkspace / useTauriMenuBridge 均以 isTauriRuntime() 为闸，
 // 非 tauri 环境下只吃 localStorage，故整个 App 可在 happy-dom 里零 tauri mock 挂载。

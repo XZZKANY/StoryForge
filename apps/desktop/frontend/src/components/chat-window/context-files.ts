@@ -7,7 +7,7 @@ import {
   type ContextBundle,
   type ContextBundleFile,
 } from '../../lib/project-context';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 import { basename } from './path-utils';
 import type { ContextAppendResult } from './types';
 

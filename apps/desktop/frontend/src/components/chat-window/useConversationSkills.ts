@@ -10,7 +10,7 @@ import { emitOpenFileRequest } from '../../lib/assistant-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { PLUGINS_CHANGED_EVENT } from '../../lib/plugin-events';
 import { normalizePathForMatch } from '../../lib/project/path';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 
 export type SkillTemplate = { name: string; when: string; content: string };

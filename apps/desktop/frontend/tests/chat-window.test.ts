@@ -4,26 +4,30 @@ import { test } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
+import { AgentRunRecoveryPanel } from '../src/components/chat-window/panels';
+import { buildAgentRunRecoveryDisplay } from '../src/components/chat-window/recovery';
+import { buildStableAgentRequestPayload } from '../src/components/chat-window/request-payload';
 import {
-  AgentRunRecoveryPanel,
-  buildAgentRunRecoveryDisplay,
-  buildStableAgentRequestPayload,
-  ChatWindow,
   displayFromResumeDiagnostic,
-  extractIssueScopeFromInstruction,
-  filePathFromAgentResult,
-  lengthHintFromAgentResult,
-  repairPatchApproval,
-  reviewIssuesFromReport,
-  resolveProposedPatchFilePath,
-  shouldApplyAgentControlAck,
-  scopeWarningFromAgentResult,
   statusFromAgentResult,
   stepsFromResumedAgentResult,
+} from '../src/components/chat-window/resumed-result';
+import {
+  extractIssueScopeFromInstruction,
+  lengthHintFromAgentResult,
+  reviewIssuesFromReport,
+  scopeWarningFromAgentResult,
   truncationWarningFromAgentResult,
+} from '../src/components/chat-window/review';
+import {
+  filePathFromAgentResult,
+  repairPatchApproval,
+  resolveProposedPatchFilePath,
+  shouldApplyAgentControlAck,
   writableFilePatch,
-} from '../src/components/ChatWindow';
-import { ConversationHeader } from '../src/components/chat-window/panels';
+} from '../src/components/chat-window/agent-result';
+import { ConversationHeader } from '../src/components/chat-window/ConversationHeader';
 import type { AgentRunSavePointProjection } from '../src/lib/api-client';
 
 function emptyContextBundle(projectRoot: string) {

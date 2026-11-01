@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { EditorPendingSuggestionSummary } from '../Editor';
+import type { EditorPendingSuggestionSummary } from '../editor/Editor';
 import type { AgentRunOverviewSummary } from '../chat-window/types';
 
 /** Only a read-only, project-scoped view of the existing Editor/Chat owners. */

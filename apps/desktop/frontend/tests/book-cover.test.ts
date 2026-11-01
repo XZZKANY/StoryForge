@@ -9,7 +9,7 @@ const host = vi.hoisted(() => ({
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: host.open }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: host.invoke, isTauri: () => true }));
 
-import { importCoverImage } from '../src/lib/book-cover';
+import { importCoverImage } from '../src/lib/host/book-cover';
 
 beforeEach(() => {
   host.open.mockReset();

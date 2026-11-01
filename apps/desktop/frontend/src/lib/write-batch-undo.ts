@@ -15,7 +15,7 @@ import {
 import { deleteCreatedFile } from './created-file-delete';
 import { restoreFactsLedger } from './fact-write';
 import { resolveProjectRelativePath } from './project-context';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { dropWriteBatchTab, writeBatchTabDirty } from './write-batch-tabs';
 
 export type WriteBatchUndoOutcome =

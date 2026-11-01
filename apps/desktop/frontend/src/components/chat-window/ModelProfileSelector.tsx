@@ -5,7 +5,7 @@ import {
   listLlmProfiles,
   subscribeLlmProfiles,
   type LlmProfiles,
-} from '../../lib/desktop-llm-config';
+} from '../../lib/host/desktop-llm-config';
 import { providerTitle } from '../../lib/provider-config';
 import { ComposerMenuSelect, type ComposerMenuOption } from './ComposerMenuSelect';
 

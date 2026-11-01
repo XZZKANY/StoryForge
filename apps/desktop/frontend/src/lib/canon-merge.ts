@@ -15,7 +15,7 @@
  */
 
 import { joinPath } from './fs-path-ops';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 
 const CANON_RELATIVE = ['.storyforge', 'canon', 'canon.json'];
 

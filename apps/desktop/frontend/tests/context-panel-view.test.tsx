@@ -37,7 +37,7 @@ vi.mock('../src/lib/smoke', async (load) => ({
   registerSmokeProjectLoader: () => () => {},
 }));
 
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { ContextPanel } from '../src/components/chat-window/ContextPanel';
 import { stepFromToolTraceEvent } from '../src/components/chat-window/agent-step-mapping';
 import { AUTHOR_INSTRUCTIONS_TEMPLATE } from '../src/components/chat-window/useAgentInstructions';
@@ -59,7 +59,7 @@ import {
   REQUEST_OPEN_FILE_EVENT,
   type OpenFileRequest,
 } from '../src/lib/assistant-events';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/host/tauri-fs';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

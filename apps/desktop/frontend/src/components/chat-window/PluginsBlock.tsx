@@ -13,7 +13,7 @@ import { PLUGINS_CHANGED_EVENT } from '../../lib/plugin-events';
 import { resolveProjectRelativePath } from '../../lib/project-context';
 import { normalizePathForMatch } from '../../lib/project/path';
 import { requestSettingsSection } from '../../lib/settings-section';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../../lib/host/tauri-fs';
 import { emitToast } from '../../lib/toast';
 
 type PluginChoicesView =

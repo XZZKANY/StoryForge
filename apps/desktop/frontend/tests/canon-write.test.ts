@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { applyCanonMerge, canonDeclarationPathFor } from '../src/lib/canon-merge';
 import { writeCanonGuarded } from '../src/lib/canon-write';
-import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/tauri-fs';
+import { invalidateFileSystemCache, TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { snapshotBeforeWrite } from '../src/lib/versions';
 
 vi.mock('../src/lib/versions', () => ({ snapshotBeforeWrite: vi.fn(async () => null) }));

@@ -10,7 +10,7 @@ import {
 } from '../../lib/assistant-events';
 import { resolveAnchorLine } from '../../lib/observations';
 import type { FileCursor } from '../../lib/workspace-session';
-import type { SuggestionStatusTone } from './useSuggestionWriteback';
+import type { SuggestionStatusTone } from './useSuggestionState';
 
 // 光标与视图同步：向外广播光标行与作者视图，从外面把光标放回来（恢复现场、观测定位）。
 

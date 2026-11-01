@@ -5,11 +5,11 @@
  */
 
 import { useState } from 'react';
-import type { BranchGraph, GraphNode } from '../lib/branches';
-import { buildPatchHunks } from '../lib/patch-hunks';
-import { versionLabel } from '../lib/version-label';
-import type { VersionState } from '../lib/versions';
-import { Button, PlainButton } from './ui';
+import type { BranchGraph, GraphNode } from '../../lib/branches';
+import { buildPatchHunks } from '../../lib/patch-hunks';
+import { versionLabel } from '../../lib/version-label';
+import type { VersionState } from '../../lib/versions';
+import { Button, PlainButton } from '../ui';
 
 type BranchCanvasProps = {
   graph: BranchGraph;

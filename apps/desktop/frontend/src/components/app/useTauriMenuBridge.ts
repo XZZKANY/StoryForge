@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAsyncEffect } from '../../lib/async-guards';
-import { isTauriRuntime, loadHostEventListen, type HostEventListen } from '../../lib/tauri-env';
+import {
+  isTauriRuntime,
+  loadHostEventListen,
+  type HostEventListen,
+} from '../../lib/host/tauri-env';
 
 /**
  * Tauri 事件通道就绪探针 + 冒烟复位钩子。

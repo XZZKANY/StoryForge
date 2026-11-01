@@ -86,7 +86,7 @@ const engine = vi.hoisted(() => ({
 }));
 vi.mock('../src/lib/api/write-batch', () => engine);
 
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { sendAgentControlMessage } from '../src/lib/api-client';
 import { emitNewSessionRequest } from '../src/lib/assistant-events';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 vi.mock('../src/lib/api/author-instructions', () => ({ loadAuthorInstructions: vi.fn() }));
 vi.mock('../src/lib/api/conversation-skills', () => ({ loadConversationSkills: vi.fn() }));
-vi.mock('../src/lib/plugin-library', () => ({
+vi.mock('../src/lib/host/plugin-library', () => ({
   pluginLibraryDir: vi.fn(async () => 'C:\\库'),
 }));
 vi.mock('../src/lib/api/plugins', async (importOriginal) => ({
@@ -22,7 +22,7 @@ import { loadConversationSkills } from '../src/lib/api/conversation-skills';
 import { listPlugins, readEnabledPlugins, type PluginDescription } from '../src/lib/api/plugins';
 import { PLUGINS_CHANGED_EVENT } from '../src/lib/plugin-events';
 import { takeRequestedSettingsSection } from '../src/lib/settings-section';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -1,9 +1,9 @@
 import { serializePluginsFile, STARTER_PLUGIN_NAME } from '@storyforge/project-core';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { createBlankStoryProject, blankStoryProjectPath } from '../src/lib/project/create';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: vi.fn(),
     createDir: vi.fn(),

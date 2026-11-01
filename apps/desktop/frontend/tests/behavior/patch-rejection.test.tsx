@@ -15,13 +15,13 @@
  */
 import assert from 'node:assert/strict';
 import { createWritebackQueue } from '../../src/lib/writeback';
-import type { DiskBaseline } from '../../src/lib/tauri-fs';
+import type { DiskBaseline } from '../../src/lib/host/tauri-fs';
 import type { WritebackRequest } from '../../src/lib/writeback-receipt-types';
 import {
   inspectFixtureReceipt,
   readFixtureAudit,
   writeFixtureReceipt,
-} from '../../src/lib/writeback-receipt-fixture';
+} from '../../src/lib/host/writeback-receipt-fixture';
 import { act, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
@@ -44,7 +44,7 @@ const receiptFs = {
   },
 };
 
-vi.mock('../../src/lib/tauri-fs', () => ({
+vi.mock('../../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     projectPathExists: (_project: string, path: string) => receiptFiles.has(path),
     readProjectFile: (_project: string, path: string) => receiptFs.readFile(path),

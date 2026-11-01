@@ -17,7 +17,7 @@ import {
 } from './api/facts';
 import { joinPath } from './fs-path-ops';
 import { relativePathInsideProject } from './project/path';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { emitToast } from './toast';
 import { listVersions, readVersionState, snapshotBeforeWrite } from './versions';
 

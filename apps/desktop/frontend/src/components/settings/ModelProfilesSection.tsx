@@ -7,7 +7,7 @@ import {
   profileTitle,
   providerKindOr,
 } from '../../lib/provider-config';
-import type { LlmProfile } from '../../lib/desktop-llm-config';
+import type { LlmProfile } from '../../lib/host/desktop-llm-config';
 import type { AppDialogApi } from '../app/AppDialog';
 import { settingsTextMatches, useSettingsQuery } from './search-context';
 import { ModelProfileEditor } from './ModelProfileEditor';

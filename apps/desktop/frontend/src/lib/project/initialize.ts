@@ -7,8 +7,8 @@ import {
 } from '@storyforge/project-core';
 import { bookProfilePath, emptyBookProfile, serializeBookProfile } from '../book-profile';
 import { joinPath, parentDir } from '../fs-path-ops';
-import { documentDirectory } from '../tauri-env';
-import { TauriFileSystem } from '../tauri-fs';
+import { documentDirectory } from '../host/tauri-env';
+import { TauriFileSystem } from '../host/tauri-fs';
 import { normalizeRoot } from './path';
 import type { StoryProjectInitializationPlan } from './types';
 

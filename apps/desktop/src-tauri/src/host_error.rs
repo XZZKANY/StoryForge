@@ -1,6 +1,6 @@
 //! 宿主报给引擎读作品口、界面读写作品文件、模型出网与「获取模型」的结构化错误，
 //! 序列化成 `{ kind, message }`。前端只按 kind 分类（`lib/engine/reader.ts`、`lib/engine/llm.ts`、
-//! `lib/desktop-llm-config.ts`、`lib/tauri-fs.ts`），不解析 message 的措辞；字段名、kind 取值与
+//! `lib/host/desktop-llm-config.ts`、`lib/host/tauri-fs.ts`），不解析 message 的措辞；字段名、kind 取值与
 //! message 文案都是对前端的约定。
 //!
 //! - 读作品（`fs_engine_reader`）：`outside-project` 越出作品，`io` 其余读错。

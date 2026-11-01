@@ -8,7 +8,7 @@ import {
   isVisibleProjectTreeEntry,
 } from '../src/lib/project/entry-visibility';
 import { buildProjectTree } from '../src/lib/project/tree';
-import type { FileEntry } from '../src/lib/tauri-fs';
+import type { FileEntry } from '../src/lib/host/tauri-fs';
 
 function entry(path: string, isDir: boolean, extension?: string): FileEntry {
   return { name: path.split(/[\\/]/).at(-1) ?? path, path, isDir, extension } as FileEntry;

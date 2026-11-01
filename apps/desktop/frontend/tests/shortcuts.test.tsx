@@ -20,8 +20,8 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => null) }));
 import { SHORTCUT_ROWS, formatShortcutSheet } from '../src/components/app/shortcuts';
 
 // 中栏重组件与本用例无关，桩掉避免挂载副作用（读本机 LLM 配置 / 版本历史）出网。
-vi.mock('../src/components/SettingsView', () => ({ SettingsView: () => null }));
-vi.mock('../src/components/Editor', () => ({ Editor: () => null }));
+vi.mock('../src/components/settings/SettingsView', () => ({ SettingsView: () => null }));
+vi.mock('../src/components/editor/Editor', () => ({ Editor: () => null }));
 // 保留真实 hook，只暴露句柄给需要伪造前置态的用例（如 Ctrl+Shift+H 需要 displayedFile）。
 vi.mock('../src/components/app/useProjectWorkspace', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/components/app/useProjectWorkspace')>();

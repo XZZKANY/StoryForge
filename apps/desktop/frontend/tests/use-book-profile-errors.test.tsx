@@ -12,7 +12,7 @@ import {
   ProjectPathOutsideError,
 } from '../src/lib/host-file-errors';
 import { buildProjectIndex } from '../src/lib/project-context';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { scanManuscriptTotals } from '../src/lib/manuscript-stats';
 
 vi.mock('../src/lib/project-context', async (importOriginal) => {
@@ -20,7 +20,7 @@ vi.mock('../src/lib/project-context', async (importOriginal) => {
   return { ...actual, buildProjectIndex: vi.fn() };
 });
 vi.mock('../src/lib/manuscript-stats', () => ({ scanManuscriptTotals: vi.fn() }));
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   TauriFileSystem: {
     readProjectFile: vi.fn(),
     writeFile: vi.fn(),

@@ -18,13 +18,6 @@ import { useSuggestionState, type UseSuggestionWritebackParams } from './useSugg
 import { useSuggestionUndo } from './useSuggestionUndo';
 import { useWholeSuggestionAccept } from './useWholeSuggestionAccept';
 
-export {
-  TRUNCATED_ACCEPT_CONFIRM_TIMEOUT_MS,
-  type SuggestionActionKind,
-  type SuggestionActionState,
-  type SuggestionStatusTone,
-} from './useSuggestionState';
-
 /**
  * 编辑器里 AI 修订补丁的组合层。各职责 hook 按拆分前在本文件里的先后顺序调用
  * （hook 顺序就是 effect 的注册顺序），这里只留对话侧发来的窗口命令监听与对外返回值。

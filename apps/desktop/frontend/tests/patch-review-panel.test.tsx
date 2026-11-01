@@ -8,7 +8,8 @@ import { __getLastDiffEditor } from 'monaco-editor';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { buildPatchReviewTraceTitle, PatchReviewPanel } from '../src/components/PatchReviewPanel';
+import { PatchReviewPanel } from '../src/components/editor/PatchReviewPanel';
+import { buildPatchReviewTraceTitle } from '../src/components/editor/patch-review-text';
 import type { AssistantFileSuggestion } from '../src/lib/assistant-suggestions';
 import { DiskDriftError } from '../src/lib/host-file-errors';
 import { buildPatchHunks, type PatchHunk } from '../src/lib/patch-hunks';

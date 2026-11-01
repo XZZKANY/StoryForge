@@ -77,9 +77,9 @@ vi.mock('../src/lib/fact-write', async (load) => ({
   restoreFactsLedger: effects.restore,
 }));
 
-import { ChatWindow } from '../src/components/ChatWindow';
+import { ChatWindow } from '../src/components/chat-window/ChatWindow';
 import { REQUEST_OPEN_FILE_EVENT, type OpenFileRequest } from '../src/lib/assistant-events';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { WRITE_BATCH_TAB_EVENT, type WriteBatchTabRequest } from '../src/lib/write-batch-tabs';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

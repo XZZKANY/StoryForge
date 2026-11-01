@@ -11,7 +11,7 @@ import {
   type RunReadDeps,
   type SqlAssistantStore,
 } from '@storyforge/engine';
-import { pluginLibraryDir } from '../plugin-library';
+import { pluginLibraryDir } from '../host/plugin-library';
 import { clock, platform, wait } from './assistant';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';

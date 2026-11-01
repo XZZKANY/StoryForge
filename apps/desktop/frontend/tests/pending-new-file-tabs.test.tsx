@@ -6,11 +6,11 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { useEditorWorkspaceTabs } from '../src/components/app/useEditorWorkspaceTabs';
 import { useProjectWorkspace } from '../src/components/app/useProjectWorkspace';
 import { useSessionRestore } from '../src/components/app/useSessionRestore';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 import { TOAST_EVENT, type ToastDetail } from '../src/lib/toast';
 import type { FileEntry } from '@storyforge/project-core';
 
-vi.mock('../src/lib/tauri-env', () => ({ isTauriRuntime: () => true }));
+vi.mock('../src/lib/host/tauri-env', () => ({ isTauriRuntime: () => true }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const SESSION_KEY = 'storyforge:workspace-session';

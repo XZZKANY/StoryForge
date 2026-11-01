@@ -11,9 +11,9 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import { ProjectLibrary } from '../src/components/app/ProjectLibrary';
 import { useBookTitles } from '../src/components/app/useBookTitles';
 import { defaultNewProjectParent } from '../src/components/app/useNewProject';
-import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/tauri-fs';
+import { FS_MUTATION_EVENT, TauriFileSystem } from '../src/lib/host/tauri-fs';
 
-vi.mock('../src/lib/tauri-fs', () => ({
+vi.mock('../src/lib/host/tauri-fs', () => ({
   FS_MUTATION_EVENT: 'storyforge:fs-mutation',
   TauriFileSystem: { readProjectFile: vi.fn() },
 }));

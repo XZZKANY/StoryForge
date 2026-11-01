@@ -5,7 +5,7 @@ import { test, vi } from 'vitest';
 
 import { Titlebar } from '../src/components/shell/Titlebar';
 
-vi.mock('../src/lib/tauri-env', () => ({
+vi.mock('../src/lib/host/tauri-env', () => ({
   isTauriRuntime: () => true,
 }));
 

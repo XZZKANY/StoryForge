@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
-import { SettingsView } from '../src/components/SettingsView';
+import { SettingsView } from '../src/components/settings/SettingsView';
 import { DEFAULT_APP_SETTINGS, type AppSettings } from '../src/lib/user-settings';
 import {
   activateLlmProfile,
@@ -16,11 +16,11 @@ import {
   type LlmProfile,
   type LlmProfiles,
   type SavedLlmProfile,
-} from '../src/lib/desktop-llm-config';
+} from '../src/lib/host/desktop-llm-config';
 import { probeProviderHealth } from '../src/lib/api-client';
 
-vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/lib/desktop-llm-config')>();
+vi.mock('../src/lib/host/desktop-llm-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/host/desktop-llm-config')>();
   return {
     LlmProbeError: actual.LlmProbeError,
     listLlmProfiles: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
   };
 });
 vi.mock('../src/lib/api-client', () => ({ probeProviderHealth: vi.fn() }));
-vi.mock('../src/lib/update-check', () => ({
+vi.mock('../src/lib/host/update-check', () => ({
   currentAppVersion: async () => null,
   checkForUpdate: vi.fn(),
 }));

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { executeIdeCommand } from '../../lib/api/ide-commands';
-import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT } from '../../lib/host/tauri-fs';
 import { mapBookContextPayload, type BookContextSnapshot } from '../../lib/book-context';
 
 // 与观测镜同档：autoSave 防抖 900ms 之上再叠一层，连续小写只触发一次重取。

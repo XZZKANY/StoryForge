@@ -9,11 +9,11 @@ import {
   activateLlmProfile,
   listLlmProfiles,
   type LlmProfiles,
-} from '../src/lib/desktop-llm-config';
+} from '../src/lib/host/desktop-llm-config';
 import { readReasoningEffort, writeReasoningEffort } from '../src/lib/reasoning-effort';
 
-vi.mock('../src/lib/desktop-llm-config', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/lib/desktop-llm-config')>();
+vi.mock('../src/lib/host/desktop-llm-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/lib/host/desktop-llm-config')>();
   return { ...actual, listLlmProfiles: vi.fn(), activateLlmProfile: vi.fn() };
 });
 

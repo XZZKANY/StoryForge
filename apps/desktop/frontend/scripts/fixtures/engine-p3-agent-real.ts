@@ -4,7 +4,7 @@ import { sendAgentUserMessage } from '../../src/lib/api/agent-socket';
 import type { AgentResultMessage, AgentSocketMessage } from '../../src/lib/api/types';
 import { engineRuns } from '../../src/lib/engine/store';
 import { nativeLlmSource } from '../../src/lib/engine/llm';
-import { TauriFileSystem } from '../../src/lib/tauri-fs';
+import { TauriFileSystem } from '../../src/lib/host/tauri-fs';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);

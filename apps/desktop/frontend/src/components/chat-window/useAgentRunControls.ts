@@ -29,7 +29,7 @@ import { conversationKey, isRunResultForActiveSession } from './session-guard';
 import { appendWritebackFailure } from './writeback-failure';
 import type { AgentRunControlHandlers, AgentRunStatus, AgentStep, ChapterBrief } from './types';
 import type { ChatWindowState } from './useChatWindowState';
-import type { RunAuthorAgent } from './useRunAuthorAgent';
+import type { RunAuthorAgent } from './types';
 
 type RecoveryHandlers = {
   updateAgentStep: (stepId: string, patch: Partial<AgentStep>) => void;

@@ -38,7 +38,7 @@ import {
   withoutDismissed,
 } from '../../lib/dismissed-proposals';
 import { emitToast } from '../../lib/toast';
-import { FS_MUTATION_EVENT } from '../../lib/tauri-fs';
+import { FS_MUTATION_EVENT } from '../../lib/host/tauri-fs';
 import {
   EMPTY_OBSERVATORY_PROMISES,
   EMPTY_OBSERVATORY_PROPOSALS,

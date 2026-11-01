@@ -4,8 +4,8 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
-import { ResourceExplorer } from '../src/components/ResourceExplorer';
-import { TauriFileSystem, type FileEntry } from '../src/lib/tauri-fs';
+import { ResourceExplorer } from '../src/components/shell/ResourceExplorer';
+import { TauriFileSystem, type FileEntry } from '../src/lib/host/tauri-fs';
 import type { FileTreeActions } from '../src/components/app/useFileTreeActions';
 
 const PROJECT = 'D:/连载/末世吞噬';

@@ -5,7 +5,7 @@
  */
 import { invalidateContextBundleCache } from './project-context';
 import { unmarkChapterWrittenInPlan } from './serial-plan';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 
 export async function deleteCreatedFile(projectRoot: string, filePath: string): Promise<void> {
   // 原生 delete_path 尚非 compare-delete：读取核对到原生删除之间的跨进程竞态仍需原生原子守卫。

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Editor } from '../Editor';
+import { Editor } from '../editor/Editor';
 import { EditorTabs, type CenterTab } from '../shell/EditorTabs';
 import { ObsPanel } from '../shell/ObsPanel';
 import {

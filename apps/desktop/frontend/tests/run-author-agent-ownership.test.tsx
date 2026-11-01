@@ -17,7 +17,7 @@ import {
 } from '../src/lib/assistant-events';
 import { sendAgentUserMessage, type AgentUserMessageRequest } from '../src/lib/api-client';
 import { buildContextBundle, type ContextBundle } from '../src/lib/project-context';
-import { TauriFileSystem } from '../src/lib/tauri-fs';
+import { TauriFileSystem } from '../src/lib/host/tauri-fs';
 
 vi.mock('../src/lib/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/api-client')>()),

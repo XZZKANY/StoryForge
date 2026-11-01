@@ -8,7 +8,7 @@ import { useEditorWorkspaceTabs } from '../src/components/app/useEditorWorkspace
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { editor as monacoEditor, __getLastEditor, __resetMonacoStub } from 'monaco-editor';
-import { Editor } from '../src/components/Editor';
+import { Editor } from '../src/components/editor/Editor';
 
 const effects = vi.hoisted(() => ({
   snapshot: vi.fn(async () => ({ timestamp: 1, created: false })),

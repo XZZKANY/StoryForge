@@ -1,4 +1,4 @@
-import type { BookBreakdownPreview } from '../app/useProjectCommands';
+import type { BookBreakdownPreview } from '../app/useBookBreakdown';
 import type { BookProfileHandle } from '../app/useBookProfile';
 import { BookOpen, FileText, X } from '../icons/shell-icons';
 import { Button } from '../ui';

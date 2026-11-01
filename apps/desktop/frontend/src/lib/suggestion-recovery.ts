@@ -2,7 +2,7 @@ import type { AssistantFileSuggestion } from './assistant-suggestions';
 import { createSuggestionChangeSet, type SuggestionChangeSet } from './suggestion-change-set';
 import { joinPath } from './fs-path-ops';
 import { relativeToProject } from './project-context';
-import { TauriFileSystem } from './tauri-fs';
+import { TauriFileSystem } from './host/tauri-fs';
 import { readReceiptAuditPayload, verifyReceiptAudit } from './writeback-audit';
 import { readRevisionLoopPayload, type RevisionLoopRecord } from './author-loop';
 import type { WritebackRequest } from './writeback-receipt-types';
@@ -14,7 +14,7 @@ import {
 import { getAssistantSession } from './api/assistant';
 import { getAgentRunEvents } from './api/agent-runs';
 import { sendAgentControlMessage, isAgentErrorMessage } from './api/agent-socket';
-import { withNativeDelivery } from './native-delivery';
+import { withNativeDelivery } from './host/native-delivery';
 
 type RequestDescriptor = { request: WritebackRequest; semanticPayload: string };
 export type PendingSuggestionDescriptor = {

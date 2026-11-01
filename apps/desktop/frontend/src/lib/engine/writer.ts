@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ProjectWriter } from '@storyforge/engine';
-import { assertTauriRuntime } from '../tauri-env';
+import { assertTauriRuntime } from '../host/tauri-env';
 import { toBase64 } from './llm';
 
 /**

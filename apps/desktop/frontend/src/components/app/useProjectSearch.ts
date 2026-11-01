@@ -8,7 +8,7 @@ import {
   SEARCH_MIN_QUERY,
   type SearchFileResult,
 } from '../../lib/project-search';
-import { TauriFileSystem } from '../../lib/tauri-fs';
+import { TauriFileSystem } from '../../lib/host/tauri-fs';
 
 /** 同时在读的文件数上限：全并发会让几百章的项目一次性打满 IPC。 */
 const READ_CONCURRENCY = 8;

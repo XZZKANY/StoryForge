@@ -1,9 +1,9 @@
 import { useCallback, useRef, type CSSProperties } from 'react';
 
-import { ChatWindow } from '../ChatWindow';
-import { CommandPalette } from '../CommandPalette';
+import { ChatWindow } from '../chat-window/ChatWindow';
+import { CommandPalette } from '../command-palette/CommandPalette';
 import { PROSE_MEASURE_LABELS } from '../editor/options';
-import { SettingsView } from '../SettingsView';
+import { SettingsView } from '../settings/SettingsView';
 import { ActivityBar } from '../shell/ActivityBar';
 import { AssistantPanelFrame } from '../shell/AssistantPanelFrame';
 import type { CenterTab } from '../shell/EditorTabs';
@@ -38,7 +38,6 @@ import { useBookTitles } from './useBookTitles';
 import { NewProjectDialog } from './NewProjectDialog';
 import { useKnowledgeInbox } from './useKnowledgeInbox';
 import type { MainSurface, AppShellProps } from './app-shell-types';
-export type { ObservatoryHandle } from './app-shell-types';
 import { WritingWorkspace } from './WritingWorkspace';
 
 export function AppShell({

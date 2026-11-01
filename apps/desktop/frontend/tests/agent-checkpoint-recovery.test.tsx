@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 import { AUTHOR_LOOP_RESULT_EVENT, PATCH_REJECTED_EVENT } from '../src/lib/assistant-events';
 
-import { AgentRunRecoveryPanel, RunActionBar } from '../src/components/chat-window/panels';
+import { AgentRunRecoveryPanel } from '../src/components/chat-window/panels';
+import { RunActionBar } from '../src/components/chat-window/RunActionBar';
 import { buildAgentRunRecoveryDisplay } from '../src/components/chat-window/recovery';
 import { reconstructAgentResultFromEvents } from '../src/lib/api/agent-run-events';
 import { displayFromResumeDiagnostic } from '../src/components/chat-window/resumed-result';

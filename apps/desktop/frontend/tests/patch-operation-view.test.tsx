@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { test } from 'vitest';
-import { PatchReviewPanel } from '../src/components/PatchReviewPanel';
+import { PatchReviewPanel } from '../src/components/editor/PatchReviewPanel';
 import {
   createSuggestionChangeSet,
   projectRemainingSuggestion,
