@@ -58,3 +58,50 @@
   - 本地未跑三个浏览器回归（行间续写 / 浏览器冒烟 / Agent 对话），以 CI `Windows Verify` 的 `pnpm verify` 为准；Agent 对话回归覆盖这些面板。
   - 观感只在类名、共享样式与 happy-dom 层面核过，没截图、没在装机版上点；`@角色` 建议的悬停色变化与加载失败条按钮由黄变中性，需要作者看一眼。
   - 没跑 Rust 测试与 Tauri 冒烟（本刀不动宿主与引擎）。
+
+## 2026-11-01 拆 `chat-window/panels.tsx`，components 下不再有行数豁免
+
+本节是第二个提交。`panels.tsx` 在上一个提交后是 736 行（CRLF），是 `src/components/` 下唯一超过 500 行、也是唯一的行数豁免（`source-standards.test.ts` 的 `LIVE_MODULE_EXCEPTIONS`，注释「冻结的旧账……等那边合了再拆」）。
+
+- 拆分方案（纯搬移，行为零变化；行号按上一个提交后的原文件）：
+
+| 原行号 | 内容 | 去处 |
+| --- | --- | --- |
+| 32–187 | `ConversationHeader`（会话切换、新建会话、观测镜入口、布局三态、会话菜单） | 新文件 `chat-window/ConversationHeader.tsx`（173 行） |
+| 26–30、393–640 | `runActionButtonClass`、`STOP_CONFIRM_TIMEOUT_MS`、`RunActionBar`（要作者拍板的编号选项、停止两段确认、暂停条） | 新文件 `chat-window/RunActionBar.tsx`（263 行） |
+| 189–391、642–736 | `MessageList`、`AgentRunRecoveryPanel`、`recoveryToneClass`、`messageKey`、`MessageItem`、`LightweightStatus` | 留在 `panels.tsx`（314 行） |
+
+  - 整个组件 / 函数原样搬，组件内部的 hook 跟着组件走，没有跨文件传 ref / setter，lint 没报依赖数组；没加 eslint-disable。
+  - 对外导出不变：`panels.tsx` 用 `export { ConversationHeader } from './ConversationHeader'`、`export { RunActionBar } from './RunActionBar'` 转出，`ChatWindowView.tsx`、`ChatWindow.tsx`（转出 `AgentRunRecoveryPanel`）与从 `panels` 引组件的 17 个测试、2 个浏览器回归夹具（`tests/fixtures/token-stream*.tsx`）一行没改。
+  - 新文件随 `chat-window/` 多数（66 个 LF、5 个 CRLF）用 LF，各加一行职责注释；`panels.tsx` 仍 CRLF。
+- 门禁跟着改：
+  - `source-standards.test.ts`：删掉 `LIVE_MODULE_EXCEPTIONS` 与它的过滤，「components 下的文件不超过 500 行」不再有任何例外。拆完 `src/components/` 下最长的是 `app/AppShell.tsx` 500 行，其次 `chat-window/Composer.tsx` 499。
+  - `src/STRUCTURE.md` 的 Size Gates 改成「≤500 行，没有例外」。
+  - 读源码的护栏跟着代码走（STRUCTURE.md 的规矩：静态测试跟着所有者文件走，不留下去查空壳）：`shell-row-height.test.ts` 查对话头 `h-shell-row` 改读 `ConversationHeader.tsx`；`surface-hierarchy.test.tsx` 查「贴底操作条不写任意值反向投影」改读 `RunActionBar.tsx`（这条当初就是给 RunActionBar 的外框加的，见 `35c34b0e`）。其余读源码的断言没有读 `panels.tsx` 的。
+- 验证：
+  - 切法：脚本（仓库外 `C:\Users\kanye\sf-unify\scratch\refactor-chat-window-unify-tail\split.py`，不入库）按行号从 `git show HEAD:panels.tsx` 取 5 段，先断言每段首尾行是预期的那一行；import、转出、职责注释手写在脚本里。`prettier --check` 三个文件直接通过，没有重排。第一次生成漏了 `panels.tsx` 的 `PlainButton` import（回到底部的药丸在 `MessageList` 里），typecheck 与 `message-list-scroll` 4 条红，补上后重生成。
+  - 行集合比对（同目录 `linecheck.py`）：
+    1. 5 段在目标文件里各找到唯一一处连续、逐字相同的位置：`ConversationHeader` 156 行、两个常量 5 行、`RunActionBar` 248 行、`MessageList` 到 `recoveryToneClass` 203 行、`messageKey` 到 `LightweightStatus` 95 行。
+    2. 原文件没被任何一段覆盖的行：1–25（import 与其后空行）和段间空行 31、188、392、641。
+    3. 多重集合：新文件多出的只有各文件的 import（7 行）、两行转出、三行职责注释、3 个空行；原文件少了的只有两行合并的 import（`../ui` 与 `./types`）。没有别的行增减。
+  - `pnpm lint`：EXIT=0，0 error，仍是 `tests/independent-claim-history.test.ts` 那 2 条原有 warning，0 新 warning；prettier 全过。
+  - `npm --prefix apps/desktop/frontend run typecheck`：EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test`：EXIT=0，274 个文件，2822 passed（与起点相同）。拆完先单跑了从 `panels` 引组件的 17 个测试与另 3 个守护（`source-standards`、`shell-row-height`、`ui-primitives`），共 20 个文件，241 passed。
+  - `pnpm --filter @storyforge/engine test`（含 golden）：EXIT=0，111 个文件，14275 passed / 2 skipped；`packages/` 零改动，golden 零变化。
+  - 变异验证（同上一节的脚本，逐条改 → 单跑 → 按原字节还原并核对 sha256 → 再跑；跑完 `git status` 与三个文件的 sha256 与跑前一致）：
+
+| 打在哪 | 跑的测试 | 变异后 | 还原后 |
+| --- | --- | --- | --- |
+| `panels.tsx` 撑到 614 行（原来的豁免已删） | `source-standards` | 红 1 条 | 15 passed |
+| `RunActionBar.tsx` 撑到 563 行 | `source-standards` | 红 1 条 | 15 passed |
+| `ConversationHeader.tsx` 对话头 `h-shell-row` 写死成 `h-10` | `shell-row-height` | 红 1 条 | 7 passed |
+| `RunActionBar.tsx` 暂停条写回 `shadow-[0_-4px_…]` | `surface-hierarchy` | 红 1 条 | 8 passed |
+| `RunActionBar.tsx` 停止第一次点击不再进入待确认 | `chat-feedback-gaps` 等 4 个 | 红 3 条 | 34 passed |
+| `ConversationHeader.tsx` 点会话切换不再打开会话菜单 | `stored-time` + `chat-window` | 红 1 条 | 35 passed |
+| `panels.tsx` 不再转出 `RunActionBar` | `agent-progress-panel` + `decision-choices` | 红 7 条 | 11 passed |
+
+  - 行尾：`panels.tsx` 仍全 CRLF（314 行）；两个新文件全 LF；改过的三个测试与 `STRUCTURE.md` 仍全 LF；全部无 CRCRLF、无孤立 CR。`git diff --numstat` 与 `--ignore-all-space --numstat` 完全相同。
+- 未覆盖：
+  - 本地未跑三个浏览器回归，以 CI 为准（Agent 对话回归覆盖对话头、消息列表与操作条）。
+  - 没跑 Rust 测试与 Tauri 冒烟（没动宿主与引擎）。
+  - 待办里与 #561 挂钩的另两件这一刀没做：`components` 顶层组件挪进各自文件夹、宿主封装挪进 `lib/host/`（`source-standards.test.ts` 里「挪进 lib/host/ 待 #561 合后做」那行注释还在）。
