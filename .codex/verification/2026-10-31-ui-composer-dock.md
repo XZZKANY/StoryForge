@@ -33,3 +33,19 @@
   - 变异：M10 暂停行又加回 `rounded-lg border` → 1 条红；M11 操作条整个不渲染 → 1 条红；M12 操作条渲染在小条外（输入框上方）→ 1 条红。均按原字节还原。
   - 观感：真组件 + 真 CSS 临时预览页（用完删除）截了暂停（叠在批量写章进度下）、写进文件确认、要权限、结果未知四种。
 - 未覆盖：没在真界面里走到暂停 / 待确认（替身没有这两种回放），没在装机版上看。
+
+## 2026-11-01 合 master（#559–#586「架构与组件统一」那一串）
+
+- 改动：作者 11-01 定「先合 #561」。在另一个工作区从 `origin/ui/composer-dock` 开 `composer-dock-merge`，`git merge origin/master`（不 rebase、不 force push），合并提交 `74eb4a42`，推回 `ui/composer-dock` 是快进。
+  - 没有文字冲突。两边都改过的只有 `DecisionChoices.tsx`，自动合并后两边的意图都在：本分支把高亮行底色换成 `bg-background`，master 把行里的按钮换成共享 `Button` / `PlainButton`。
+  - 为过新守护改的文件：无。合进来的守护（`tests/ui-primitives.test.tsx`、`tests/source-standards.test.ts`、`tests/tauri-fs.test.ts`）在合并后的树上全绿；本分支新增 / 改动的文件里没有豁免以外的违规：没有直引 `lucide-react`、手写 `<svg>`、`animate-spin`、`role="dialog"` / 遮罩、手写取消标志、`storyforge:` 事件名字面量（`storyforge:chat-side-rail` 是 localStorage 键，守护按设计不算）、`@tauri-apps` 直引、按分隔符手拼路径、重名组件函数；行数都在上限内（`Composer.tsx` 正好 500、`ContextSummaryPanel.tsx` 440、`ChatWindowView.tsx` 391；`panels.tsx` 742 在冻结豁免里）。
+  - 守护给本分支的临时豁免（`BUTTON_EXEMPT` 里的手写 `<button>`，`ContextPanel.tsx` 的 `role="menuitem"` 与菜单外框，`panels.tsx` 的悬停显现与行数）这一步不撤，留给下一刀。
+  - 设计与行为没动；合并后没有因 master 那边的改动而红的测试，测试一条没改。
+- 验证（合并后的树）：
+  - `pnpm lint` EXIT=0（0 error；2 条 `no-explicit-any` warning 在 `tests/independent-claim-history.test.ts`，master 上就有）。
+  - `npm --prefix apps/desktop/frontend run typecheck` EXIT=0。
+  - `npm --prefix apps/desktop/frontend run test` EXIT=0：274 文件 2822 条全过。另单跑守护与本分支的测试 10 个文件（ui-primitives / source-standards / tauri-fs / chat-side-rail / chat-column-alignment / chat-ux-polish / conversation-starters / write-batch-scheduler / chat-feedback-gaps / chat-window-error-states）120 条全过。
+  - `pnpm --filter @storyforge/engine run typecheck` EXIT=0；`pnpm --filter @storyforge/engine test` EXIT=0：111 文件 14271 passed / 2 skipped（含 golden）；`git diff origin/master -- packages/engine/golden` 为空。
+  - `pnpm --filter @storyforge/project-core test` EXIT=0：5 文件 48 条。
+  - 变异（确认合进来的守护真的扫到本分支新加的文件）：把 `ChatSideRail.tsx`「正在写」小点的 `animate-pulse` 改成 `animate-spin` → `ui-primitives` 的「animate-spin 只出现在 components/ui 里」红 1 条、点名 `ChatSideRail.tsx`；脚本按原字节还原并断言一致，`git status` 干净。
+- 未覆盖：本地没跑三个浏览器回归（本机有别的会话在跑 headless Chrome，会互相拖超时），以 CI `Windows Verify` 的完整 `pnpm verify` 为准；没跑 Rust 测试与 Tauri 冒烟（合并没动宿主与引擎接口）；没在真宿主、装机版上看。
