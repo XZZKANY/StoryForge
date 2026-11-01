@@ -56,6 +56,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
           (payload.conversation ?? null) as string | null,
           skills.length ? writingSkillIndex(skills) : null,
           chapterOutlineFrom(payload.chapter_outline),
+          typeof payload.book_outline === 'string' ? payload.book_outline : null,
         ),
         contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
         assistantSessionId: context.assistantSessionId,

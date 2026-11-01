@@ -6,7 +6,8 @@ import { llmContextSnapshotToPromptContextBundle } from '../kernel/llmPromptCont
 import { pythonStrip } from '../kernel/pythonText';
 import { newChapterTruncationWarning } from '../kernel/revisionTruncation';
 import { buildPlan } from '../kernel/serialPlan';
-import { findChapterOutline } from '../kernel/chapterOutline';
+import { chapterFileOrdinal, findChapterOutline } from '../kernel/chapterOutline';
+import { collectBookOutline } from '../kernel/settingSources';
 import { PROGRAM_ADVISORY_RULES } from './chapterCheckProtocol';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
 import {
@@ -216,6 +217,11 @@ export async function startChapterWriting(
   );
   const conversation =
     rawConversation === null ? null : redactSensitiveText(rawConversation, host.secrets);
+  // 与起草的立项资料按同一个章号挑；总纲改动由来源守卫里的立项资料签名盯着。
+  const bookOutline = await collectBookOutline(host.reader, root, {
+    secrets: host.secrets,
+    ordinal: chapterFileOrdinal(relative),
+  });
   const briefResult = await host.executeTool(run, 'chapter.brief', context, {
     project_root: root,
     target_absolute: targetAbsolute,
@@ -223,6 +229,7 @@ export async function startChapterWriting(
     written,
     conversation,
     ...(outline !== null ? { chapter_outline: outline } : {}),
+    ...(bookOutline !== null ? { book_outline: bookOutline } : {}),
     llm_context_snapshot: snapshot,
     llm_prompt_context_bundle: promptBundle,
   });

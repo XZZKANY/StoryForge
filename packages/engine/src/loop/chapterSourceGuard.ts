@@ -4,6 +4,7 @@ import {
   writingStyleSourceKey,
 } from '../kernel/availableWritingStyles';
 import { buildSceneConstraintBlock } from '../kernel/canonContext';
+import { chapterFileOrdinal } from '../kernel/chapterOutline';
 import {
   FsToolError,
   nativeProjectPath,
@@ -94,7 +95,10 @@ async function sourceSignature(
       }),
       scene: await buildSceneConstraintBlock(reader, root, absolute, { platform }),
     };
-    const settings = await collectSettingSources(reader, root, { secrets: deps.secrets });
+    const settings = await collectSettingSources(reader, root, {
+      secrets: deps.secrets,
+      ordinal: chapterFileOrdinal(target),
+    });
     if (settings !== null) values.settings = settings.block;
     // 插件写法排在作品写法之后；没有插件时这一项和以前一字不差，待确认的旧 Brief 不会因升级失效。
     const skills = await loadAvailableWritingStyles(reader, root, pluginLibraryRoot, secrets);
