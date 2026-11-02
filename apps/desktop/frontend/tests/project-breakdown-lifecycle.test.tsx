@@ -470,7 +470,7 @@ test('Canon 刷新结果用作者的话说，事实卡路径按作品内相对�
   }
 });
 
-test('补齐作品目录之后右下角说明做了什么', async () => {
+test('补齐作品目录之后左下角说明做了什么', async () => {
   await render('D:/project');
   const toasts: string[] = [];
   const onToast = (event: Event) =>

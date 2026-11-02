@@ -49,7 +49,7 @@ async function loadWithUpdate() {
   return store;
 }
 
-test('检查到新版 → 下载（进度经 Channel）→ 已下载好，右下角给「重启安装」', async () => {
+test('检查到新版 → 下载（进度经 Channel）→ 已下载好，左下角给「重启安装」', async () => {
   const store = await loadWithUpdate();
   expect(store.getAppUpdate()).toEqual({
     phase: 'available',
@@ -127,7 +127,7 @@ test('下载中、已下载好时再检查不冲掉进度；没有版本号就�
   });
 });
 
-test('打包版打开 8 秒后静默检查：有新版在右下角提示并给「下载」', async () => {
+test('打包版打开 8 秒后静默检查：有新版在左下角提示并给「下载」', async () => {
   vi.stubEnv('PROD', true);
   vi.useFakeTimers();
   const store = await import('../src/lib/host/app-update');

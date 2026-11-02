@@ -126,7 +126,7 @@ export type FactBackfill = {
 
 /**
  * 老章补录：手写或更早写的章不会自动记账。每章调一次作者配置的模型，所以先在原地说清次数、
- * 作者点确定才开始；跑的时候显示进度。结果和撤销在右下角通知里。
+ * 作者点确定才开始；跑的时候显示进度。结果和撤销在左下角通知里。
  */
 function BackfillPanel({ backfill }: { backfill: FactBackfill }) {
   const [confirming, setConfirming] = useState(false);

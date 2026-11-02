@@ -60,7 +60,7 @@ function UpdateNotes({ latest, notes }: { latest: string; notes: string }) {
   );
 }
 
-/** 关于区：当前版本 + 检查更新 → 下载 → 重启安装（与启动时的右下角提示共用一份进度）。 */
+/** 关于区：当前版本 + 检查更新 → 下载 → 重启安装（与启动时的左下角提示共用一份进度）。 */
 export function AboutRows() {
   const [version, setVersion] = useState<string | null>(null);
   const update = useAppUpdate();
