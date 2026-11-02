@@ -20,6 +20,7 @@
   - 变异：把写盘循环改回 `Object.entries(fixture.files)`（Python 按字节定点替换、断言只命中 1 处），探针 EXIT=1（证据 `output/ts-engine-p1/native/run-j8dQ8x`），报错 `Type mismatch at result.payload.book_context.roster[0].first_chapter`，与 0.2.5 发版记录一致。之后无条件拷回备份，文件 sha256 与改前相同。
   - `prettier --check`、`eslint` 单跑改动文件：通过。
   - `pnpm verify`（corepack shim）：EXIT=0，442 秒。lint 0 error、2 warning（`tests/independent-claim-history.test.ts` 第 95 / 210 行，原有）；project-core 5 个文件 48 passed；引擎 116 个文件 14325 passed / 2 skipped；前端 274 个文件 2840 passed；行间续写、浏览器冒烟、Agent 对话三道浏览器回归通过。
+  - pre-push 钩子：前三次推送都被 5 秒超时挡住，挂的测试每次不同——第一次是引擎 `src/loop/` 下回放类测试 10 条，后两次是前端单测 4 条、5 条。都不加载本刀改的文件，`git diff master -- packages/` 为空。当时整机慢一倍：引擎整套 100 秒，`pnpm verify` 里是 52.7 秒；前端 import 累计约 1033–1068 秒，`pnpm verify` 里是 528 秒。满载时 `% Processor Performance` 只有约 58%，插着电源，最大处理器状态 100%。引擎超时的 9 个文件单跑 169 passed。冷却 5 分钟后照样红。作者调好机器后第四次推送钩子通过：lint 0 error；前端 274 个文件 2840 passed；引擎 116 个文件 14325 passed / 2 skipped。没用 `--no-verify`。
 - 未覆盖：
   - 探针其余 7 个模式没重跑（改动只在 `if (contextOnly)` 段里）。
   - 没打包、没跑 Tauri 冒烟：不涉及产品代码与宿主。
