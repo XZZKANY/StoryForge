@@ -19,6 +19,7 @@ import { checkRunInterruption, requestTimeout, waitForRetry } from './control';
 import {
   isRetryableStatus,
   LlmError,
+  LlmStreamBreak,
   redactSecrets,
   retryAfterSeconds,
   retryDelay,
@@ -307,7 +308,7 @@ export async function* providerSseJson(
   } catch (error) {
     if (error instanceof HttpTransportError) {
       checkRunInterruption(ctx.control, 'http_error');
-      throw new LlmError(`${label} 流式读取中断：${transportName(error)}`);
+      throw new LlmStreamBreak(`${label} 流式读取中断：${transportName(error)}`);
     }
     throw error;
   } finally {

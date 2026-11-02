@@ -19,7 +19,7 @@ import {
   type StreamEvent,
 } from '../llm/contracts';
 import { RunInterrupted } from '../llm/control';
-import { LlmError } from '../llm/payload';
+import { LlmError, LlmStreamBreak } from '../llm/payload';
 import { costBreakdown } from '../llm/usage';
 import type { StoryForgeCheckpointStore } from './chatLoopCheckpoints';
 import { StoryForgeRuntimeContext } from './chatLoopContext';
@@ -80,7 +80,10 @@ export interface LoopProvider {
   readonly streaming: boolean;
 }
 
-/** 流开始吐字后才断开：建连阶段的失败传输层已经重试过，配置 / 鉴权类错误重发也没用。 */
+/**
+ * 流开始吐字后才断开，或已连上、还没吐出事件就读断（LlmStreamBreak，传输层不重试读流阶段）；
+ * 建连阶段的失败传输层已经重试过，配置 / 鉴权类错误重发也没用。
+ */
 export const STREAM_RETRY_LIMIT = 2;
 const STREAM_RETRY_DELAY_SECONDS = 1;
 const isStreamBreak = (error: unknown) =>
@@ -119,7 +122,8 @@ export class StoryForgeProviderAdapter implements RuntimeProvider {
         break;
       } catch (error) {
         // 吐到一半断了整轮重发：作者端按 retry_attempt 丢掉半截正文；重发仍各自留请求证据。
-        if (!progress.received || retryAttempt >= STREAM_RETRY_LIMIT || !isStreamBreak(error)) {
+        const broke = progress.received || error instanceof LlmStreamBreak;
+        if (!broke || retryAttempt >= STREAM_RETRY_LIMIT || !isStreamBreak(error)) {
           if (error instanceof ProviderError) context.providerError = error;
           throw error;
         }

@@ -224,6 +224,7 @@ describe('输出途中断开', () => {
       breakWith: new HttpTransportError('read', 'IncompleteRead'),
     });
     expect((native as Error).message).toBe('Anthropic 流式读取中断：IncompleteRead');
+    expect(native).toBeInstanceOf(LlmStreamBreak);
     expect(message(native)).toBe(BREAK);
   });
 
