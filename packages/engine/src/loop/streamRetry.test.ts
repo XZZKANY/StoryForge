@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chatResponse, ProviderError, TokenUsage, type StreamEvent } from '../llm/contracts';
 import { RunControl, RunInterrupted } from '../llm/control';
-import { LlmError } from '../llm/payload';
+import { LlmError, LlmStreamBreak } from '../llm/payload';
 import type { StoryForgeCheckpointStore } from './chatLoopCheckpoints';
 import type { StoryForgeRuntimeContext } from './chatLoopContext';
 import { STREAM_RETRY_LIMIT, StoryForgeProviderAdapter } from './chatLoopAdapters';
@@ -17,9 +17,12 @@ const REQUEST = {
   reasoningEffort: null,
 };
 
-type Attempt = 'midway' | 'before' | 'interrupt' | 'ok';
+type Attempt = 'midway' | 'before' | 'readBreak' | 'interrupt' | 'ok';
 
-/** 每次 stream() 按脚本走一次：midway = 吐一段后断开，before = 一个事件都没吐就失败。 */
+/**
+ * 每次 stream() 按脚本走一次：midway = 吐一段后断开，before = 一个事件都没吐就建连失败，
+ * readBreak = 已连上、一个事件都没吐就读断。
+ */
 function scriptedProvider(script: Attempt[]) {
   let calls = 0;
   return {
@@ -33,6 +36,8 @@ function scriptedProvider(script: Attempt[]) {
     async *stream(): AsyncGenerator<StreamEvent> {
       const step = script[calls++];
       if (step === 'before') throw new LlmError('真实 LLM 流式建连失败');
+      if (step === 'readBreak')
+        throw new LlmStreamBreak('真实 LLM 流式读取中断（已输出 0 字）：IncompleteRead');
       yield { kind: 'text_delta', text: `第${calls}次的半截` };
       if (step === 'midway')
         throw new LlmError('真实 LLM 流式读取中断（已输出 5 字）：TimeoutError');
@@ -120,6 +125,22 @@ describe('输出途中断开自动重发', () => {
     const { adapter, provider } = harness(['before', 'ok']);
     await expect(adapter.complete(REQUEST)).rejects.toBeInstanceOf(LlmError);
     expect(provider.calls).toBe(1);
+  });
+
+  it('已连上、一个事件都没吐就读断也重发（传输层不重试读流阶段）', async () => {
+    const { adapter, provider, context, frames } = harness(['readBreak', 'ok']);
+    const response = await adapter.complete(REQUEST);
+    expect(response.content).toBe('第2次的完整回答');
+    expect(provider.calls).toBe(2);
+    expect(context.streamRetries).toBe(1);
+    expect(starts(frames).map((frame) => frame.retry_attempt)).toEqual([0, 1]);
+  });
+
+  it(`一直读断也最多重发 ${STREAM_RETRY_LIMIT} 次`, async () => {
+    const { adapter, provider, context } = harness(['readBreak', 'readBreak', 'readBreak', 'ok']);
+    await expect(adapter.complete(REQUEST)).rejects.toBeInstanceOf(LlmStreamBreak);
+    expect(provider.calls).toBe(STREAM_RETRY_LIMIT + 1);
+    expect(context.streamRetries).toBe(STREAM_RETRY_LIMIT);
   });
 
   it('作者停下（RunInterrupted）不重发', async () => {

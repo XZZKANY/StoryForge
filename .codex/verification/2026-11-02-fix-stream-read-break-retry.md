@@ -1,0 +1,24 @@
+## 2026-11-02 对话 AI：连上之后、还没出字就断开，也自动重试
+
+- 起因：作者 11-02 截图，对话回「本轮未完成：模型调用失败：输出途中连接断开，可以再试一次，反复出现请检查网络或中转。」，状态「需要手动重启本轮」，文案里没有「已自动重试 N 次」——一次都没重试。作者：「这种应该要可以自动重试」。
+- 取证（作者本机引擎库，只读拷贝到临时目录查）：
+  - run 153（`1793603439694-wgyrcti821m`，自动档，作者说「没想好」）：07:10:42 发第 1 次模型请求，07:11:04 失败，事件表里只有 `request_number: 1`，没有重发。
+  - 对应 `assistant_tool_calls` 513（`assistant.chat_loop`，failed）的 `error_message`：`真实 LLM 流式读取中断（已输出 0 字）：IncompleteRead`。即服务端已回 200、开始读流后约 20 秒连接被截断，期间没吐出任何可见正文（可能在出思考内容，传输层只把正文与用量往上交）。
+- 根因：两层重试之间有个缝。
+  - 传输层（`llm/transport.ts::rawStreamChatCompletions`、`llm/providerTransport.ts::providerSseJson`）只重试建连阶段；连上之后读流断开抛 `流式读取中断`，不重试。
+  - 对话循环（`loop/chatLoopAdapters.ts::StoryForgeProviderAdapter.complete`）的断流整轮重发只在 `progress.received`（provider 已吐出过流事件）时才做，理由是「一个事件都没吐就失败 = 建连阶段，传输层已重试过」。但「连上了、还没吐事件就读断」既不属于建连、也没吐过事件，两层都不管。
+  - 写章 / 修订 / 起草走的 `callLlmStreamed` 不受影响：它对任何 `LlmStreamBreak` 都重发，不看吐没吐字。
+- 改动：
+  - `loop/chatLoopAdapters.ts`：重发条件从「吐过事件」放宽为「吐过事件，或错误是 `LlmStreamBreak`」。`LlmStreamBreak` 只在连上之后读流断开时抛，重发不会让作者看到重复正文（还没出字；出过字的老路径照旧按 `retry_attempt` 丢半截）。上限仍是 `STREAM_RETRY_LIMIT = 2`、间隔 1 秒走 `RunControl.waitForRetry`，作者停下、配置 / 鉴权类错误、建连失败仍不重发；最终失败时文案自动带上「已自动重试 N 次仍未成功」（`modelFailureMessage` 本来就按 `streamRetries` 拼）。
+  - `llm/providerTransport.ts`：Anthropic / Gemini 原生协议读流断开改抛 `LlmStreamBreak`（`LlmError` 的子类，文字不变），与 OpenAI 兼容通道同一语义，对话循环据此一样重发。
+- 验证：
+  - `loop/streamRetry.test.ts` 新增 2 条：已连上、一个事件都没吐就读断 → 第 2 次成功，`streamRetries=1`，两次流的 `retry_attempt` 为 `[0, 1]`；一直读断 → 共发 3 次后把 `LlmStreamBreak` 交上去，`streamRetries=2`。既有「一个事件都没吐就建连失败不重发」照旧绿。
+  - `llm/failureMessage.test.ts` 既有「原生协议读流断开」一条补断言：经真实 `providerSseJson` 配假 HTTP 端口抛出的错误是 `LlmStreamBreak`。
+  - 变异（定点替换、断言恰好一处、跑完同法还原，没用 git checkout）：把新条件里的 `error instanceof LlmStreamBreak` 换成恒假 → `streamRetry.test.ts` 新增 2 条全红、其余 5 条绿；把 `providerSseJson` 改回抛 `LlmError` → `failureMessage.test.ts` 那一条红、其余 30 条绿。
+  - 引擎：`tsc --noEmit` 通过；`vitest run` 116 个文件 14327 passed + 2 skipped。前端 `tsc --noEmit` 通过（前端直接编译引擎源码）。改动文件过了 prettier 与 eslint。
+  - 行尾：四个改动的源文件与测试原本全 LF，改后仍全 LF。
+  - `pnpm verify` EXIT=0：lint 与前端类型检查通过；project-core 48 passed；引擎 116 个文件 14327 passed + 2 skipped；前端 274 个文件 2840 passed；行间续写、浏览器冒烟、Agent 对话三个浏览器回归通过。
+- 未覆盖：
+  - 没有用真模型、真中转复现「连上后 0 字读断」；「对话循环 + 真实传输层」没有一条端到端测试串起来：循环层用脚本化 provider，传输层抛出的类型由 `failureMessage.test.ts` 经真实 `rawStreamChatCompletions` / `providerSseJson` 单独钉住。
+  - 没跑 Tauri 冒烟与真宿主探针（宿主接口没动）；没在真机看重试时界面的观感。
+  - 修复未打包，作者机上的 0.2.5 仍是旧行为。
