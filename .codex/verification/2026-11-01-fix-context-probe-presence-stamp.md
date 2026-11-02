@@ -1,0 +1,25 @@
+## 2026-11-01 真宿主探针 `--context-only` 写夹具前把派生缓存版本戳换成当前值，和引擎单测一致
+
+- 改动：
+  - 问题：0.2.5 发版验证（`.codex/verification/2026-11-01-release-0.2.5.md`，分支 `release/0.2.5`）里 `node scripts/verify-engine-p0-native.mjs --context-only` EXIT=1，报 `Type mismatch at result.payload.book_context.roster[0].first_chapter`。原因：`2d8a58a9`（10-23，章号自然序）把派生缓存版本戳从 `canon-writeback-v1` 改成 `canon-manuscript-order-v2`，golden 不重录，引擎单测（`bookContextCommand.test.ts`、`buildBookContext.test.ts`、前端 `engine-book-context.test.ts`）改用 `currentPresenceVersionFixture(fixture)` 把夹具里 `presence.json` 的旧戳换成新戳；探针按 golden 原样写盘，引擎读到旧戳不信任、重建，`first_chapter` 与 golden 对不上。0.2.4 没跑探针，所以一直没暴露。
+  - 修法：`apps/desktop/frontend/scripts/verify-engine-p0-native.mjs` 的 `if (contextOnly)` 段里，写盘前先用一个临时 Vite 开发服务器（不 listen）`ssrLoadModule` 取 `packages/engine/src/kernel/contextDomain.test-support.ts` 的 `currentPresenceVersionFixture`，取完即关；写盘循环改为遍历 `currentPresenceVersionFixture(fixture).files`。只改这一个文件，不改产品代码、不改 golden。
+  - 取舍：
+    - mjs 不能直接 import 这份 TS：本机 Node 22.15，test-support 里有不带 import attributes 的 JSON 导入和不带扩展名的相对导入，类型剥离也走不通。
+    - 不挪到 WebView 那侧：那边只经 `ProjectReader` 读，探针还要比对写盘前后的文件树指纹，让它写盘会破坏这两条约束。
+    - 不在 mjs 里另抄一份换戳逻辑：会和 `contextFixture.test-support.ts` 的 `currentCanonOrderBytes` 分叉。
+    - 用 Vite SSR：探针本来就依赖 vite，WebView 那侧的 `scripts/fixtures/engine-p1-context.ts` 也 import 同一份 test-support，取到的是同一个函数。导入闭包（`contextDomain.test-support` → `contextFixture.test-support` / `readPort` / `pythonFacts.test-support` / `json` / `pythonText`）没有裸包，SSR 不用把 TS 包交给 Node 解析。
+    - 用稳定的 `createServer().ssrLoadModule`，不用 `runnerImport`（Vite 6.4.3 里标 `@experimental`）。Vite 6 的插件容器在第一次 `resolveId` 时自动 `buildStart`，不 listen 也能加载。先试过 `middlewareMode`，会顺带起客户端依赖扫描（原型 22 秒、关服时一堆报错），所以用不 listen 的普通模式：不占端口、不扫依赖，临时脚本里实测 1.9 秒。
+    - 用临时加载器，不把主 Vite 服务器提前创建：改动只落在 `--context-only` 一段，其余 7 个模式的执行顺序不变。
+  - `currentReadingOrderJson`（unicode-order 一例）不用另改：探针的期望值来自 `commandExpectation`，它内部已经套了 `currentReadingOrderJson`，`2d8a58a9` 起探针就跟着用新顺序；这次 unicode-order 一例 matched。
+  - 换戳范围：脚本扫 golden，68 个用例里 36 份 `presence.json`、20 份带旧戳，其他派生文件都不带旧戳；所以只换 `presence.json` 的 `currentPresenceVersionFixture` 与引擎单测用的完全一致，不需要对全部派生文件套 `currentCanonOrderBytes`。
+- 验证：
+  - 换戳对照（仓库外临时脚本）：Vite SSR 取到的函数作用在 golden 全部 68 个用例上，171 份文件里 20 份变了，全是 `presence.json`、新戳在、旧戳无；其余 151 份逐字节不变。
+  - 新 worktree 准备：`pnpm install --frozen-lockfile`（corepack shim）EXIT=0；`npm --prefix apps/desktop/frontend ci` EXIT=0；`npm --prefix apps/desktop/frontend run build` EXIT=0；`env -u CARGO_TARGET_DIR cargo build --manifest-path src-tauri/Cargo.toml --bin storyforge-desktop --no-default-features --locked --offline`（在 `apps/desktop` 下预热）EXIT=0，4 分 15 秒。
+  - 跑探针前查过本机没有 `storyforge-desktop.exe` 进程（0 个），不用关作者的程序。
+  - 探针：在 `apps/desktop/frontend` 下 `env -u CARGO_TARGET_DIR node scripts/verify-engine-p0-native.mjs --context-only` EXIT=0，82 秒（证据 `output/ts-engine-p1/native/run-HRenoH`）：`status: passed`，91 条用例（59 matched、32 expected-400），`contentUnchanged: true`；`unicode-order/default` matched；落盘的 36 份 `presence.json` 里旧戳 0 份、新戳 20 份。
+  - 变异：把写盘循环改回 `Object.entries(fixture.files)`（Python 按字节定点替换、断言只命中 1 处），探针 EXIT=1（证据 `output/ts-engine-p1/native/run-j8dQ8x`），报错 `Type mismatch at result.payload.book_context.roster[0].first_chapter`，与 0.2.5 发版记录一致。之后无条件拷回备份，文件 sha256 与改前相同。
+  - `prettier --check`、`eslint` 单跑改动文件：通过。
+  - `pnpm verify`（corepack shim）：EXIT=0，442 秒。lint 0 error、2 warning（`tests/independent-claim-history.test.ts` 第 95 / 210 行，原有）；project-core 5 个文件 48 passed；引擎 116 个文件 14325 passed / 2 skipped；前端 274 个文件 2840 passed；行间续写、浏览器冒烟、Agent 对话三道浏览器回归通过。
+- 未覆盖：
+  - 探针其余 7 个模式没重跑（改动只在 `if (contextOnly)` 段里）。
+  - 没打包、没跑 Tauri 冒烟：不涉及产品代码与宿主。
