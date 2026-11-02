@@ -357,6 +357,23 @@ try {
     const golden = JSON.parse(
       await readFile(resolve(root, 'packages/engine/golden/p1-context.windows.json'), 'utf8'),
     );
+    // golden 不重录，派生缓存的旧版本戳要像引擎单测那样换成当前值再落盘，否则引擎不信任、重建。
+    // 换戳函数是 TS，经 Vite SSR 取原函数，不在这里另抄一份。
+    const loader = await createServer({
+      root: frontend,
+      configFile: false,
+      envFile: false,
+      logLevel: 'error',
+      cacheDir: resolve(output, 'vite-ssr-cache'),
+    });
+    let currentPresenceVersionFixture;
+    try {
+      ({ currentPresenceVersionFixture } = await loader.ssrLoadModule(
+        resolve(root, 'packages/engine/src/kernel/contextDomain.test-support.ts'),
+      ));
+    } finally {
+      await loader.close(); // 没 listen：不占端口，也不起客户端依赖扫描
+    }
     const ownedRoot = resolve(output, 'context-projects');
     await mkdir(ownedRoot);
     contextInput = { ownedRoot: ownedRoot.replaceAll('\\', '/'), projects: {} };
@@ -367,7 +384,7 @@ try {
       await mkdir(project); // exclusive: duplicate fixture identities must fail, not overwrite
       contextInput.projects[fixture.id] = project.replaceAll('\\', '/');
       commandCount += fixture.commands.length;
-      for (const [name, encoded] of Object.entries(fixture.files)) {
+      for (const [name, encoded] of Object.entries(currentPresenceVersionFixture(fixture).files)) {
         const target = ownedPath(project, name);
         const chunks = encoded.chunks.map(({ base64, repeat }) => {
           assert.ok(Number.isSafeInteger(repeat) && repeat >= 0);
