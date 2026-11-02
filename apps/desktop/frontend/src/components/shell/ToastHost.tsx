@@ -1,6 +1,6 @@
 /**
  * 通知栈：监听 TOAST_EVENT，逐条上叠、到时自动消失、可手动关闭。
- * 默认在右下角状态栏上方；右边是对话栏时挪到编辑区右下角。pointer-events 只落在卡片上不挡编辑器。
+ * 叠在左栏底部；左栏收起时退到活动栏右边。pointer-events 只落在卡片上不挡下面的东西。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TOAST_EVENT, type ToastDetail, type ToastTone } from '../../lib/toast';
@@ -11,43 +11,50 @@ type ToastItem = ToastDetail & { id: number };
 type ToastActionState = { status: 'loading' | 'error'; error?: string };
 
 const MAX_VISIBLE = 4;
-const STACK_RIGHT = 12;
 const STACK_WIDTH = 320;
-const STACK_BOTTOM = 36;
-const FLOOR_GAP = 8;
-// 挪到对话栏左边时，栈的左缘至少留出左侧活动栏的宽度。
-const MIN_LEFT_ROOM = 56;
+const STACK_GAP = 8;
+// 左栏拖到比这还窄就不往里塞，退到活动栏右边。
+const MIN_DOCK_WIDTH = 200;
+// 左栏收起时栈的左缘：让出左侧活动栏。
+const RAIL_LEFT = 56;
 
-export type ToastStackPlacement = { right: number; bottom: number };
+export type ToastStackPlacement = { left: number; bottom: number; width: number };
 
 /**
- * 通知管的是删文件、写回这类工作区里的事，不该压在对话上（作者 10-20）：和对话栏横向重叠时，
- * 对话栏左边放得下就挪到编辑区右下角；对话占满窗口时才抬到消息列表底边之上，避开运行条、
- * 就地选项和输入框。隐藏的工作区量出来全是 0，横向不重叠，自然不算。
+ * 通知统一叠在左栏底部（作者 11-02）：放在编辑区右下角会压住正文最后几行，放在右下角又压对话；
+ * 写作时左栏最不要紧。左栏收起时退到活动栏右边的窗口左下角，那里压到对话（对话占满窗口）
+ * 就抬到消息列表底边之上，避开输入框。隐藏的元素量出来全是 0，自然不算。
  */
 export function toastStackPlacement(
+  dock: DOMRect | null,
   floors: readonly DOMRect[],
   viewportWidth: number,
   viewportHeight: number,
 ): ToastStackPlacement {
-  const right = viewportWidth - STACK_RIGHT;
-  const left = right - STACK_WIDTH;
-  const overlapping = floors.filter((floor) => floor.right > left && floor.left < right);
-  if (overlapping.length === 0) return { right: STACK_RIGHT, bottom: STACK_BOTTOM };
-  const edge = Math.min(...overlapping.map((floor) => floor.left));
-  if (edge - STACK_RIGHT - STACK_WIDTH >= MIN_LEFT_ROOM)
-    return { right: Math.round(viewportWidth - edge + STACK_RIGHT), bottom: STACK_BOTTOM };
+  if (dock && dock.width >= MIN_DOCK_WIDTH) {
+    return {
+      left: Math.round(dock.left + STACK_GAP),
+      bottom: Math.max(STACK_GAP, Math.round(viewportHeight - dock.bottom + STACK_GAP)),
+      width: Math.round(Math.min(STACK_WIDTH, dock.width - STACK_GAP * 2)),
+    };
+  }
+  const width = Math.max(0, Math.min(STACK_WIDTH, viewportWidth - RAIL_LEFT - STACK_GAP));
+  const right = RAIL_LEFT + width;
   return {
-    right: STACK_RIGHT,
-    bottom: overlapping.reduce(
-      (bottom, floor) => Math.max(bottom, Math.round(viewportHeight - floor.bottom + FLOOR_GAP)),
-      STACK_BOTTOM,
-    ),
+    left: RAIL_LEFT,
+    bottom: floors
+      .filter((floor) => floor.right > RAIL_LEFT && floor.left < right)
+      .reduce(
+        (bottom, floor) => Math.max(bottom, Math.round(viewportHeight - floor.bottom + STACK_GAP)),
+        STACK_GAP,
+      ),
+    width,
   };
 }
 
+// 普通提示用中性色：紫色只给 AI。
 const TONE_BAR: Record<ToastTone, string> = {
-  info: 'bg-agent',
+  info: 'bg-muted/60',
   success: 'bg-success',
   error: 'bg-error',
 };
@@ -65,8 +72,9 @@ export function ToastHost() {
   );
   const [pausedIds, setPausedIds] = useState<ReadonlySet<number>>(new Set());
   const [placement, setPlacement] = useState<ToastStackPlacement>({
-    right: STACK_RIGHT,
-    bottom: STACK_BOTTOM,
+    left: RAIL_LEFT,
+    bottom: STACK_GAP,
+    width: STACK_WIDTH,
   });
 
   const dismiss = useCallback((id: number) => {
@@ -185,6 +193,11 @@ export function ToastHost() {
     const onToast = (event: Event) => {
       const detail = (event as CustomEvent<ToastDetail>).detail;
       if (!detail?.message) return;
+      if (detail.key !== undefined) {
+        for (const [existingId, existing] of liveItems) {
+          if (existing.key === detail.key) dismiss(existingId);
+        }
+      }
       const id = nextIdRef.current++;
       const item = { ...detail, id };
       liveItems.set(id, item);
@@ -225,20 +238,24 @@ export function ToastHost() {
 
   useLayoutEffect(() => {
     if (items.length === 0) return;
-    const floors = [...document.querySelectorAll<HTMLElement>('[data-toast-floor]')];
+    const dock = () => document.querySelector<HTMLElement>('[data-toast-dock]');
+    const floors = () => [...document.querySelectorAll<HTMLElement>('[data-toast-floor]')];
     const measure = () => {
       const next = toastStackPlacement(
-        floors.map((floor) => floor.getBoundingClientRect()),
+        dock()?.getBoundingClientRect() ?? null,
+        floors().map((floor) => floor.getBoundingClientRect()),
         window.innerWidth,
         window.innerHeight,
       );
       setPlacement((current) =>
-        current.right === next.right && current.bottom === next.bottom ? current : next,
+        current.left === next.left && current.bottom === next.bottom && current.width === next.width
+          ? current
+          : next,
       );
     };
     measure();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
-    for (const floor of floors) observer?.observe(floor);
+    for (const node of [dock(), ...floors()]) if (node) observer?.observe(node);
     window.addEventListener('resize', measure);
     return () => {
       observer?.disconnect();
@@ -252,8 +269,8 @@ export function ToastHost() {
     // 游离豁免层：模态打开时不被 inert/aria-hidden 压掉（z-index 见 index.css 的 toast-host 规则）。
     // 纯视觉容器：live 语义由每条通知按 tone 自管（error→alert，其余→status），不嵌套 region。
     <div
-      className="pointer-events-none fixed flex w-[320px] flex-col gap-2"
-      style={{ bottom: placement.bottom, right: placement.right }}
+      className="pointer-events-none fixed flex flex-col gap-2"
+      style={{ bottom: placement.bottom, left: placement.left, width: placement.width }}
       data-testid="toast-host"
       data-layer-exempt=""
       onMouseLeave={() => items.forEach((item) => resumeItem(item.id))}
@@ -261,7 +278,7 @@ export function ToastHost() {
       {items.map((item) => (
         <div
           key={item.id}
-          className="pointer-events-auto flex animate-slide-in-right items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[var(--shadow-dropdown)]"
+          className="pointer-events-auto flex animate-slide-in-up items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-surface py-2.5 pl-0 pr-2 text-xs text-foreground shadow-[var(--shadow-dropdown)]"
           data-testid="toast-item"
           data-tone={item.tone}
           role={item.tone === 'error' ? 'alert' : 'status'}
@@ -287,17 +304,20 @@ export function ToastHost() {
                 操作失败：{actionStates[item.id]?.error || '未知错误'}
               </p>
             )}
+            {/* 撤销放在文字下面：左栏窄，并排时连一个文件名都要折行。 */}
+            {item.action && (
+              <div className="mt-1.5">
+                <Button
+                  size="compact"
+                  data-testid="toast-action"
+                  disabled={actionStates[item.id]?.status === 'loading'}
+                  onClick={() => void runAction(item)}
+                >
+                  {actionStates[item.id]?.status === 'loading' ? '处理中…' : item.action.label}
+                </Button>
+              </div>
+            )}
           </div>
-          {item.action && (
-            <Button
-              size="compact"
-              data-testid="toast-action"
-              disabled={actionStates[item.id]?.status === 'loading'}
-              onClick={() => void runAction(item)}
-            >
-              {actionStates[item.id]?.status === 'loading' ? '处理中…' : item.action.label}
-            </Button>
-          )}
           <IconButton
             size="mini"
             label="关闭通知"

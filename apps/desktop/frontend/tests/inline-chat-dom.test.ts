@@ -13,7 +13,6 @@ import { test, vi } from 'vitest';
 import {
   activateOnActivationKeys,
   buildDiffZoneDom,
-  buildInlineToast,
   buildInputZoneDom,
   buildLoadingZoneDom,
   buildPendingActionsDom,
@@ -125,21 +124,6 @@ test('loading / 流式的取消按钮同样支持键盘激活，且容器与状�
   assert.equal(streaming.bar.querySelector('[role="status"]')?.textContent, '正在续写…');
   keydown(streaming.cancel, ' ');
   assert.equal(onCancel.mock.calls.length, 2);
-});
-
-// —— c) 状态 toast 是 live region，失败 assertive ————————————————————————
-
-test('状态 toast：polite 用 role=status，失败 assertive 用 role=alert', () => {
-  const info = buildInlineToast('行间修订已写回当前文件', 'polite');
-  assert.equal(info.className, 'sf-inline-toast');
-  assert.equal(info.getAttribute('role'), 'status');
-  assert.equal(info.getAttribute('aria-live'), 'polite');
-  assert.equal(info.getAttribute('aria-atomic'), 'true');
-  assert.equal(info.textContent, '行间修订已写回当前文件');
-
-  const failure = buildInlineToast('AI 修订失败：超时', 'assertive');
-  assert.equal(failure.getAttribute('role'), 'alert');
-  assert.equal(failure.getAttribute('aria-live'), 'assertive');
 });
 
 // —— e) 键盘激活不打扰 IME ————————————————————————————————————

@@ -8,6 +8,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { __getLastEditor, __resetMonacoStub } from 'monaco-editor';
 import { Editor } from '../src/components/editor/Editor';
+import { captureToasts } from './support/toast-log';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
@@ -43,6 +44,7 @@ let writes: string[];
 
 let root: Root;
 let host: HTMLDivElement;
+let toasts: ReturnType<typeof captureToasts>;
 const dialogs = { alert: async () => {}, confirm: async () => false, prompt: async () => null };
 
 beforeEach(async () => {
@@ -71,9 +73,11 @@ beforeEach(async () => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
+  toasts = captureToasts();
 });
 afterEach(() => {
   act(() => root.unmount());
+  toasts.stop();
   host.remove();
   delete window.__STORYFORGE_MOCK_FS__;
   __resetMonacoStub();
@@ -254,7 +258,7 @@ it.each(['deleted', 'renamed'] as const)(
     files.delete(FILE);
     if (kind === 'renamed') files.set(OTHER, BEFORE);
     await approve();
-    await observe(() => expect(host.textContent).toContain('接受失败'));
+    await observe(() => expect(toasts.text()).toContain('接受失败'));
     expect(files.has(FILE)).toBe(false);
     if (kind === 'renamed') expect(files.get(OTHER)).toBe(BEFORE);
     expect(writes).not.toContain(FILE);
@@ -301,7 +305,7 @@ it('accepted write awaiting snapshot settles only origin after navigation', asyn
   expect(files.get(OTHER)).toBe('B新稿');
   expect(__getLastEditor()?.getValue()).toBe('B新稿');
   expect(writes.filter((path) => path === FILE)).toHaveLength(1);
-  expect(host.textContent).not.toContain('行间修订已写进当前文件');
+  expect(toasts.text()).not.toContain('行间修订已写进当前文件');
 });
 
 it.each(['deleted', 'renamed'] as const)(
@@ -321,7 +325,7 @@ it.each(['deleted', 'renamed'] as const)(
     files.delete(FILE);
     if (kind === 'renamed') files.set(OTHER, BEFORE);
     await act(async () => release({ timestamp: 1, created: false }));
-    await observe(() => expect(host.textContent).toContain('接受失败'));
+    await observe(() => expect(toasts.text()).toContain('接受失败'));
     expect(files.has(FILE)).toBe(false);
     if (kind === 'renamed') expect(files.get(OTHER)).toBe(BEFORE);
     expect(writes).not.toContain(FILE);
@@ -334,7 +338,7 @@ it('real inline snapshot failure retains candidate; retry writes once with no ne
   await generate();
   effects.snapshot.mockRejectedValueOnce(new Error('快照不可用'));
   await approve();
-  await observe(() => expect(host.textContent).toContain('候选已保留'));
+  await observe(() => expect(toasts.text()).toContain('候选已保留'));
   expect(files.get(FILE)).toBe(BEFORE);
   expect(writes).not.toContain(FILE);
   await approve();
