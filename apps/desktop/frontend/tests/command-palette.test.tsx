@@ -66,6 +66,14 @@ test('command palette hides story project initialization before a project is ope
   assert.equal(html.includes('补齐作品目录'), false);
 });
 
+test('命令面板不用 Mac 的 ⌘ / ⇧ 符号：图标是 >，快捷键写 Ctrl Shift P', () => {
+  const html = renderCommands('D:\\StoryForge\\Books\\雾港回声');
+
+  assert.ok(html.includes('Ctrl Shift P'));
+  assert.equal(html.includes('⇧'), false);
+  assert.equal(html.includes('lucide-command'), false);
+});
+
 test('没开作品时文件面板的入口叫「打开本地作品…」', () => {
   const html = renderToStaticMarkup(React.createElement(CommandPalette, paletteProps(null)));
 

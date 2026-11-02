@@ -124,8 +124,8 @@ export function useEditorWorkspaceTabs({
       }
 
       const choice = await dialogs.choose({
-        title: '有未保存修改',
-        message: `${projectBasename(savablePath)} 有未保存修改。`,
+        title: `「${projectBasename(savablePath)}」还没保存`,
+        message: `${actionLabel}前要先保存吗？`,
         choices: [
           { id: 'save', label: `保存并${actionLabel}` },
           { id: 'discard', label: '放弃修改', tone: 'danger' },

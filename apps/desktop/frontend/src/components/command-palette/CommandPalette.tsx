@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAsyncEffect } from '../../lib/async-guards';
 import { TauriFileSystem, FileEntry } from '../../lib/host/tauri-fs';
 import { isOpenableProjectFileEntry } from '../../lib/project/entry-visibility';
-import { Command as CommandIcon, FileText } from '../icons/shell-icons';
+import { ChevronRight, FileText } from '../icons/shell-icons';
 import { Button, ModalDialog, PlainButton, Spinner } from '../ui';
 import { fuzzyMatch, fuzzyScore, HighlightedLabel, relativeToProject } from './palette-items';
 import { usePaletteCommands, type PaletteCommandSources } from './usePaletteCommands';
@@ -212,7 +212,7 @@ export function CommandPalette({
     mode === 'files' ? (
       <FileText size={14} strokeWidth={1.6} />
     ) : (
-      <CommandIcon size={14} strokeWidth={1.6} />
+      <ChevronRight size={14} strokeWidth={1.6} />
     );
   const modeLabel = mode === 'files' ? '打开文件' : '命令';
 
@@ -245,7 +245,7 @@ export function CommandPalette({
           aria-activedescendant={itemCount > 0 ? `palette-option-${active}` : undefined}
         />
         <kbd className="flex-shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-3xs text-subtle">
-          {mode === 'files' ? 'Ctrl P' : 'Ctrl ⇧ P'}
+          {mode === 'files' ? 'Ctrl P' : 'Ctrl Shift P'}
         </kbd>
       </div>
 
@@ -283,7 +283,7 @@ export function CommandPalette({
               {mode === 'files' ? (
                 <FileText size={20} strokeWidth={1.4} className="text-subtle" aria-hidden="true" />
               ) : (
-                <CommandIcon
+                <ChevronRight
                   size={20}
                   strokeWidth={1.4}
                   className="text-subtle"
