@@ -70,6 +70,12 @@ export function FloatingSurface({
           : rect;
       if (!origin) return;
       const box = node.getBoundingClientRect();
+      // 挂在按钮上的浮层留在按钮所在的那一栏（左栏 / 编辑区 / 对话栏）；先碰到模态框就不算。
+      // 右键菜单跟着鼠标走，和系统菜单一样不受栏限制。
+      const column =
+        pointX === undefined
+          ? triggerRef?.current?.closest<HTMLElement>('[data-floating-column], [aria-modal="true"]')
+          : null;
       const pos = placeFloating(
         origin,
         box.width,
@@ -77,6 +83,7 @@ export function FloatingSurface({
         { width: window.innerWidth, height: window.innerHeight },
         side,
         align,
+        column?.hasAttribute('data-floating-column') ? column.getBoundingClientRect() : undefined,
       );
       node.style.left = `${pos.left}px`;
       node.style.top = `${pos.top}px`;
