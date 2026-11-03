@@ -103,31 +103,83 @@ function volumeMembers(chunks: readonly Chunk[], index: number): number[] {
 
 const overlaps = (range: Range, start: number, end: number) => range[0] <= end && range[1] >= start;
 
-/** 越小越先放：[层, 层内次序]。 */
-function priorities(chunks: readonly Chunk[], ordinal: number | null): [number, number][] {
-  if (ordinal === null) return chunks.map((_, index) => [2, index]);
+/** 换成全书章号后，每个小节覆盖的章与卷的章号范围。 */
+type Numbering = {
+  readonly nodes: readonly (Range | null)[];
+  readonly volumeRanges: readonly (Range | null)[];
+  readonly renumbered: boolean;
+};
+
+/**
+ * 每卷又从「第1章」编起的总纲，把这一卷的章号接在前面各卷之后：不然写全书第 19 章，
+ * 挑进来的是第三、四卷的「第19章」，真正的第二卷第 1 章反倒当成写过的章排到后面。卷与卷接得上的照原样。
+ */
+function bookNumbering(chunks: readonly Chunk[]): Numbering {
+  const nodes = chunks.map((item) => item.node);
+  const volumeRanges = chunks.map((item) => item.volumeRange);
+  let renumbered = false;
+  let end = 0;
+  chunks.forEach((item, index) => {
+    if (!item.volume) return;
+    const members = volumeMembers(chunks, index).filter((member) => chunks[member].node !== null);
+    if (!members.length) return;
+    const first = Math.min(...members.map((member) => chunks[member].node![0]));
+    const offset = end > 0 && first <= end ? end : 0;
+    if (offset) {
+      renumbered = true;
+      const shift = (range: Range): Range => [range[0] + offset, range[1] + offset];
+      for (const member of members) nodes[member] = shift(chunks[member].node!);
+      if (item.volumeRange !== null && item.volumeRange[0] <= end)
+        volumeRanges[index] = shift(item.volumeRange);
+    }
+    end = Math.max(end, ...members.map((member) => nodes[member]![1]));
+  });
+  return { nodes, volumeRanges, renumbered };
+}
+
+function focusOf(numbering: Numbering, ordinal: number | null): Set<number> {
+  if (ordinal === null) return new Set();
   const ahead = ordinal + OUTLINE_FOCUS_AHEAD;
-  const focus = new Set(
-    chunks.flatMap((item, index) =>
-      item.node !== null && overlaps(item.node, ordinal, ahead) ? [index] : [],
+  return new Set(
+    numbering.nodes.flatMap((node, index) =>
+      node !== null && overlaps(node, ordinal, ahead) ? [index] : [],
     ),
   );
+}
+
+/** 越小越先放：[层, 层内次序]。 */
+function priorities(
+  chunks: readonly Chunk[],
+  numbering: Numbering,
+  focus: ReadonlySet<number>,
+  ordinal: number | null,
+): [number, number][] {
+  if (ordinal === null) return chunks.map((_, index) => [2, index]);
+  const { nodes, volumeRanges } = numbering;
   const volumes = chunks.flatMap((item, index) => (item.volume ? [index] : []));
   // 卷写明了章号范围就按范围认；都没写时，本章节点挂在哪一卷下面就是哪一卷。
   const ranged = volumes.filter((index) => {
-    const range = chunks[index].volumeRange;
+    const range = volumeRanges[index];
     return range !== null && overlaps(range, ordinal, ordinal);
   });
   const current = ranged.length
     ? ranged
     : volumes.filter((index) => volumeMembers(chunks, index).some((member) => focus.has(member)));
   const inCurrent = new Set(current.flatMap((index) => volumeMembers(chunks, index)));
-  return chunks.map((item, index): [number, number] => {
-    if (focus.has(index)) return [0, item.node![0]];
-    if (item.node !== null && item.node[1] < ordinal) return [3, ordinal - item.node[1]];
-    if (item.node !== null) return [4, item.node[0]];
+  return chunks.map((_, index): [number, number] => {
+    const node = nodes[index];
+    if (focus.has(index)) return [0, node![0]];
+    if (node !== null && node[1] < ordinal) return [3, ordinal - node[1]];
+    if (node !== null) return [4, node[0]];
     return inCurrent.has(index) ? [1, index] : [2, index];
   });
+}
+
+/** 重新编号过的总纲里，本章及其后几章的节点标题后面注上全书章号，模型才对得上「第 19 章」是哪一节。 */
+function displayHeading(item: Chunk, node: Range | null, labelled: boolean): string | null {
+  if (item.heading === null || !labelled || node === null) return item.heading;
+  const book = node[0] === node[1] ? `${node[0]}` : `${node[0]}—${node[1]}`;
+  return `${item.heading}（全书第${book}章）`;
 }
 
 /**
@@ -141,15 +193,19 @@ function priorities(chunks: readonly Chunk[], ordinal: number | null): [number, 
 export function focusOutline(text: string, ordinal: number | null, room: number): string | null {
   const chunks = parseChunks(text);
   if (!chunks.some((item) => item.heading !== null)) return null;
+  const numbering = bookNumbering(chunks);
+  const focus = focusOf(numbering, ordinal);
+  const headings = chunks.map((item, index) =>
+    displayHeading(item, numbering.nodes[index], numbering.renumbered && focus.has(index)),
+  );
   const separator = 2;
-  let used = chunks.reduce(
-    (total, item) =>
-      total + (item.heading === null ? 0 : codePoints(item.heading).length + separator),
+  let used = headings.reduce(
+    (total, heading) => total + (heading === null ? 0 : codePoints(heading).length + separator),
     0,
   );
   if (used > room) return null;
   const bodies: (string | null)[] = chunks.map(() => null);
-  const order = priorities(chunks, ordinal)
+  const order = priorities(chunks, numbering, focus, ordinal)
     .map((priority, index) => ({ priority, index }))
     .sort(
       (a, b) => a.priority[0] - b.priority[0] || a.priority[1] - b.priority[1] || a.index - b.index,
@@ -170,11 +226,11 @@ export function focusOutline(text: string, ordinal: number | null, room: number)
     }
   }
   const parts: string[] = [];
-  chunks.forEach((item, index) => {
+  headings.forEach((heading, index) => {
     const body = bodies[index];
-    if (item.heading === null) {
+    if (heading === null) {
       if (body) parts.push(body);
-    } else parts.push(body ? `${item.heading}\n${body}` : item.heading);
+    } else parts.push(body ? `${heading}\n${body}` : heading);
   });
   return parts.join('\n\n');
 }
