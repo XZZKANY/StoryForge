@@ -25,7 +25,7 @@ const B = 'D:\\连载\\末世吞噬\\正文\\第002章.md';
 
 type DialogCall =
   | { kind: 'confirm'; message: string }
-  | { kind: 'choose'; message: string; choiceIds: string[] }
+  | { kind: 'choose'; title: string; message: string; choiceIds: string[] }
   | { kind: 'alert'; title: string };
 
 type TabsApi = ReturnType<typeof useEditorWorkspaceTabs>;
@@ -70,11 +70,13 @@ function mountTabs(pick: string | null) {
       return Promise.resolve(true);
     },
     choose: (options: {
+      title: string;
       message: string;
       choices: ReadonlyArray<{ id: string; label: string }>;
     }) => {
       calls.push({
         kind: 'choose',
+        title: options.title,
         message: options.message,
         choiceIds: options.choices.map((choice) => choice.id),
       });
@@ -142,7 +144,12 @@ test('脏文件正是当前显示的文件 → 给三选一，选「保存」先
     });
 
     assert.deepEqual(harness.calls, [
-      { kind: 'choose', message: '第001章.md 有未保存修改。', choiceIds: ['save', 'discard'] },
+      {
+        kind: 'choose',
+        title: '「第001章.md」还没保存',
+        message: '关闭文件前要先保存吗？',
+        choiceIds: ['save', 'discard'],
+      },
     ]);
     assert.deepEqual(editor.saved, [A], '选保存必须真的落盘');
     assert.deepEqual(harness.api.openFiles, []);
