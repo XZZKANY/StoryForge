@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { act, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, test, vi } from 'vitest';
@@ -218,4 +219,95 @@ test('同一次遮罩 pointer/mouse 手势只关闭菜单，第二次才关闭�
   assert.ok(host.querySelector('[role="dialog"]'));
   act(() => backdrop.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
   assert.equal(host.querySelector('[role="dialog"]'), null);
+});
+
+// 作者窗口 1400×759：左栏 48–268、编辑区 268–1022、对话栏 1022–1400，三栏都从标题栏下（36）开始。
+const VIEWPORT = { width: 1400, height: 759 };
+const EDITOR = { left: 268, right: 1022, top: 36, bottom: 759 };
+const CHAT = { left: 1022, right: 1400, top: 36, bottom: 759 };
+test('挂在按钮上的浮层放得下就留在按钮所在的那一栏', () => {
+  // 编辑区「⋯」菜单：从按钮左缘往右展开会伸进对话栏，留在编辑区里就往左收。
+  const more = { left: 984, right: 1012, top: 44, bottom: 68 };
+  assert.equal(placeFloating(more, 224, 195, VIEWPORT, 'bottom', 'start').left, 984);
+  assert.equal(placeFloating(more, 224, 195, VIEWPORT, 'bottom', 'start', EDITOR).left, 790);
+  // 对话头「上下文」面板：右对齐按钮会伸进正文，留在对话栏里就往右挪。
+  const layers = { left: 1292, right: 1320, top: 44, bottom: 68 };
+  assert.equal(placeFloating(layers, 352, 343, VIEWPORT, 'bottom', 'end').left, 968);
+  assert.equal(placeFloating(layers, 352, 343, VIEWPORT, 'bottom', 'end', CHAT).left, 1030);
+  // 对话头按钮的提示气泡：往上会顶进标题栏盖住窗口按钮，留在对话栏里就翻到按钮下面。
+  assert.equal(placeFloating(layers, 77, 25, VIEWPORT, 'top', 'start').top, 13);
+  assert.equal(placeFloating(layers, 77, 25, VIEWPORT, 'top', 'start', CHAT).top, 74);
+  // 输入框上方的下拉：栏里上方放得下，照旧往上开。
+  const composer = { left: 1034, right: 1388, top: 634, bottom: 747 };
+  assert.equal(placeFloating(composer, 354, 161, VIEWPORT, 'top', 'start', CHAT).top, 467);
+  // 栏比浮层还窄：退回按整个窗口摆，不硬塞。
+  const narrow = { left: 1022, right: 1300, top: 36, bottom: 759 };
+  assert.equal(placeFloating(layers, 352, 343, VIEWPORT, 'bottom', 'end', narrow).left, 968);
+});
+test('浮层找按钮所在的那一栏；在模态框里或跟着鼠标的右键菜单不受栏限制', () => {
+  const column = { left: 268, right: 1022, top: 36, bottom: 759, width: 754, height: 723 };
+  const button = { left: 984, right: 1012, top: 44, bottom: 68, width: 28, height: 24 };
+  const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    if (this.hasAttribute('data-floating-column')) return column as DOMRect;
+    if (this.tagName === 'BUTTON') return button as DOMRect;
+    if (this.hasAttribute('data-floating-surface'))
+      return { left: 0, right: 224, top: 0, bottom: 195, width: 224, height: 195 } as DOMRect;
+    return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 } as DOMRect;
+  });
+  vi.stubGlobal('innerWidth', 1400);
+  vi.stubGlobal('innerHeight', 759);
+  function Harness({ modal, point }: { modal?: boolean; point?: { x: number; y: number } }) {
+    const ref = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(false);
+    const inner = (
+      <>
+        <button ref={ref} onClick={() => setOpen(true)}>
+          打开
+        </button>
+        {open && (
+          <FloatingSurface triggerRef={ref} point={point} onDismiss={() => setOpen(false)}>
+            菜单
+          </FloatingSurface>
+        )}
+      </>
+    );
+    return (
+      <div data-floating-column="">
+        {modal ? <div aria-modal="true">{inner}</div> : inner}
+      </div>
+    );
+  }
+  const leftOf = (element: React.ReactElement) => {
+    const host = mount(element);
+    act(() => host.querySelector('button')!.click());
+    const left = document.querySelector<HTMLElement>('[data-floating-surface]')!.style.left;
+    act(() => roots.splice(0).forEach(({ host, root }) => (root.unmount(), host.remove())));
+    return left;
+  };
+  try {
+    assert.equal(leftOf(<Harness />), '790px');
+    assert.equal(leftOf(<Harness modal />), '984px');
+    assert.equal(leftOf(<Harness point={{ x: 984, y: 60 }} />), '984px');
+  } finally {
+    spy.mockRestore();
+    vi.unstubAllGlobals();
+  }
+});
+test('左栏、编辑区、对话栏三栏都标了 data-floating-column', () => {
+  for (const [file, testId] of [
+    ['src/components/shell/SidePanel.tsx', 'shell-side-panel'],
+    ['src/components/app/AppShell.tsx', 'shell-center'],
+    ['src/components/shell/AssistantPanelFrame.tsx', 'assistant-panel'],
+  ]) {
+    const lines = readFileSync(file, 'utf8').split(/\r?\n/);
+    const start = lines.findIndex((line) => line.includes(`data-testid="${testId}"`));
+    const end = lines.findIndex((line, index) => index > start && /^\s*>\s*$/.test(line));
+    assert.ok(start >= 0 && end > start, `${file} 找不到 ${testId} 的开标签`);
+    assert.ok(
+      lines.slice(start, end).some((line) => line.includes('data-floating-column')),
+      `${testId} 没标 data-floating-column`,
+    );
+  }
 });
