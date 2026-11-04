@@ -227,18 +227,3 @@ export function buildDiffZoneDom(
 
   return container;
 }
-
-/**
- * 右下角的状态 toast。每次新建元素（避免 mutate 从 ref 取出的旧节点）；
- * 挂载与自动消失计时由 useInlineChat 的 flashStatus 管。
- */
-export function buildInlineToast(message: string, tone: 'polite' | 'assertive'): HTMLDivElement {
-  const toast = document.createElement('div');
-  toast.className = 'sf-inline-toast';
-  // 状态反馈对读屏默认可有可无（polite）；失败会打断当前任务，必须 assertive 抢读。
-  toast.setAttribute('role', tone === 'assertive' ? 'alert' : 'status');
-  toast.setAttribute('aria-live', tone);
-  toast.setAttribute('aria-atomic', 'true');
-  toast.textContent = message;
-  return toast;
-}

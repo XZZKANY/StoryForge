@@ -1,6 +1,6 @@
 /**
  * 老章补录接在真实的 useObservatory 上：先在原地说清要调几次模型、作者确定才开始，
- * 跑的时候显示进度；全部抽完一次写 facts.json（一次快照），右下角可整批撤销。
+ * 跑的时候显示进度；全部抽完一次写 facts.json（一次快照），左下角可整批撤销。
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';

@@ -367,17 +367,6 @@ body {
   }
 }
 
-@keyframes slide-in-right {
-  from {
-    opacity: 0;
-    transform: translateX(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
 @keyframes slide-in-up {
   from {
     opacity: 0;
@@ -392,10 +381,6 @@ body {
 /* 动画工具类 */
 .animate-fade-in-up {
   animation: fade-in-up 0.3s var(--transition-easing) both;
-}
-
-.animate-slide-in-right {
-  animation: slide-in-right 0.25s var(--transition-easing) both;
 }
 
 .animate-slide-in-up {
@@ -897,25 +882,6 @@ button:disabled[aria-busy='true'] {
 .sf-inline-accepting .sf-inline-diff-new-seg {
   background: transparent;
   transition: background-color 170ms var(--transition-easing);
-}
-
-/* 行间对话的操作反馈：编辑器右下角小 toast，不占顶栏 */
-.sf-inline-toast {
-  position: absolute;
-  right: 16px;
-  bottom: 14px;
-  z-index: 30;
-  max-width: 60%;
-  padding: 7px 12px;
-  border: 1px solid rgb(var(--border));
-  /* 与全站 ToastHost 卡片同底：surface + rounded-lg 圆角 + 下拉档投影，收敛两套 toast 皮。 */
-  border-radius: var(--radius-lg);
-  background: rgb(var(--surface));
-  color: rgb(var(--muted));
-  font-size: var(--text-2xs);
-  line-height: 1.5;
-  box-shadow: var(--shadow-dropdown);
-  pointer-events: none;
 }
 
 /* 全局通知浮层：模态 backdrop 由层系统内联抬到 z=100 起跳，toast 必须更高，

@@ -95,7 +95,7 @@ afterEach(async () => {
   vi.mocked(executeIdeCommand).mockReset();
 });
 
-test('「不要」：卡片收起、canon.json 不动、重开还在隐藏；右下角撤销能放回来', async () => {
+test('「不要」：卡片收起、canon.json 不动、重开还在隐藏；左下角撤销能放回来', async () => {
   await mount();
   const before = disk.get(PATH);
   await click(cards()[0]?.querySelector('[data-testid="proposal-dismiss"]'));

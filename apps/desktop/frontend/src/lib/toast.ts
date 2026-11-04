@@ -1,7 +1,7 @@
 /**
- * 全局右下角通知（toast）事件桥：任何模块 emitToast 即弹，呈现由壳子的
- * ToastHost 统一承接。与编辑器内定位型反馈（sf-inline-toast、suggestionStatus
- * 行内条）互补：跨面板的结果类通知（导出落点、更新提示、后台失败）走这里。
+ * 全局通知（toast）事件桥：任何模块 emitToast 即弹，呈现由壳子的 ToastHost 统一承接，
+ * 叠在左栏底部。行间改写（Ctrl+K / Ctrl+Shift+K）的状态也走这里；编辑器顶栏的
+ * suggestionStatus 行内条是另一回事，不在这里。
  */
 
 export const TOAST_EVENT = 'storyforge:toast';
@@ -22,6 +22,8 @@ export type ToastDetail = {
   tone: ToastTone;
   durationMs: number;
   action?: ToastAction;
+  /** 同一个 key 只留最新一条：同一处来源的状态一条顶一条，不往上叠。 */
+  key?: string;
 };
 
 const DEFAULT_DURATION_MS = 4000;
@@ -31,7 +33,7 @@ const ACTIONABLE_DURATION_MS = 10000;
 
 export function emitToast(
   message: string,
-  options?: { tone?: ToastTone; durationMs?: number; action?: ToastAction },
+  options?: { tone?: ToastTone; durationMs?: number; action?: ToastAction; key?: string },
 ): void {
   if (typeof window === 'undefined') return;
   const tone = options?.tone ?? 'info';
@@ -45,6 +47,7 @@ export function emitToast(
     tone,
     durationMs: options?.durationMs ?? fallback,
     action: options?.action,
+    key: options?.key,
   };
   window.dispatchEvent(new CustomEvent<ToastDetail>(TOAST_EVENT, { detail }));
 }
