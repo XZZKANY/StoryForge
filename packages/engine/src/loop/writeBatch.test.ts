@@ -261,10 +261,11 @@ describe('批量写章计划', () => {
     const long = { ...book, '人物/主角.md': file('字'.repeat(6100)) };
     const result = await plan(long, { from: 4, to: 5 });
     expect(result.source_warnings).toEqual([
-      '「人物/主角.md」共 6100 字，每章只放得下 6000 字：只带开头 6000 字，后面的内容 AI 写章时看不到。',
+      '人物资料按本章目标、章纲和上一章提及的人物选取完整小节，通用规则与写作边界始终保留；无法确定人物时完整带入：「人物/主角.md」。',
+      '世界规则每次全文读取，不占其他参考资料的字数和份数额度：「设定/世界规则.md」。',
     ]);
     expect(codes(result)).toEqual(codes(await plan(book, { from: 4, to: 5 })));
-    expect((await plan(book, { from: 4, to: 5 })).source_warnings).toEqual([]);
+    expect((await plan(book, { from: 4, to: 5 })).source_warnings).toEqual(result.source_warnings);
     // 没有要写的章就不提。
     expect((await plan(long, { from: 1, to: 3 })).source_warnings).toEqual([]);
   });

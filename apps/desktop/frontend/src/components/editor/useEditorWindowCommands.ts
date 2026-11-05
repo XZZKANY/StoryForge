@@ -92,6 +92,21 @@ export function useEditorWindowCommands({
         return;
       }
 
+      // 未激活页签也可能缓存着作者的未保存改动；不能向修订调用方谎报可直接读磁盘。
+      const cachedTarget = detail ? modelCacheRef.current.get(detail.filePath) : null;
+      if (
+        detail &&
+        detail.filePath !== filePathRef.current &&
+        cachedTarget &&
+        cachedTarget.model.getValue() !== cachedTarget.originalContent
+      ) {
+        respond({
+          filePath: detail.filePath,
+          status: 'error',
+          message: '目标章节有未保存修改，请打开该章节保存后再继续。',
+        });
+        return;
+      }
       if (
         !detail ||
         detail.filePath !== filePathRef.current ||

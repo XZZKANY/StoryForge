@@ -296,3 +296,78 @@ it('正常对照：不切换时请求体与现状逐字段一致', async () => {
   expect(requests[0].args?.project_name).toBe('wu-gang');
   expect(requests[0].args?.instruction).toBe(RUN_GOAL);
 });
+
+it.each([null, FILE])(
+  'continuous revision reads its explicit existing target with currentFile=%s',
+  async (currentFile) => {
+    await render({ currentFile });
+    await act(async () => {
+      void api.run('把世界规则融入本章', 'agent', 'file.revise', [], {
+        revisionTargetFilePath: 'chapter-02.md',
+      });
+    });
+    expect(TauriFileSystem.readProjectFile).toHaveBeenCalledWith(PROJECT, OTHER_FILE);
+    expect(contextGate).not.toBeNull();
+    await releaseContext();
+    expect(sentRequests()).toHaveLength(1);
+    expect(sentRequests()[0].args).toMatchObject({
+      file_path: OTHER_FILE,
+      current_file: OTHER_FILE,
+      content: '正文A',
+      include_writing_materials: true,
+    });
+    expect(sentRequests()[0].args?.author_view).toBeUndefined();
+    expect(sentRequests()[0].args?.review_report).toBeUndefined();
+    expect(sentRequests()[0].permissionProfile).toBe('ask');
+  },
+);
+
+it.each(['read', 'context'])(
+  'stopping a continuous revision during %s prevents sending and releases the claim',
+  async (stage) => {
+    await render({ currentFile: FILE });
+    const controller = new AbortController();
+    let releaseRead: ((text: string) => void) | null = null;
+    if (stage === 'read')
+      vi.mocked(TauriFileSystem.readProjectFile).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseRead = resolve;
+          }),
+      );
+    let result!: ReturnType<typeof api.run>;
+    await act(async () => {
+      result = api.run('统一修订', 'agent', 'file.revise', [], {
+        revisionTargetFilePath: 'chapter-02.md',
+        revisionAbortSignal: controller.signal,
+      });
+    });
+    await act(async () => controller.abort());
+    if (stage === 'read') await act(async () => releaseRead?.('正文A'));
+    else await releaseContext();
+    expect(await result).toEqual({ kind: 'not_dispatched' });
+    expect(sentRequests()).toHaveLength(0);
+    expect(api.state.agentBusy).toBe(false);
+    expect(api.state.agentRun?.status).toBe('stopped');
+    if (stage === 'read') expect(contextGate).toBeNull();
+    await startRun();
+    await releaseContext();
+    expect(sentRequests()).toHaveLength(1);
+  },
+);
+
+it('an already cancelled batch cannot start preparing a new request', async () => {
+  await render({ currentFile: null });
+  const controller = new AbortController();
+  controller.abort();
+  let outcome: Awaited<ReturnType<typeof api.run>> | undefined;
+  await act(async () => {
+    outcome = await api.run('修改', 'agent', 'file.revise', [], {
+      revisionTargetFilePath: 'chapter-02.md',
+      revisionAbortSignal: controller.signal,
+    });
+  });
+  expect(outcome).toEqual({ kind: 'not_dispatched' });
+  expect(TauriFileSystem.readProjectFile).not.toHaveBeenCalled();
+  expect(sentRequests()).toHaveLength(0);
+});

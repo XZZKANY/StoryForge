@@ -282,7 +282,8 @@ export function useMonacoEditor({
     [editorRef, setLoadedContentPreview],
   );
 
-  useEffect(() => {
+  // 自动接受在 passive effect 中运行：先挂载目标 model，不能把 detach 后的空编辑器当正文。
+  useLayoutEffect(() => {
     if (!editorReady || !editorRef.current || loadedFilePath !== filePath) return;
     if (!filePath) {
       editorRef.current.setModel(null);

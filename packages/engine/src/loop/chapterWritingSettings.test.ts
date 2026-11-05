@@ -42,6 +42,43 @@ describe('起草新章看到的立项资料与上一章', () => {
     expect(prompt.split('### 人物/主角.md')).toHaveLength(2);
   });
 
+  it('keeps full world rules and common character boundaries throughout brief, draft, check and repair', async () => {
+    const world = '世界规则正文。'.repeat(1200) + '完整世界规则的末尾不可丢。';
+    const record = await run('write-repair-then-pass', (spec) => {
+      spec.extra_files = {
+        '大纲/总纲.md': '大纲正文。'.repeat(1500),
+        '人物/主要人物.md':
+          '# 人物\n## 一、林舟\n林舟只凭证据行事。\n## 二、沈禾\n' +
+          '沈禾经历。'.repeat(1400) +
+          '\n## 三、统一写作边界\n公共人物边界必须始终在场。',
+        '设定/世界规则.md': world,
+      };
+    });
+    const all = (record.requests as Obj[]).map((request) =>
+      (request.body.messages as Obj[]).map((message) => message.content as string).join('\n'),
+    );
+    // 拟章纲、起草、检查、修复、复查，每一步拿到同一份完整世界规则。
+    expect(all).toHaveLength(5);
+    for (const prompt of all) {
+      expect(prompt).toContain(world);
+      expect(prompt).toContain('公共人物边界必须始终在场。');
+      expect(prompt).not.toContain('没放进来：设定/世界规则.md');
+    }
+  });
+
+  it('guards the end of world rules beyond the old 6000-character cutoff', async () => {
+    const world = '规则。'.repeat(2400) + '末尾原规则。';
+    const record = await run('write-source-drift', (spec) => {
+      spec.extra_files = { '设定/世界规则.md': world };
+      spec.ops[0] = {
+        op: 'edit',
+        path: '设定/世界规则.md',
+        content: world.replace('末尾原规则。', '末尾已变化。'),
+      };
+    });
+    expect(JSON.stringify(record.controls)).toContain(DRIFT);
+  });
+
   it('drafts with the whole previous chapter, not only its last 1200 characters', async () => {
     const opening = '沈禾在城外渡口付了二十文船钱。';
     const body = `第二章 夜行\n\n${opening}\n\n${'沈禾问路。'.repeat(400)}`;

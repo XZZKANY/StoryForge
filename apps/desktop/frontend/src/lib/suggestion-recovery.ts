@@ -463,14 +463,24 @@ export async function settleSuggestionRun(
         ['agent_execution_started', 'agent_execution_claimed'].includes(event.event_type),
       );
     if (
-      !completed ||
-      completed.payload?.assistant_session_id !== original.assistantSessionId ||
-      !latestExecution ||
-      latestExecution.payload?.run_id !== original.runId ||
-      events.lastIndexOf(latestExecution) > events.lastIndexOf(completed)
+      completed?.payload?.assistant_session_id === original.assistantSessionId &&
+      latestExecution?.payload?.run_id === original.runId &&
+      events.lastIndexOf(latestExecution) < events.lastIndexOf(completed)
+    )
+      return 'completed';
+    // 旧固定修订管线曾把“补丁可自动写入”与“运行需确认”同时返回。
+    // 只在已有完整写入与审计证据的接受恢复中，交给下方同一套身份/执行守卫结算原等待。
+    const legacyPending = [...events]
+      .reverse()
+      .find((event) => event.event_type === 'permission_required');
+    const legacyPatch = legacyPending?.payload?.proposed_patch;
+    if (
+      decision !== 'accept' ||
+      legacyPending?.payload?.requires_user_confirmation !== true ||
+      !object(legacyPatch) ||
+      legacyPatch.requires_confirmation !== false
     )
       throw new Error('自动修订已写进文件，但原运行完成状态尚未确认；请核对原运行');
-    return 'completed';
   }
   const pendingEvent = [...events]
     .reverse()

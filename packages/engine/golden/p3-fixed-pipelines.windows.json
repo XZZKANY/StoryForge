@@ -34734,17 +34734,12 @@
             "step": "judge.run",
             "detail": "对待确认修订执行轻量自检。",
             "status": "completed"
-          },
-          {
-            "step": "permission.confirm",
-            "detail": "写进文件前等待作者确认。",
-            "status": "needs_approval"
           }
         ],
         "agent_result": {
           "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
-          "requires_user_confirmation": true,
-          "writeback_blocked_until_user_confirms": true,
+          "requires_user_confirmation": false,
+          "writeback_blocked_until_user_confirms": false,
           "applied_scope": {
             "issue_ids": [
               "plot-1"
@@ -35212,18 +35207,6 @@
           "status": "completed"
         },
         {
-          "type": "agent_step",
-          "session_id": "sess-1",
-          "run_id": "run-1",
-          "assistant_session_id": 1,
-          "event_id": 7,
-          "sequence": 7,
-          "index": 4,
-          "step": "permission.confirm",
-          "detail": "写进文件前等待作者确认。",
-          "status": "needs_approval"
-        },
-        {
           "type": "tool_trace",
           "session_id": "sess-1",
           "run_id": "run-1",
@@ -35517,25 +35500,29 @@
           }
         },
         {
-          "type": "permission_required",
+          "type": "agent_run_completed",
           "session_id": "sess-1",
           "run_id": "run-1",
           "assistant_session_id": 1,
           "event_id": 31,
           "sequence": 31,
-          "permission_profile": "auto",
-          "reason": "requires_user_confirmation",
-          "proposed_patch": {
-            "id": "file-revision-00000000000000000000000000000002",
-            "kind": "file_revision",
-            "file_path": "$ROOT\\正文\\第001章.md",
-            "before": "第一章 风起\n\n林舟推开门。\n",
-            "after": "第一章 风起\n\n林舟一脚踹开了门。",
-            "requires_confirmation": false,
-            "approval_action": "desktop.confirm_file_writeback"
-          },
-          "confirmation_action": null,
-          "blocked_tool": "file.revise"
+          "status": "completed",
+          "message": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
+          "payload": {
+            "intent": "file.revise",
+            "assistant_session_id": 1,
+            "requires_user_confirmation": false,
+            "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
+            "has_proposed_patch": true,
+            "has_review_report": true,
+            "proposed_patch": {
+              "id": "file-revision-00000000000000000000000000000002",
+              "created_by_tool": null,
+              "file_path": "$ROOT\\正文\\第001章.md"
+            },
+            "permission_profile": "auto",
+            "execution_id": 2
+          }
         }
       ],
       "text_frames": [],
@@ -35693,7 +35680,7 @@
           },
           "permission_profile": "auto",
           "budget": {},
-          "status": "paused",
+          "status": "completed",
           "root_plan": [
             {
               "step": "context.load",
@@ -35714,14 +35701,9 @@
               "step": "judge.run",
               "detail": "对待确认修订执行轻量自检。",
               "status": "completed"
-            },
-            {
-              "step": "permission.confirm",
-              "detail": "写进文件前等待作者确认。",
-              "status": "needs_approval"
             }
           ],
-          "current_step": "permission.confirm"
+          "current_step": "completed"
         }
       ],
       "events": [
@@ -35843,11 +35825,6 @@
                 "step": "judge.run",
                 "detail": "对待确认修订执行轻量自检。",
                 "status": "completed"
-              },
-              {
-                "step": "permission.confirm",
-                "detail": "写进文件前等待作者确认。",
-                "status": "needs_approval"
               }
             ],
             "agent_role_hints": [],
@@ -36713,7 +36690,7 @@
               "assistant_summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
               "tool_count": 8,
               "review_issue_count": 1,
-              "requires_user_confirmation": true
+              "requires_user_confirmation": false
             }
           },
           "sequence": 29
@@ -36741,30 +36718,23 @@
         {
           "id": 31,
           "run_id": 1,
-          "event_type": "permission_required",
-          "actor": "permission-gate",
-          "message": "该步骤需要作者确认后才能继续。",
+          "event_type": "agent_run_completed",
+          "actor": "root-agent",
+          "message": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
           "payload": {
             "permission_profile": "auto",
             "execution_id": 2,
             "intent": "file.revise",
             "assistant_session_id": 1,
             "summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
-            "requires_user_confirmation": true,
-            "reason": "requires_user_confirmation",
+            "requires_user_confirmation": false,
             "proposed_patch": {
               "id": "file-revision-00000000000000000000000000000002",
-              "kind": "file_revision",
               "file_path": "$ROOT\\正文\\第001章.md",
-              "before": "第一章 风起\n\n林舟推开门。\n",
-              "after": "第一章 风起\n\n林舟一脚踹开了门。",
-              "requires_confirmation": false,
-              "approval_action": "desktop.confirm_file_writeback"
+              "created_by_tool": null
             },
-            "confirmation_action": null,
-            "confirmation_kind": null,
-            "chapter_brief": null,
-            "blocked_tool": "file.revise"
+            "has_proposed_patch": true,
+            "has_review_report": true
           },
           "sequence": 31
         },
@@ -36777,7 +36747,7 @@
           "payload": {
             "runtime_state": "settled",
             "execution_id": 2,
-            "run_status": "paused",
+            "run_status": "completed",
             "run_id": "run-1",
             "session_id": "sess-1"
           },
@@ -37442,7 +37412,7 @@
             "assistant_summary": "已按指令修订 $ROOT\\正文\\第001章.md，修订后约 17 字。",
             "tool_count": 8,
             "review_issue_count": 1,
-            "requires_user_confirmation": true
+            "requires_user_confirmation": false
           },
           "requires_confirmation": false
         }
@@ -37793,16 +37763,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,

@@ -140,7 +140,8 @@ test('打 / 弹出这本书的技能，打字筛选，没有匹配时说明', as
 test('方向键选，Enter 填入 /名字 加空格、不发送；填完菜单收起，再按 Enter 才发送', async () => {
   await mount();
   await type('/');
-  await press('ArrowDown');
+  await press('ArrowDown'); // /改
+  await press('ArrowDown'); // 第一个技能
   expect(options()[0].active).toBe(true);
   await press('ArrowDown');
   await press('ArrowDown');

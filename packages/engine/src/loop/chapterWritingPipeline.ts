@@ -401,7 +401,7 @@ async function draftFromBrief(
   let content = String(draft.output.content);
   // 检查器没给出可用结果（不是稿件结论）时同一份正文再查一次。
   const checkChapter = async (attempt: number): Promise<Obj> => {
-    const checkInput = { brief: confirmed, content, attempt };
+    const checkInput = { brief: confirmed, content, attempt, project_root: root };
     let check = await execute('chapter.check', checkInput);
     if ((check.output.check as Obj).execution_status !== 'completed')
       check = await execute('chapter.check', { ...checkInput, recheck: true });

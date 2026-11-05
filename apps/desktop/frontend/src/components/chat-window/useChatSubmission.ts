@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { parseRevisionBatchCommand } from './revision-batch';
 import { parseWriteBatchCommand, type WriteBatchCommand } from '@storyforge/project-core';
 
 import {
@@ -48,7 +49,12 @@ export function useChatSubmission(
    * 批量写章调度器：在写时什么都不发；续写确认卡开着时和 `/写` 确认卡一样只认新的 `/写`；
    * 不带范围的 `/写` 交给它续写。
    */
-  writeBatchScheduler: { occupied: boolean; cardOpen?: boolean; onResume?: () => void } = {
+  writeBatchScheduler: {
+    occupied: boolean;
+    cardOpen?: boolean;
+    onResume?: () => void;
+    onRevision?: (instruction: string) => boolean;
+  } = {
     occupied: false,
   },
 ) {
@@ -80,6 +86,7 @@ export function useChatSubmission(
   const batchOccupied = writeBatchScheduler.occupied;
   const batchOccupiedRef = useRef(batchOccupied);
   const onWriteBatchResume = writeBatchScheduler.onResume;
+  const onRevisionBatch = writeBatchScheduler.onRevision;
   useLayoutEffect(() => {
     batchOccupiedRef.current = batchOccupied;
   }, [batchOccupied]);
@@ -213,7 +220,7 @@ export function useChatSubmission(
       // 批量写章在一章接一章地发起：别的话（含新的 `/写`）插进去会顶掉下一章，等停下或写完再发。
       if (batchOccupiedRef.current) {
         preserveInstruction();
-        emitToast('批量写章进行中：先停止这一批，再发下一条；草稿已保留。', { tone: 'info' });
+        emitToast('连续处理进行中：先停止这一批，再发下一条；草稿已保留。', { tone: 'info' });
         return;
       }
       if (awaitingDecision) {
@@ -223,9 +230,9 @@ export function useChatSubmission(
       }
       const batch = parseWriteBatchCommand(instruction);
       // 批量写章卡开着时只认新的 `/写`（换一张卡），别的话等作者开始或关掉这张卡。
-      if (writeBatchOpen && !batch) {
+      if (writeBatchOpen && !batch && !parseRevisionBatchCommand(instruction)) {
         preserveInstruction();
-        emitToast('先开始写或关掉上面的批量写章，再发下一条；草稿已保留。', { tone: 'info' });
+        emitToast('先开始或关掉上面的连续处理确认卡，再发下一条；草稿已保留。', { tone: 'info' });
         return;
       }
       const clearSubmittedDraft = () => {
@@ -246,6 +253,11 @@ export function useChatSubmission(
       // Claim synchronously; React's busy state alone does not guard same-frame submits.
       if (sendingRef.current) {
         preserveInstruction();
+        return;
+      }
+      if (onRevisionBatch?.(instruction)) {
+        setWriteBatch(null);
+        clearSubmittedDraft();
         return;
       }
       if (batch?.kind === 'resume' && onWriteBatchResume) {
@@ -300,6 +312,7 @@ export function useChatSubmission(
       setInput,
       setMessages,
       onWriteBatchResume,
+      onRevisionBatch,
       writeBatchOpen,
     ],
   );

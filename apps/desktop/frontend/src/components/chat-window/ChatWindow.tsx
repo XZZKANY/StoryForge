@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { parseWriteBatchCommand } from '@storyforge/project-core';
 
 import { ChatWindowView } from './ChatWindowView';
 import type { ChatWindowProps } from './types';
@@ -18,6 +19,7 @@ import { useChatWindowState } from './useChatWindowState';
 import { useChapterCheckHistory } from './useChapterCheckHistory';
 import { projectOverviewActivity } from './overview-activity';
 import { useRunAuthorAgent } from './useRunAuthorAgent';
+import { useRevisionBatch } from './useRevisionBatch';
 import { useWriteBatchScheduler } from './useWriteBatchScheduler';
 import type { ApiWriteBatchPlan } from '../../lib/api/contracts';
 import { useComposerHint } from './useComposerHint';
@@ -77,30 +79,55 @@ export function ChatWindow(props: ChatWindowProps) {
     projectPath: projectPath ?? null,
     permissionProfile: agentPermissionProfile,
   });
+  const revisions = useRevisionBatch({
+    state,
+    runAuthorAgent,
+    projectPath: projectPath ?? null,
+    assistantSessionId: assistantSessionId ?? null,
+    permissionProfile: agentPermissionProfile,
+  });
   const submission = useChatSubmission(state, runAuthorAgent, props, {
-    occupied: scheduler.occupied,
-    cardOpen: scheduler.confirming,
-    onResume: scheduler.resumeFromCommand,
+    occupied: scheduler.occupied || revisions.occupied,
+    cardOpen: scheduler.confirming || revisions.confirming,
+    onResume: () => {
+      revisions.close();
+      scheduler.resumeFromCommand();
+    },
+    onRevision: (instruction) => {
+      if (revisions.offer(instruction)) {
+        if (scheduler.confirming) scheduler.cancelConfirm();
+        return true;
+      }
+      if (parseWriteBatchCommand(instruction)) revisions.close();
+      return false;
+    },
   });
   // 确认卡（含续写确认）开着、或这一批正在写：会直接发起写章的快捷入口都先收起。
   const writeBatchOpen =
-    submission.writeBatch !== null || scheduler.occupied || scheduler.confirming;
+    submission.writeBatch !== null ||
+    scheduler.occupied ||
+    scheduler.confirming ||
+    revisions.occupied ||
+    revisions.confirming;
   useEffect(() => setWriteBatchCardOpen(writeBatchOpen), [writeBatchOpen]);
   useEffect(() => () => setWriteBatchCardOpen(false), []);
-  const batchOccupiedRef = useRef(scheduler.occupied);
+  const batchOccupiedRef = useRef(scheduler.occupied || revisions.occupied);
   useLayoutEffect(() => {
-    batchOccupiedRef.current = scheduler.occupied;
+    batchOccupiedRef.current = scheduler.occupied || revisions.occupied;
   });
   const refuseWhileBatch = useCallback(() => {
     if (!batchOccupiedRef.current) return false;
-    emitToast('批量写章进行中：先停止这一批，再切换、新建会话或发起别的修改。', { tone: 'info' });
+    emitToast('连续处理进行中：先停止这一批，再切换、新建会话或发起别的修改。', { tone: 'info' });
     return true;
   }, []);
   // 这一批在写时，任何「停止」都停这一批（调度器里再走现有的停止本轮）。
-  const agentRunControls = scheduler.running
-    ? { ...controls.agentRunControls, onStopRun: scheduler.stop }
-    : controls.agentRunControls;
+  const agentRunControls = revisions.occupied
+    ? { ...controls.agentRunControls, onStopRun: revisions.stop }
+    : scheduler.running
+      ? { ...controls.agentRunControls, onStopRun: scheduler.stop }
+      : controls.agentRunControls;
   const startWriteBatchFromCard = async (plan: ApiWriteBatchPlan) => {
+    revisions.close();
     const command = submission.writeBatch?.command;
     const feedback = await scheduler.start(plan, command?.kind === 'range' ? command.note : null);
     if (feedback.started) submission.closeWriteBatch();
@@ -300,6 +327,7 @@ export function ChatWindow(props: ChatWindowProps) {
         onCloseWriteBatch={submission.closeWriteBatch}
         onStartWriteBatch={startWriteBatchFromCard}
         writeBatchScheduler={scheduler}
+        revisionBatchScheduler={revisions}
       />
       <AppDialogHost
         dialog={dialogs.dialog}

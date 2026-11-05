@@ -363,6 +363,8 @@ export async function reviseFileContent(
     preparedContext?: PreparedWritingContext | null;
     /** 整章修订带上台账里的已写事实；Ctrl+K 这类局部改不带。 */
     writtenFacts?: boolean;
+    /** 章节修复继续读取完整世界规则与相关人物。 */
+    writingMaterials?: boolean;
     /** 发起这次调用的写章 run；对话历史据此把这条记录收进那一章的摘要。 */
     relatedRunId?: number | null;
   } = {},
@@ -390,6 +392,16 @@ export async function reviseFileContent(
       ? factMentionText(payload.instruction, payload.content, payload.context_bundle)
       : undefined,
   );
+  const materials =
+    options.writingMaterials && projectRoot
+      ? await collectSettingSources(deps.reader, projectRoot, {
+          secrets: llm.secrets,
+          capture: sources,
+          ordinal: chapterFileOrdinal(payload.file_path),
+          mentionText: payload.instruction + '\n' + payload.content,
+          charactersAndSettingsOnly: true,
+        })
+      : null;
   const session = await existingOrNewSession(deps, {
     sessionId: payload.assistant_session_id,
     projectRoot,
@@ -437,7 +449,7 @@ export async function reviseFileContent(
           kind: item.kind,
           excerpt: item.excerpt,
         })),
-        sceneConstraints: constraints,
+        sceneConstraints: [constraints, materials?.block].filter(Boolean).join('\n\n') || null,
         qualityGate: payload.quality_gate ?? null,
         editPolicy: editPolicyFromGenerationPrompt(payload.content, {
           instruction: options.authorInstruction ?? payload.instruction,
@@ -920,6 +932,7 @@ export async function draftFileContent(
           secrets: llm.secrets,
           capture: sources,
           ordinal: chapterFileOrdinal(payload.file_path),
+          mentionText: [payload.instruction, previous?.text ?? ''].join('\n'),
         });
   const session = await existingOrNewSession(deps, {
     sessionId: payload.assistant_session_id,

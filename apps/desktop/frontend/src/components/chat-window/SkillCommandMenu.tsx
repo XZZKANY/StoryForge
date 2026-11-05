@@ -1,10 +1,16 @@
-import { WRITE_BATCH_COMMAND_NAME } from '@storyforge/project-core';
-
-import { WRITE_BATCH_MENU_HINT, type SlashMenu } from './slash-menu';
+import type { SlashMenu } from './slash-menu';
 import type { ConversationSkillsView } from './useConversationSkills';
 import { PlainButton } from '../ui';
 
 export const SKILL_COMMAND_MENU_ID = 'composer-skill-commands';
+
+/** 键盘高亮的序号映射到真实 option；重名禁用行不占序号。 */
+export function slashMenuOptionId(menu: SlashMenu, activeIndex: number): string | undefined {
+  const command = menu.commands.find((item) => item.pick === activeIndex);
+  if (command) return `${SKILL_COMMAND_MENU_ID}-command-${command.name}`;
+  const skillIndex = menu.skills.findIndex((item) => item.pick === activeIndex);
+  return skillIndex < 0 ? undefined : `${SKILL_COMMAND_MENU_ID}-${skillIndex}`;
+}
 
 const OPTION_CLASS =
   'flex w-full flex-col items-start rounded-lg px-2.5 py-1.5 text-left transition-colors';
@@ -33,7 +39,7 @@ export function SkillCommandMenu({
         : view.status === 'ready' && view.skills.length === 0
           ? '这本书还没有技能。在对话头「上下文」里可以按模板新建。'
           : // 打的字对上了指令，就不再说「没有叫『写』的技能」。
-            view.status === 'ready' && items.length === 0 && !menu.command
+            view.status === 'ready' && items.length === 0 && menu.commands.length === 0
             ? `没有叫「${query}」的技能。`
             : null;
   const skillsShown = note !== null || items.length > 0;
@@ -41,31 +47,33 @@ export function SkillCommandMenu({
     <div
       className="absolute bottom-full left-2 z-10 mb-1.5 w-[320px] max-w-[calc(100%-1rem)] animate-fade-in rounded-xl border border-border bg-surface p-1.5 shadow-dropdown"
       data-testid="skill-command-menu"
+      id={SKILL_COMMAND_MENU_ID}
+      role="listbox"
+      aria-label="指令与技能"
     >
-      {menu.command && (
-        <div
-          role="listbox"
-          aria-label="指令"
-          className={skillsShown ? 'mb-1 border-b border-border pb-1' : undefined}
-        >
-          <PlainButton
-            id={`${SKILL_COMMAND_MENU_ID}-command`}
-            role="option"
-            aria-selected={activeIndex === 0}
-            tabIndex={-1}
-            // 不抢输入框的焦点：点完接着打字。
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onPick(WRITE_BATCH_COMMAND_NAME)}
-            className={`${OPTION_CLASS} hover:bg-elevated ${activeIndex === 0 ? 'bg-elevated' : ''}`}
-            data-testid="slash-command-option"
-          >
-            <span className="block max-w-full truncate text-xs text-foreground">
-              /{WRITE_BATCH_COMMAND_NAME}
-            </span>
-            <span className="mt-0.5 block max-w-full text-2xs leading-snug text-subtle">
-              {WRITE_BATCH_MENU_HINT}
-            </span>
-          </PlainButton>
+      {menu.commands.length > 0 && (
+        <div className={skillsShown ? 'mb-1 border-b border-border pb-1' : undefined}>
+          {menu.commands.map((command) => (
+            <PlainButton
+              key={command.name}
+              id={`${SKILL_COMMAND_MENU_ID}-command-${command.name}`}
+              role="option"
+              aria-selected={activeIndex === command.pick}
+              tabIndex={-1}
+              // 不抢输入框的焦点：点完接着打字。
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onPick(command.name)}
+              className={`${OPTION_CLASS} hover:bg-elevated ${activeIndex === command.pick ? 'bg-elevated' : ''}`}
+              data-testid="slash-command-option"
+            >
+              <span className="block max-w-full truncate text-xs text-foreground">
+                /{command.name}
+              </span>
+              <span className="mt-0.5 block max-w-full text-2xs leading-snug text-subtle">
+                {command.hint}
+              </span>
+            </PlainButton>
+          ))}
         </div>
       )}
       {skillsShown && (
@@ -83,12 +91,7 @@ export function SkillCommandMenu({
         </p>
       ) : (
         items.length > 0 && (
-          <div
-            id={SKILL_COMMAND_MENU_ID}
-            role="listbox"
-            aria-label="技能"
-            className="max-h-60 overflow-y-auto"
-          >
+          <div className="max-h-60 overflow-y-auto">
             {items.map(({ skill, conflict, pick }, index) => (
               <PlainButton
                 key={`${skill.plugin ?? ''}:${skill.path}`}

@@ -24,8 +24,8 @@ import {
   detectLocalConversationAction,
   type LocalConversationAction,
 } from '../../lib/local-conversation-action';
-import { buildContextBundle, resolveProjectRelativePath } from '../../lib/project-context';
-import { TauriFileSystem } from '../../lib/host/tauri-fs';
+import { buildContextBundle } from '../../lib/project-context';
+import { createRevisionStopGuard, prepareRunFile } from './run-preparation';
 import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import { permissionForRun } from '../../lib/write-batch-grant';
 import { filePathFromAgentResult, writableFilePatch, repairPatchApproval } from './agent-result';
@@ -99,7 +99,8 @@ export function useRunAuthorAgent(
         assistantSessionIdRef.current,
         draftNonceRef.current,
       );
-      if (rejectBlockedAdmission(scope)) return NOT_DISPATCHED;
+      if (options.revisionAbortSignal?.aborted || rejectBlockedAdmission(scope))
+        return NOT_DISPATCHED;
       const writebackOnly = action === 'file.writeback';
       const exportOnly = action === 'file.export';
       const project = projectPathRef.current;
@@ -119,7 +120,7 @@ export function useRunAuthorAgent(
         ]);
         return NOT_DISPATCHED;
       }
-      if (requiresCurrentFile && (!file || !ref)) {
+      if (requiresCurrentFile && !options.revisionTargetFilePath && (!file || !ref)) {
         setMessages((prev) => [
           ...prev,
           {
@@ -204,23 +205,34 @@ export function useRunAuthorAgent(
           ...options,
           // 重试是作者自己点的一轮，不带批量的授权。
           writeBatchGrant: undefined,
+          revisionAbortSignal: undefined,
           explicitContextPaths: options.explicitContextPaths?.slice(),
         },
         excludedKnowledgeIds: excludedKnowledgeIds.slice(),
-        currentFile: options.targetFilePath || options.planFallback ? undefined : file,
+        currentFile:
+          options.targetFilePath || options.revisionTargetFilePath || options.planFallback
+            ? undefined
+            : file,
       };
+      const preparation = createRevisionStopGuard(options.revisionAbortSignal, runId, ownsRun, {
+        setAgentBusy,
+        setAgentRun,
+        textStream,
+      });
+      const stopPreparation = preparation.stop;
       try {
-        let content: string | null = null;
-        // 新章节不把当前编辑器当目标正文；已保存的当前文件仍可作为普通项目参考。
-        if (file && ref && !options.targetFilePath && !options.planFallback) {
-          await flushActiveEditorToDisk(file);
-          content = await TauriFileSystem.readProjectFile(project, file);
-        }
-        const contextFile = options.targetFilePath
-          ? resolveProjectRelativePath(project, options.targetFilePath)
-          : options.planFallback
-            ? null
-            : file;
+        const preparedFile = await prepareRunFile({
+          project,
+          file,
+          ref,
+          intent,
+          options,
+          abandonIfTaskMoved,
+          stopPreparation,
+        });
+        if (preparedFile.kind === 'abandoned') return unsettled;
+        if (preparedFile.kind === 'cancelled') return NOT_DISPATCHED;
+        const { content, revisionTarget, contextFile } = preparedFile;
         // 只排除另行携带的目标正文，不能漏掉起草新章时恰好打开的设定或上一章。
         const currentRelative = contextFile ? relativePath(project, contextFile) : null;
         const requestedContextPaths = (options.explicitContextPaths ?? []).filter(
@@ -233,17 +245,17 @@ export function useRunAuthorAgent(
             ...extractContextReferences(goal),
           ]),
         );
-        const appendedContext = await appendExplicitContextFiles(
-          await buildContextBundle({
-            projectPath: project,
-            currentFile: contextFile,
-            pinnedFiles: [...explicitContextPaths, ...requestedContextPaths],
-            automatic: false,
-          }),
-          project,
-          contextRefs,
-        );
+        const baseContext = await buildContextBundle({
+          projectPath: project,
+          currentFile: contextFile,
+          pinnedFiles: [...explicitContextPaths, ...requestedContextPaths],
+          automatic: false,
+        });
         if (abandonIfTaskMoved()) return unsettled;
+        if (stopPreparation()) return NOT_DISPATCHED;
+        const appendedContext = await appendExplicitContextFiles(baseContext, project, contextRefs);
+        if (abandonIfTaskMoved()) return unsettled;
+        if (stopPreparation()) return NOT_DISPATCHED;
         const contextBundle = appendedContext.bundle;
         contextBundle.excludedKnowledgeIds = excludedKnowledgeIds;
         setLastContextBundle(contextBundle);
@@ -260,16 +272,17 @@ export function useRunAuthorAgent(
         const payload = buildStableAgentRequestPayload({
           projectPath: project,
           // 计划回退：不带 current_file/file_path，让后端 resolve_target(None) 走连载计划回退。
-          currentFile: options.planFallback ? null : file,
+          currentFile: revisionTarget ?? (options.planFallback ? null : file),
           content: options.planFallback ? null : content,
           instruction: goal,
           projectName,
           assistantSessionId,
           contextBundle,
-          reviewReport: lastReviewReport,
-          authorView: authorViewRef.current,
+          reviewReport: revisionTarget ? null : lastReviewReport,
+          authorView: revisionTarget ? null : authorViewRef.current,
           targetFilePath: options.targetFilePath,
         });
+        if (revisionTarget) payload.include_writing_materials = true;
         if (intent === 'chapter.polish') {
           payload.style_instruction = goal;
           payload.use_main_model = options.useMainModel === true;
@@ -277,6 +290,8 @@ export function useRunAuthorAgent(
         const agentRoleMentions = extractAgentRoleMentions(goal);
         const agentRoleHints = mapAgentRoleMentionsToHints(agentRoleMentions);
         if (abandonIfTaskMoved()) return unsettled;
+        if (stopPreparation()) return NOT_DISPATCHED;
+        preparation.markSent();
         const response = await sendAgentUserMessage({
           sessionId: runId,
           runId,
@@ -303,6 +318,7 @@ export function useRunAuthorAgent(
           return unsettled;
         }
 
+        if (stopPreparation()) return unsettled;
         if (isAgentErrorMessage(response)) {
           updateAgentStatus('failed');
           setRetryRequest(retryRequest);
@@ -431,6 +447,7 @@ export function useRunAuthorAgent(
           textStream.hold(runId, 'unknown');
           return unsettled;
         }
+        if (stopPreparation()) return preparation.requestSent ? unsettled : NOT_DISPATCHED;
         const message = error instanceof Error ? error.message : String(error);
         updateAgentStatus('failed');
         setRetryRequest(retryRequest);

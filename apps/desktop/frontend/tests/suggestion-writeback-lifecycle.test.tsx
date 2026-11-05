@@ -7,6 +7,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 import type { AgentRunEventRecord } from '../src/lib/api/agent-run-events';
 import type { ChapterFactRecordPlan } from '../src/lib/api/facts';
 import { createWritebackQueue } from '../src/lib/writeback';
+import * as chapterWriteback from '../src/lib/write-batch-writeback';
 import { TauriFileSystem, type DiskBaseline } from '../src/lib/host/tauri-fs';
 import type { WritebackRequest } from '../src/lib/writeback-receipt-types';
 import {
@@ -28,6 +29,7 @@ import {
   capturePendingSuggestion,
   loadPendingSuggestion,
   persistPendingSuggestion,
+  settleSuggestionRun,
 } from '../src/lib/suggestion-recovery';
 
 const effects = vi.hoisted(() => ({
@@ -2494,5 +2496,366 @@ for (const marker of ['agent_execution_started', 'agent_execution_claimed']) {
     assert.ok(handle.actionError?.includes('执行归属已变化'));
     assert.equal(effects.control.mock.calls.length, 0);
     assert.ok(await loadPendingSuggestion('D:/project', FILE));
+  });
+}
+
+async function prepareReceiptedHunks(id: string) {
+  const proposal = {
+    ...runProposal(id),
+    runId: id,
+    before: 'A\nB\nC',
+    after: 'AA\nB\nCC',
+  };
+  effects.disk.set(FILE, proposal.before);
+  await remountForCold();
+  effects.events.mockResolvedValue(awaitingEvents(proposal));
+  effects.control.mockImplementationOnce(async () => ({
+    type: 'permission_approved',
+    control_effect: 'applied',
+    run_id: id,
+    session_id: 'original-session',
+    runtime_state: 'settled',
+    run_status: 'completed',
+  }));
+  await show(proposal);
+  return { proposal, hunks: buildPatchHunks(proposal.before, proposal.after, 0) };
+}
+
+test('continuous revision receives one final hunk receipt after facts settle, never on a partial hunk', async () => {
+  const report = vi.spyOn(chapterWriteback, 'reportChapterWriteback');
+  try {
+    const {
+      proposal,
+      hunks: [first, last],
+    } = await prepareReceiptedHunks('hunk-receipt-success');
+    const facts = deferred<ChapterFactRecordPlan>();
+    effects.facts.mockImplementationOnce(() => facts.promise);
+    await act(async () => handle.handleAcceptHunk(first));
+    assert.equal(report.mock.calls.length, 0);
+    assert.equal(effects.facts.mock.calls.length, 0);
+    await act(async () => handle.handleAcceptHunk(last));
+    assert.equal(effects.disk.get(FILE), proposal.after);
+    assert.equal(effects.control.mock.calls.length, 1);
+    assert.equal(report.mock.calls.length, 1);
+    assert.equal(report.mock.calls[0][0], proposal.runId);
+    assert.equal(effects.facts.mock.calls.length, 1);
+    let delivered = false;
+    const receipt = Promise.resolve(report.mock.calls[0][1]).then((value) => {
+      delivered = true;
+      return value;
+    });
+    await Promise.resolve();
+    assert.equal(delivered, false, 'the next chapter waits for fact recording');
+    facts.resolve({ status: 'skipped', reason: 'no_facts' });
+    assert.equal((await receipt).written, true);
+    assert.equal(handle.pendingSuggestion, null);
+    await act(async () => handle.handleAcceptHunk(last));
+    assert.equal(report.mock.calls.length, 1, 'a stale last-hunk callback cannot report again');
+    assert.equal(effects.facts.mock.calls.length, 1, 'facts are recorded once');
+  } finally {
+    report.mockRestore();
+  }
+});
+
+for (const failure of ['audit', 'settlement', 'failed-run', 'write'] as const) {
+  test('continuous revision stops after a failed last-hunk ' + failure, async () => {
+    const report = vi.spyOn(chapterWriteback, 'reportChapterWriteback');
+    try {
+      const {
+        hunks: [first, last],
+      } = await prepareReceiptedHunks('hunk-receipt-' + failure);
+      await act(async () => handle.handleAcceptHunk(first));
+      if (failure === 'audit') effects.record.mockRejectedValueOnce(new Error('audit incomplete'));
+      if (failure === 'settlement') {
+        effects.control.mockReset();
+        effects.control.mockRejectedValueOnce(new Error('approval outcome unknown'));
+      }
+      if (failure === 'failed-run') {
+        effects.control.mockReset();
+        effects.control.mockResolvedValueOnce({
+          type: 'permission_approved',
+          control_effect: 'applied',
+          run_id: 'hunk-receipt-' + failure,
+          session_id: 'original-session',
+          runtime_state: 'settled',
+          run_status: 'failed',
+        });
+      }
+      if (failure === 'write') effects.write.mockRejectedValueOnce(new Error('disk write failed'));
+      await act(async () => handle.handleAcceptHunk(last));
+      assert.equal(report.mock.calls.length, 1);
+      assert.equal((await report.mock.calls[0][1])?.written, false);
+      assert.equal(effects.facts.mock.calls.length, 0);
+    } finally {
+      effects.control.mockReset();
+      effects.control.mockImplementation(async () => ({
+        type: 'permission_approved',
+        control_effect: 'applied',
+        run_id: 'original-run',
+        session_id: 'original-session',
+        runtime_state: 'settled',
+        run_status: 'completed',
+      }));
+      report.mockRestore();
+    }
+  });
+}
+
+test('last-hunk fact failure reports saved manuscript with factError so the queue can stop', async () => {
+  const report = vi.spyOn(chapterWriteback, 'reportChapterWriteback');
+  try {
+    const {
+      proposal,
+      hunks: [first, last],
+    } = await prepareReceiptedHunks('hunk-receipt-facts');
+    await act(async () => handle.handleAcceptHunk(first));
+    effects.facts.mockRejectedValueOnce(new Error('facts unavailable'));
+    await act(async () => handle.handleAcceptHunk(last));
+    const receipt = await report.mock.calls[0][1];
+    assert.equal(receipt?.written, true);
+    assert.ok(receipt?.written && receipt.factError?.includes('facts unavailable'));
+    assert.equal(effects.disk.get(FILE), proposal.after);
+  } finally {
+    report.mockRestore();
+  }
+});
+
+test('last-hunk completion preserves author input made while its audit is pending', async () => {
+  const report = vi.spyOn(chapterWriteback, 'reportChapterWriteback');
+  try {
+    const {
+      proposal,
+      hunks: [first, last],
+    } = await prepareReceiptedHunks('hunk-receipt-author-input');
+    await act(async () => handle.handleAcceptHunk(first));
+    const entered = deferred<void>(),
+      release = deferred<void>();
+    effects.record.mockImplementationOnce(async (record) => {
+      entered.resolve();
+      await release.promise;
+      return {
+        ...(await recordRealAudit(record as RevisionLoopRecord)),
+        recordPath: '/record.md',
+        updatedBlueprintPath: null,
+      };
+    });
+    let accepting!: Promise<void>;
+    await act(async () => {
+      accepting = handle.handleAcceptHunk(last);
+    });
+    await entered.promise;
+    await act(async () => __getLastEditor()!.setValue(proposal.after + '\n作者新增。'));
+    await act(async () => {
+      release.resolve();
+      await accepting;
+    });
+    assert.equal(effects.disk.get(FILE), proposal.after);
+    assert.equal(__getLastEditor()!.getValue(), proposal.after + '\n作者新增。');
+    assert.equal(report.mock.calls.length, 1);
+    assert.equal((await report.mock.calls[0][1])?.written, true);
+  } finally {
+    report.mockRestore();
+  }
+});
+
+for (const failure of ['failed-run', 'cleanup', 'audit'] as const) {
+  test(
+    'whole acceptance reports failure to the queue when ' + failure + ' is not settled',
+    async () => {
+      const report = vi.spyOn(chapterWriteback, 'reportChapterWriteback');
+      try {
+        const { proposal } = await prepareReceiptedHunks('whole-receipt-' + failure);
+        if (failure === 'failed-run') {
+          effects.control.mockReset();
+          effects.control.mockResolvedValueOnce({
+            type: 'permission_approved',
+            control_effect: 'applied',
+            run_id: proposal.runId,
+            session_id: 'original-session',
+            runtime_state: 'settled',
+            run_status: 'failed',
+          });
+        }
+        if (failure === 'cleanup')
+          effects.journalWrite
+            .mockImplementationOnce(async (_path, content) => {
+              if (content === 'null') throw new Error('cleanup pending');
+            })
+            .mockImplementation(async (_path, content) => {
+              if (content === 'null') throw new Error('cleanup pending');
+            });
+        if (failure === 'audit')
+          effects.record.mockRejectedValueOnce(new Error('audit unavailable'));
+        await act(async () => handle.handleAcceptSuggestion());
+        assert.equal(
+          effects.disk.get(FILE),
+          proposal.after,
+          'body remains saved despite the settlement failure',
+        );
+        assert.equal(report.mock.calls.length, 1);
+        const receipt = await report.mock.calls[0][1];
+        assert.equal(receipt?.written, false, 'the next chapter must not start');
+        if (failure === 'failed-run')
+          assert.equal(effects.result.mock.calls.at(-1)?.[0].runStatus, 'failed');
+        if (failure === 'cleanup' || failure === 'audit')
+          assert.ok(await loadPendingSuggestion('D:/project', FILE));
+      } finally {
+        effects.journalWrite.mockReset();
+        effects.journalWrite.mockImplementation(async () => {});
+        effects.control.mockReset();
+        effects.control.mockImplementation(async () => ({
+          type: 'permission_approved',
+          control_effect: 'applied',
+          run_id: 'original-run',
+          session_id: 'original-session',
+          runtime_state: 'settled',
+          run_status: 'completed',
+        }));
+        report.mockRestore();
+      }
+    },
+  );
+}
+
+test('whole acceptance reports success only after run acknowledgement and fact recording', async () => {
+  const report = vi.spyOn(chapterWriteback, 'reportChapterWriteback');
+  try {
+    const { proposal } = await prepareReceiptedHunks('whole-receipt-completed');
+    const acknowledgement = deferred<Awaited<ReturnType<typeof effects.control>>>();
+    const facts = deferred<ChapterFactRecordPlan>();
+    effects.control.mockReset();
+    effects.control.mockReturnValueOnce(acknowledgement.promise);
+    effects.facts.mockReturnValueOnce(facts.promise);
+    let accepting!: Promise<void>;
+    await act(async () => {
+      accepting = handle.handleAcceptSuggestion();
+    });
+    await vi.waitFor(() => assert.equal(effects.control.mock.calls.length, 1));
+    assert.equal(effects.disk.get(FILE), proposal.after);
+    assert.equal(report.mock.calls.length, 0, 'body alone is not a settled completion');
+    await act(async () => {
+      acknowledgement.resolve({
+        type: 'permission_approved',
+        control_effect: 'applied',
+        run_id: proposal.runId,
+        session_id: 'original-session',
+        runtime_state: 'settled',
+        run_status: 'completed',
+      });
+      await accepting;
+    });
+    assert.equal(report.mock.calls.length, 1);
+    let delivered = false;
+    const receipt = Promise.resolve(report.mock.calls[0][1]).then((value) => {
+      delivered = true;
+      return value;
+    });
+    await Promise.resolve();
+    assert.equal(delivered, false, 'successful acknowledgement still waits for facts');
+    facts.resolve({ status: 'skipped', reason: 'no_facts' });
+    assert.equal((await receipt)?.written, true);
+    assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+  } finally {
+    effects.control.mockReset();
+    effects.control.mockImplementation(async () => ({
+      type: 'permission_approved',
+      control_effect: 'applied',
+      run_id: 'original-run',
+      session_id: 'original-session',
+      runtime_state: 'settled',
+      run_status: 'completed',
+    }));
+    report.mockRestore();
+  }
+});
+
+function legacyAutoWaitingEvents(proposal: AssistantFileSuggestion): AgentRunEventRecord[] {
+  const events = awaitingEvents(proposal);
+  events[1].payload!.requires_user_confirmation = true;
+  (events[1].payload!.proposed_patch as Record<string, unknown>).requires_confirmation = false;
+  return events;
+}
+async function persistedAutoBeforeLegacySettlement(id: string) {
+  const proposal = { ...runProposal(id), requiresConfirmation: false };
+  // 先模拟已写入但旧终态尚未取回；保留实际 Native 回执与审计。
+  effects.events.mockResolvedValue([awaitingEvents(proposal)[0]]);
+  await show(proposal);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    assert.ok(
+      handle.actionError?.includes('原运行完成状态尚未确认'),
+      handle.actionError ?? '尚未结算',
+    );
+  });
+  assert.equal(effects.disk.get(FILE), proposal.after);
+  assert.equal(effects.control.mock.calls.length, 0);
+  const descriptor = (await loadPendingSuggestion('D:/project', FILE))!;
+  assert.equal(descriptor.requests.length, 1);
+  effects.events.mockResolvedValue(legacyAutoWaitingEvents(proposal));
+  return { proposal, descriptor };
+}
+
+test('legacy automatic revision waiting for confirmation settles from receipts without overwriting later edits', async () => {
+  const { descriptor } = await persistedAutoBeforeLegacySettlement('legacy-auto-settle');
+  await settleSuggestionRun('D:/project', descriptor, 'observe');
+  assert.equal(effects.control.mock.calls.length, 0, 'observing never approves');
+  effects.disk.set(FILE, '作者后来保存的正文');
+  await act(async () => __getLastEditor()!.setValue('作者后来未保存的输入'));
+  await act(async () => handle.handleAcceptSuggestion());
+  assert.equal(handle.actionError, null);
+  assert.equal(handle.pendingSuggestion, null);
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.equal(effects.disk.get(FILE), '作者后来保存的正文');
+  assert.equal(__getLastEditor()!.getValue(), '作者后来未保存的输入');
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+});
+
+test('cold recovery settles a written legacy automatic revision without generating or writing again', async () => {
+  await persistedAutoBeforeLegacySettlement('legacy-auto-cold');
+  effects.disk.set(FILE, 'later saved text');
+  await remountForCold();
+  await act(async () => handle.recoverPendingSuggestion(FILE));
+  assert.equal(effects.control.mock.calls.length, 1);
+  assert.equal(effects.write.mock.calls.length, 1);
+  assert.equal(effects.snapshot.mock.calls.length, 1);
+  assert.equal(effects.disk.get(FILE), 'later saved text');
+  assert.equal(await loadPendingSuggestion('D:/project', FILE), null);
+});
+
+for (const invalid of [
+  'patch',
+  'session',
+  'target',
+  'new-execution',
+  'missing-audit',
+  'missing-receipt',
+] as const) {
+  test('legacy automatic recovery rejects invalid ownership/evidence: ' + invalid, async () => {
+    const { proposal, descriptor } = await persistedAutoBeforeLegacySettlement(
+      'legacy-auto-' + invalid,
+    );
+    const events = legacyAutoWaitingEvents(proposal);
+    const pending = events[1].payload!;
+    const patch = pending.proposed_patch as Record<string, unknown>;
+    if (invalid === 'patch') patch.id = 'different-patch';
+    if (invalid === 'session') pending.assistant_session_id = 999;
+    if (invalid === 'target') patch.file_path = 'other.md';
+    if (invalid === 'new-execution')
+      events.push({
+        event_type: 'agent_execution_claimed',
+        payload: { runtime_state: 'in_flight' },
+      });
+    if (invalid === 'missing-audit' || invalid === 'missing-receipt') {
+      for (const path of effects.disk.keys())
+        if (path.includes(invalid === 'missing-audit' ? '/author-loop/' : '/writeback-receipts/'))
+          effects.disk.delete(path);
+    }
+    effects.events.mockResolvedValue(events);
+    await assert.rejects(settleSuggestionRun('D:/project', descriptor));
+    assert.equal(effects.control.mock.calls.length, 0);
+    assert.equal(effects.write.mock.calls.length, 1);
+    assert.equal(effects.disk.get(FILE), proposal.after);
   });
 }

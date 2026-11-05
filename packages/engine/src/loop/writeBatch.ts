@@ -252,7 +252,7 @@ export type WriteBatchPlan = {
   estimate: WriteBatchEstimate | null;
   /** 试写模式的说明；其余为 null。 */
   note: string | null;
-  /** 哪些立项资料 AI 写章时看不全（见 settingSourcesWarnings）；不挡开跑。没有要写的章为空。 */
+  /** 立项资料的读取方式及裁剪说明（见 settingSourcesWarnings）；不挡开跑。没有要写的章为空。 */
   source_warnings: string[];
 };
 
