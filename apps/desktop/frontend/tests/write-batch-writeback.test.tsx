@@ -15,6 +15,7 @@ import {
   type ChapterWriteback,
 } from '../src/lib/write-batch-writeback';
 import type { AcceptedChapterFacts } from '../src/lib/fact-write';
+import type { RevisionLoopRecord } from '../src/lib/author-loop';
 
 const PROJECT = 'D:/batch-book';
 const FILE = PROJECT + '/正文/第004章.md';
@@ -24,10 +25,20 @@ const LEDGER =
 
 const effects = vi.hoisted(() => ({
   snapshot: vi.fn(),
-  record: vi.fn(async () => ({ recordPath: null, updatedBlueprintPath: null })),
+  record: vi.fn(async (_record: RevisionLoopRecord) => ({
+    recordPath: null as string | null,
+    updatedBlueprintPath: null as string | null,
+  })),
+  session: vi.fn(async () => ({ id: 7, project_path: 'D:/batch-book' })),
+  events: vi.fn(async (runId: string) => [
+    { event_type: 'agent_execution_started', payload: { run_id: runId, session_id: runId } },
+    { event_type: 'agent_run_completed', payload: { assistant_session_id: 7 } },
+  ]),
   mark: vi.fn(async () => null),
   facts: vi.fn(),
 }));
+vi.mock('../src/lib/api/assistant', () => ({ getAssistantSession: effects.session }));
+vi.mock('../src/lib/api/agent-runs', () => ({ getAgentRunEvents: effects.events }));
 vi.mock('../src/lib/versions', async (load) => ({
   ...(await load<typeof import('../src/lib/versions')>()),
   snapshotBeforeWrite: effects.snapshot,
@@ -73,8 +84,12 @@ describe('编辑器接受写章修订后交结果', () => {
   let host: HTMLDivElement;
   const dialogs = { alert: async () => {}, confirm: async () => false, prompt: async () => null };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const original =
+      await vi.importActual<typeof import('../src/lib/author-loop')>('../src/lib/author-loop');
+    // 原生回执后需要真实闭环审计及原运行完成证据；只返回一个空记录不能授权推进下一章。
+    effects.record.mockImplementation((record) => original.recordRevisionLoop(record));
     effects.snapshot.mockResolvedValue({ path: SNAPSHOT, timestamp: 11, created: true });
     files = new Map();
     window.__STORYFORGE_MOCK_FS__ = {
@@ -129,6 +144,7 @@ describe('编辑器接受写章修订后交结果', () => {
         note: '',
         createdAt: 1,
         requiresConfirmation: false,
+        assistantSessionId: 7,
         runId,
       }),
     );
@@ -150,7 +166,7 @@ describe('编辑器接受写章修订后交结果', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(result).toBeNull();
-    settleFacts({ snapshotPath: LEDGER, disputes: 1, error: null });
+    settleFacts({ snapshotPath: LEDGER, disputes: 1, added: 2, error: null });
     await waiting;
     expect(result).toEqual({
       written: true,
@@ -158,6 +174,7 @@ describe('编辑器接受写章修订后交结果', () => {
       snapshotVersion: '.storyforge/versions/正文/第004章.md/checkpoints/11.meta.json',
       factsBefore: '.storyforge/versions/.storyforge/canon/facts.json/checkpoints/12.meta.json',
       factDisputes: 1,
+      factsAdded: 2,
       factError: null,
     });
   });
@@ -166,7 +183,10 @@ describe('编辑器接受写章修订后交结果', () => {
     effects.snapshot.mockRejectedValue(new Error('快照没拍成'));
     const waiting = awaitChapterWriteback('run-10', { timeoutMs: 10_000 });
     await proposeAuto('run-10');
-    await expect(waiting).resolves.toEqual({ written: false, reason: '快照没拍成' });
+    await expect(waiting).resolves.toEqual({
+      written: false,
+      reason: '本章保存未完整结算：快照没拍成',
+    });
     expect(effects.facts).not.toHaveBeenCalled();
     expect(files.has(FILE)).toBe(false);
   });

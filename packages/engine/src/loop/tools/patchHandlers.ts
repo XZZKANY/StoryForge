@@ -226,7 +226,12 @@ export function patchToolHandlers(deps: ToolDeps): Record<string, ToolHandler> {
           assistant_session_id: context.assistantSessionId,
           context_bundle: prepared.contextBundle,
         },
-        { authorInstruction: context.userMessage, preparedContext: prepared, writtenFacts: true },
+        {
+          authorInstruction: context.userMessage,
+          preparedContext: prepared,
+          writtenFacts: true,
+          writingMaterials: context.args.include_writing_materials === true,
+        },
       ),
     );
     // 改完一字没变：不生成补丁，免得作者面对一个 +0 / -0 的「改好了」还得点接受或拒绝。

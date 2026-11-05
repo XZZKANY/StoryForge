@@ -198,7 +198,7 @@ describe('确认卡', () => {
     ];
     plan.mockResolvedValue(historyPlan({ source_warnings: warnings }));
     await card(range(4, 6), { onStart: vi.fn() });
-    expect(q('write-batch-source-warnings')?.textContent).toContain('这些资料 AI 写章时看不全');
+    expect(q('write-batch-source-warnings')?.textContent).toContain('写章时的资料读取方式');
     expect(all('write-batch-source-warning').map((item) => item.textContent)).toEqual(warnings);
     expect(q('write-batch-blockers')).toBeNull();
     expect(buttons()).toEqual([

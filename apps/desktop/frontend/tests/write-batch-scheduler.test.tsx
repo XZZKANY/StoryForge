@@ -609,7 +609,7 @@ test('引擎说停：停下的卡照引擎原文说原因，「从第 k 章接�
   expect(runs).toHaveLength(1);
   // 续写确认卡开着时，和 `/写` 确认卡一样不发别的话。
   await submitComposer('先聊聊');
-  expect(toasts).toContain('先开始写或关掉上面的批量写章，再发下一条；草稿已保留。');
+  expect(toasts).toContain('先开始或关掉上面的连续处理确认卡，再发下一条；草稿已保留。');
 
   await click('write-batch-start');
   await until(() => expect(runs).toHaveLength(2));
@@ -728,7 +728,7 @@ test('批量进行中：不能发话、不能切换或新建会话', async () =>
   engine.steps = [{ action: 'write', ordinal: 4, target_path: path(4), goal: null }];
   await startBatch();
   await submitComposer('顺便看看第三章');
-  expect(toasts).toContain('批量写章进行中：先停止这一批，再发下一条；草稿已保留。');
+  expect(toasts).toContain('连续处理进行中：先停止这一批，再发下一条；草稿已保留。');
   expect(h.run).toHaveBeenCalledTimes(1);
   await act(async () => emitNewSessionRequest());
   expect(h.newSession).not.toHaveBeenCalled();
@@ -745,7 +745,7 @@ test('批量进行中：不能发话、不能切换或新建会话', async () =>
       ?.click();
   });
   expect(h.selectSession).not.toHaveBeenCalled();
-  expect(toasts).toContain('批量写章进行中：先停止这一批，再切换、新建会话或发起别的修改。');
+  expect(toasts).toContain('连续处理进行中：先停止这一批，再切换、新建会话或发起别的修改。');
 });
 
 test('换作品：这一批就地停下、这一轮也停掉；晚到的结果不记、授权失效', async () => {

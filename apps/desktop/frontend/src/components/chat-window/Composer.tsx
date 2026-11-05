@@ -13,7 +13,7 @@ import { roleMentionQuery } from './display-utils';
 import { ModelProfileSelector } from './ModelProfileSelector';
 import { PermissionProfileSelector } from './PermissionProfileSelector';
 import { ReasoningEffortSelector } from './ReasoningEffortSelector';
-import { SkillCommandMenu } from './SkillCommandMenu';
+import { SkillCommandMenu, SKILL_COMMAND_MENU_ID, slashMenuOptionId } from './SkillCommandMenu';
 import { slashMenu } from './slash-menu';
 import type { QueuedChatMessage } from './useChatSubmission';
 import { useConversationSkills } from './useConversationSkills';
@@ -211,7 +211,6 @@ export function ComposerSurface({
     return true;
   };
 
-  // 硬引用超 3 枚收纳为 +N（悬停看全名）。
   const visiblePins = explicitContextPaths.slice(0, 3);
   const overflowPins = explicitContextPaths.slice(3);
   // 消息开头打 / 点名技能；Esc 关掉后先不弹，再打一个字就重新弹。
@@ -377,6 +376,8 @@ export function ComposerSurface({
               : '输入想法，@ 提及角色，/ 用技能'
         }
         aria-label="给 StoryForge 发送消息"
+        aria-controls={skillMenuShown ? SKILL_COMMAND_MENU_ID : undefined}
+        aria-activedescendant={skillMenuShown ? slashMenuOptionId(menu, activeSkill) : undefined}
         onKeyDown={(event) => {
           // IME 组字期间（拼音选字）一律不拦截：Enter 上屏候选、方向键选候选都不应触发发送/回溯。
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;

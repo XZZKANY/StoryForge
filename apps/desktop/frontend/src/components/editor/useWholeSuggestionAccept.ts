@@ -30,6 +30,7 @@ import type { SuggestionUndo } from './useSuggestionUndo';
 export function useWholeSuggestionAccept(
   {
     editorRef,
+    modelCacheRef,
     emitAuthorLoopResult,
     filePathRef,
     normalizeEol,
@@ -94,7 +95,10 @@ export function useWholeSuggestionAccept(
     let failure: string | null = null;
 
     try {
-      const currentContent = editorRef.current.getValue();
+      const model = modelCacheRef.current.get(path)?.model;
+      if (!model || editorRef.current.getModel() !== model)
+        throw new Error('目标正文还在加载，请加载完成后再接受修订。');
+      const currentContent = model.getValue();
       const opState =
         suggestionOpsRef.current?.suggestionId === suggestion.id
           ? suggestionOpsRef.current
@@ -196,14 +200,26 @@ export function useWholeSuggestionAccept(
             suggestion.runId,
             () => !batchWrite && mountedRef.current && projectPathRef.current === projectRoot,
           );
-      settlement = writtenChapter(projectRoot, path, loopRecord.snapshotPath, facts);
       const runStatus = loopRecord.auditComplete
         ? await forgetSuggestionRecovery(suggestion, true)
         : undefined;
+      // 正文落盘不等于运行已成功结算；连续修改必须等审计、原运行与恢复清理都确认。
+      if (!loopRecord.auditComplete || loopRecord.warning) {
+        failure = loopRecord.warning ?? '正文已写入，但保存审计尚未完成，请先核对原修订。';
+      } else if (
+        runStatus === false ||
+        runStatus === 'failed' ||
+        (suggestion.runId && runStatus !== 'completed')
+      ) {
+        failure = '正文已写入，但原运行尚未成功结算；后续章节未启动。';
+      } else {
+        settlement = writtenChapter(projectRoot, path, loopRecord.snapshotPath, facts);
+      }
       replacePendingFileSuggestion(suggestion, null);
       if (!isCurrentAction(actionToken)) return;
       updatePendingSuggestion(null);
       if (loopRecord.warning) {
+        failure = loopRecord.warning;
         emitToast(loopRecord.warning, {
           tone: 'info',
           action: loopRecord.retryAudit
@@ -266,7 +282,9 @@ export function useWholeSuggestionAccept(
       finishAction(actionToken);
       reportChapterWriteback(
         suggestion.runId,
-        settlement ?? { written: false, reason: failure ?? '这次接受没有写进文件。' },
+        failure
+          ? { written: false, reason: '本章保存未完整结算：' + failure }
+          : (settlement ?? { written: false, reason: '这次接受没有写进文件。' }),
       );
     }
   }, [
@@ -277,6 +295,7 @@ export function useWholeSuggestionAccept(
     isCurrentAction,
     updatePendingSuggestion,
     editorRef,
+    modelCacheRef,
     emitAuthorLoopResult,
     filePathRef,
     offerUndo,
@@ -308,6 +327,8 @@ export function useWholeSuggestionAccept(
       return;
     }
     if (actionState) return;
+    const model = modelCacheRef.current.get(pendingSuggestion.filePath)?.model;
+    if (!model || editorRef.current?.getModel() !== model) return;
     if (autoAcceptedSuggestionIdRef.current === pendingSuggestion.id) return;
     if (autoAcceptingRef.current) return;
     autoAcceptedSuggestionIdRef.current = pendingSuggestion.id;
@@ -315,7 +336,8 @@ export function useWholeSuggestionAccept(
     void handleAcceptSuggestion().finally(() => {
       autoAcceptingRef.current = false;
     });
-  }, [actionState, pendingSuggestion, handleAcceptSuggestion]);
+    // 文件加载和 model 绑定只更新 ref；每次提交检查就绪状态，不能把提前失败算作已尝试接受。
+  });
 
   return { handleAcceptSuggestion };
 }

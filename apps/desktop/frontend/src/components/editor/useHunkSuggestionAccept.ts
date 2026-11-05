@@ -1,6 +1,12 @@
 import { useCallback } from 'react';
 
 import { replacePendingFileSuggestion } from '../../lib/assistant-events';
+import { recordAcceptedChapterFacts } from '../../lib/fact-write';
+import {
+  reportChapterWriteback,
+  writtenChapter,
+  type ChapterWriteback,
+} from '../../lib/write-batch-writeback';
 import type { PatchHunk } from '../../lib/patch-hunks';
 import {
   hasIssueAttribution,
@@ -23,9 +29,16 @@ import type { SuggestionUndo } from './useSuggestionUndo';
 // 分块接受：把作者点的那一块映射回原始 op，再用与整份接受同一套锚定定位器写进当前稿。
 
 export function useHunkSuggestionAccept(
-  { editorRef, emitAuthorLoopResult, filePathRef }: UseSuggestionWritebackParams,
+  {
+    editorRef,
+    modelCacheRef,
+    emitAuthorLoopResult,
+    filePathRef,
+    projectPathRef,
+  }: UseSuggestionWritebackParams,
   {
     setSuggestionStatus,
+    mountedRef,
     pendingSuggestionRef,
     suggestionOpsRef,
     updatePendingSuggestion,
@@ -51,9 +64,15 @@ export function useHunkSuggestionAccept(
 
       const actionToken = beginAction('hunk', suggestion);
       if (!actionToken) return;
+      const projectRoot = projectPathRef.current;
+      let settlement: Promise<ChapterWriteback> | null = null;
+      let failure: string | null = null;
 
       try {
-        const currentContent = editorRef.current.getValue();
+        const model = modelCacheRef.current.get(path)?.model;
+        if (!model || editorRef.current.getModel() !== model)
+          throw new Error('目标正文还在加载，请加载完成后再接受修订。');
+        const currentContent = model.getValue();
         const opState =
           suggestionOpsRef.current?.suggestionId === suggestion.id
             ? suggestionOpsRef.current
@@ -145,10 +164,26 @@ export function useHunkSuggestionAccept(
               operationView: projection.view,
             };
         const finished = remaining === null;
+        if (!loopRecord.auditComplete || loopRecord.warning)
+          failure = loopRecord.warning ?? '分块已写入，但保存审计尚未完成，请先核对原修订。';
         const runStatus =
           finished && loopRecord.auditComplete
             ? await forgetSuggestionRecovery(suggestion, true)
             : undefined;
+        // 只有整份原操作都已确认、审计与原运行结算均成功，才能交出连续修改的完成回执。
+        if (finished && failure === null) {
+          if (suggestion.runId && runStatus !== 'completed') {
+            failure = '修订已写入，但原运行尚未成功结算；后续章节未启动。';
+          } else {
+            const facts = recordAcceptedChapterFacts(
+              projectRoot,
+              path,
+              suggestion.runId,
+              () => mountedRef.current && projectPathRef.current === projectRoot,
+            );
+            settlement = writtenChapter(projectRoot, path, loopRecord.snapshotPath, facts);
+          }
+        }
         replacePendingFileSuggestion(suggestion, remaining);
         if (!isCurrentAction(actionToken)) return;
         updatePendingSuggestion(remaining);
@@ -202,6 +237,7 @@ export function useHunkSuggestionAccept(
           'success',
         );
       } catch (err) {
+        failure = err instanceof Error ? err.message : String(err);
         failAction(
           actionToken,
           `接受分块失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -209,6 +245,10 @@ export function useHunkSuggestionAccept(
         );
       } finally {
         finishAction(actionToken);
+        // 部分接受没有整章回执；失败则立即停止队列，不能等成已经写完。
+        if (failure !== null)
+          reportChapterWriteback(suggestion.runId, { written: false, reason: failure });
+        else if (settlement !== null) reportChapterWriteback(suggestion.runId, settlement);
       }
     },
     [
@@ -218,7 +258,10 @@ export function useHunkSuggestionAccept(
       isCurrentAction,
       updatePendingSuggestion,
       editorRef,
+      modelCacheRef,
       filePathRef,
+      projectPathRef,
+      mountedRef,
       finishAction,
       forgetSuggestionRecovery,
       offerUndo,

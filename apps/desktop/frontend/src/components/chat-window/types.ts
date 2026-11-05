@@ -138,6 +138,10 @@ export type RetryRequest = {
 
 export type RunAuthorAgentOptions = {
   useMainModel?: boolean;
+  /** 连续修改的现有正文目标：读取全文，不依赖当前打开页签。 */
+  revisionTargetFilePath?: string;
+  /** 本次连续修改的停止信号；不持久化，不沿用到人工重试。 */
+  revisionAbortSignal?: AbortSignal;
   /** 显式起草目标（如「AI 起草下一章」）：目标文件尚不存在，file_path 锚定它。 */
   targetFilePath?: string;
   /** 「写/起草下一章」：目标交连载计划回退，不刷盘不读当前稿、不带 current_file/file_path。 */
@@ -254,6 +258,8 @@ export type StableAgentRequestPayload = {
   assistant_session_id: number | null;
   context_bundle: ReturnType<typeof import('../../lib/api-client').toAssistantContextBundlePayload>;
   review_report?: ReviewReport;
+  /** 连续修改显式要求按写章资料策略带入世界规则。 */
+  include_writing_materials?: boolean;
   selected_issue_ids?: string[];
   included_categories?: ReviewCategory[];
 };

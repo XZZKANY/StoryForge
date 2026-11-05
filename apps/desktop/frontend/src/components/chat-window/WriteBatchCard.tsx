@@ -223,7 +223,7 @@ export function WriteBatchCard({
             className="mt-2 rounded-md border border-warning/30 px-2.5 py-2"
             data-testid="write-batch-source-warnings"
           >
-            <div className="text-xs font-medium text-warning">这些资料 AI 写章时看不全</div>
+            <div className="text-xs font-medium text-warning">写章时的资料读取方式</div>
             <ul className="mt-1 space-y-1 text-xs text-foreground">
               {plan.source_warnings.map((warning) => (
                 <li key={warning} data-testid="write-batch-source-warning">

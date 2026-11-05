@@ -483,10 +483,14 @@ async function runFileRevise(host: FixedPipelineHost, request: FixedPipelineRequ
     mode: 'proposed_patch_smoke',
   });
   traces.push(judge.trace);
+  // 修订工具已经合并作品权限与截断保护；运行终态必须与交给编辑器的补丁一致。
+  const proposedPatch = isObj(revise.output.proposed_patch) ? revise.output.proposed_patch : null;
+  const requiresConfirmation =
+    proposedPatch !== null && proposedPatch.requires_confirmation !== false;
   const agentResult: Obj = {
     summary: revise.output.summary,
-    requires_user_confirmation: true,
-    writeback_blocked_until_user_confirms: true,
+    requires_user_confirmation: requiresConfirmation,
+    writeback_blocked_until_user_confirms: requiresConfirmation,
     applied_scope: revise.output.applied_scope,
     review_report: reviewReport,
   };
@@ -510,11 +514,13 @@ async function runFileRevise(host: FixedPipelineHost, request: FixedPipelineRequ
         'completed',
       ),
       planStep('judge.run', '对待确认修订执行轻量自检。', 'completed'),
-      planStep('permission.confirm', '写进文件前等待作者确认。', 'needs_approval'),
+      ...(requiresConfirmation
+        ? [planStep('permission.confirm', '写进文件前等待作者确认。', 'needs_approval')]
+        : []),
     ],
     agentResult,
     toolTrace: traces,
-    proposedPatch: revise.output.proposed_patch as Obj,
+    proposedPatch,
     ...roles(args),
     toolArtifacts: [...reviewArtifacts, ...(revise.artifacts ?? [])],
   });

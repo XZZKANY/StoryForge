@@ -18,6 +18,8 @@ import type { AgentPermissionProfile } from '../../lib/agent-permission';
 import type { AssistantSessionRecord } from '../../lib/api-client';
 import type { ChatWindowState } from './useChatWindowState';
 import type { QueuedChatMessage, WriteBatchRequest } from './useChatSubmission';
+import { RevisionBatchPanel } from './RevisionBatchPanel';
+import type { RevisionBatchScheduler } from './useRevisionBatch';
 import { WriteBatchPanel, WriteBatchProgressBar } from './WriteBatchPanel';
 import type { WriteBatchStartFeedback } from './WriteBatchCard';
 import type { WriteBatchScheduler } from './useWriteBatchScheduler';
@@ -71,6 +73,7 @@ type Props = {
   onStartWriteBatch?: (plan: ApiWriteBatchPlan) => Promise<WriteBatchStartFeedback>;
   /** 批量写章调度器：进行中的进度条、续写确认卡、停下或写完的卡。 */
   writeBatchScheduler?: WriteBatchScheduler;
+  revisionBatchScheduler?: RevisionBatchScheduler;
 };
 
 export function ChatWindowView({
@@ -109,6 +112,7 @@ export function ChatWindowView({
   onCloseWriteBatch,
   onStartWriteBatch,
   writeBatchScheduler,
+  revisionBatchScheduler,
 }: Props) {
   const statusText = runStatusText(state.agentRun);
   // 待确认期间 agentBusy 已置 false、输入框可用；直接发新消息会静默顶掉当前 run，
@@ -280,7 +284,11 @@ export function ChatWindowView({
                   handoff={opening}
                   onDraft={onOpeningDraft}
                   onAsk={(prompt) => void handleComposerSubmit(prompt)}
-                  actionsHidden={writeBatch !== null || Boolean(writeBatchScheduler?.occupied)}
+                  actionsHidden={
+                    writeBatch !== null ||
+                    Boolean(writeBatchScheduler?.occupied) ||
+                    Boolean(revisionBatchScheduler?.occupied || revisionBatchScheduler?.confirming)
+                  }
                 />
               ) : null
             }
@@ -304,6 +312,13 @@ export function ChatWindowView({
                 />
               </div>
             </section>
+          )}
+
+          {revisionBatchScheduler && (
+            <RevisionBatchPanel
+              scheduler={revisionBatchScheduler}
+              permissionProfile={agentPermissionProfile}
+            />
           )}
 
           <WriteBatchPanel

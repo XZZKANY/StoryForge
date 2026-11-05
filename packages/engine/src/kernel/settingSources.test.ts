@@ -1,5 +1,6 @@
 import { PROJECT_GUIDE_MARKDOWN } from '@storyforge/project-core';
 import { describe, expect, it } from 'vitest';
+import { ProjectReadError } from '../readPort';
 import type { EncodedFile } from './contextFixture.test-support';
 import { GenerationSourceCapture } from './generationSources';
 import { memoryProject } from './memoryProject.test-support';
@@ -98,18 +99,18 @@ describe('collectSettingSources', () => {
     const piece = '甲'.repeat(5000);
     const result = await collectSettingSources(
       readerOf({
-        '人物/a.md': piece,
-        '人物/b.md': piece,
-        '人物/c.md': piece,
-        '人物/d.md': piece,
+        '时间线/a.md': piece,
+        '时间线/b.md': piece,
+        '时间线/c.md': piece,
+        '时间线/d.md': piece,
       }),
       ROOT,
       { secrets: SECRETS },
     );
-    expect(result?.paths).toEqual(['人物/a.md', '人物/b.md', '人物/c.md']);
-    expect(result?.truncated).toEqual(['人物/c.md']);
-    expect(result?.omitted).toEqual(['人物/d.md']);
-    expect(result?.block).toContain('另有 1 份立项资料没放进来：人物/d.md');
+    expect(result?.paths).toEqual(['时间线/a.md', '时间线/b.md', '时间线/c.md']);
+    expect(result?.truncated).toEqual(['时间线/c.md']);
+    expect(result?.omitted).toEqual(['时间线/d.md']);
+    expect(result?.block).toContain('另有 1 份立项资料没放进来：时间线/d.md');
     const delivered = [...result!.block].filter((char) => char === '甲').length;
     expect(delivered).toBe(SETTING_TOTAL_MAX_CHARS);
   });
@@ -117,13 +118,70 @@ describe('collectSettingSources', () => {
   it('takes at most the file-count cap', async () => {
     const files = Object.fromEntries(
       Array.from({ length: SETTING_MAX_FILES + 2 }, (_, index) => [
-        `人物/${String(index).padStart(2, '0')}.md`,
+        `时间线/${String(index).padStart(2, '0')}.md`,
         `角色${index}`,
       ]),
     );
     const result = await collectSettingSources(readerOf(files), ROOT, { secrets: SECRETS });
     expect(result?.paths).toHaveLength(SETTING_MAX_FILES);
-    expect(result?.omitted).toEqual(['人物/12.md', '人物/13.md']);
+    expect(result?.omitted).toEqual(['时间线/12.md', '时间线/13.md']);
+  });
+
+  it('always carries all world rules even after the optional count and character budgets are full', async () => {
+    const world = '世界规则。'.repeat(1800) + '全文最后一条不可遗漏。';
+    const files = Object.fromEntries(
+      Array.from({ length: SETTING_MAX_FILES + 2 }, (_, i) => [
+        '大纲/' + String(i).padStart(2, '0') + '.md',
+        '大纲。'.repeat(2500),
+      ]),
+    );
+    const result = await collectSettingSources(
+      readerOf({
+        ...files,
+        '人物/主要人物.md': '人物。'.repeat(2400) + '末尾人物约束。',
+        '设定/世界规则.md': world,
+        '世界观/补充规则.md': '补充规则也必须完整。',
+      }),
+      ROOT,
+      { secrets: SECRETS },
+    );
+    expect(result?.block).toContain(world);
+    expect(result?.block).toContain('末尾人物约束。');
+    expect(result?.block).toContain('补充规则也必须完整。');
+    expect(result?.omitted).not.toContain('设定/世界规则.md');
+    expect(result?.truncated).not.toContain('设定/世界规则.md');
+  });
+
+  it('selects a later character section whole and retains common rules after the old cutoff', async () => {
+    const result = await collectSettingSources(
+      readerOf({
+        '人物/主要人物.md':
+          '# 人物\n\n## 一、林舟\n' +
+          '林舟经历。'.repeat(1500) +
+          '\n\n## 二、沈禾\n沈禾只相信亲眼所见。\n\n## 三、统一写作边界\n不让能力替代调查。',
+        '设定/世界规则.md': '城门三更关闭。',
+      }),
+      ROOT,
+      { secrets: SECRETS, mentionText: '沈禾独自调查城门。' },
+    );
+    expect(result?.block).toContain('沈禾只相信亲眼所见。');
+    expect(result?.block).toContain('不让能力替代调查。');
+    expect(result?.block).not.toContain('林舟经历。');
+    expect(result?.block).toContain('城门三更关闭。');
+    expect(result?.truncated).toEqual([]);
+  });
+
+  it('does not silently continue without a discovered world-rules file that cannot be read', async () => {
+    const reader = readerOf({ '设定/世界规则.md': '必须完整。' });
+    const broken = {
+      ...reader,
+      readProjectBytes: async () => {
+        throw new ProjectReadError('read failed');
+      },
+    };
+    await expect(collectSettingSources(broken, ROOT, { secrets: SECRETS })).rejects.toThrow(
+      '文件无法读取：世界规则.md',
+    );
   });
 
   it('redacts secrets and records what it delivered without copying the text into evidence', async () => {
@@ -186,7 +244,7 @@ describe('collectSettingSources 按章挑总纲', () => {
     expect(result?.block).toContain('### 第5章：节点5');
   });
 
-  it('cuts characters and settings at the head as before, and outlines without headings too', async () => {
+  it('keeps characters whole while outlines without headings still use the cap', async () => {
     const long = `## 第5章\n\n${'字'.repeat(SETTING_FILE_MAX_CHARS)}`;
     const result = await collectSettingSources(
       readerOf({ '人物/主角.md': long, '大纲/总纲.md': '无标题。'.repeat(2000) }),
@@ -194,7 +252,8 @@ describe('collectSettingSources 按章挑总纲', () => {
       { secrets: SECRETS, ordinal: 5 },
     );
     expect(result?.block).toContain('大纲/总纲.md\n<<<SETTING\n无标题。');
-    expect(result?.block.match(/这里只放了开头/gu)).toHaveLength(2);
+    expect(result?.block.match(/这里只放了开头/gu)).toHaveLength(1);
+    expect(result?.block).toContain(long);
     expect(result?.block).not.toContain('按第 5 章挑');
   });
 });
@@ -239,9 +298,7 @@ describe('settingSourcesWarnings', () => {
 
   it('says nothing when there is no setting material, or all of it fits', async () => {
     expect(await warn({})).toEqual([]);
-    expect(await warn({ '大纲/总纲.md': '## 第1章\n开场。\n', '人物/主角.md': '林舟。' })).toEqual(
-      [],
-    );
+    expect(await warn({ '大纲/总纲.md': '## 第1章\n开场。\n' })).toEqual([]);
   });
 
   it('tells the author an outline with chapter headings is picked per chapter', async () => {
@@ -264,21 +321,35 @@ describe('settingSourcesWarnings', () => {
     );
     expect(warnings[0]).toContain('加上标题就能按章挑相关小节');
     expect(warnings[1]).toContain('「人物/主角.md」');
-    expect(warnings[1]).not.toContain('标题');
+    expect(warnings[1]).toContain('完整小节');
+    expect(warnings[1]).toContain('写作边界始终保留');
+    expect(warnings[1]).not.toContain('只带开头');
   });
 
   it('names the files left out by the total budget', async () => {
     const piece = '甲'.repeat(5000);
     const warnings = await warn({
-      '人物/a.md': piece,
-      '人物/b.md': piece,
-      '人物/c.md': piece,
-      '人物/d.md': piece,
+      '时间线/a.md': piece,
+      '时间线/b.md': piece,
+      '时间线/c.md': piece,
+      '时间线/d.md': piece,
     });
     expect(warnings[warnings.length - 1]).toBe(
-      `另有 1 份立项资料放不进去（每章最多带 ${SETTING_MAX_FILES} 份、合计 ${SETTING_TOTAL_MAX_CHARS} 字），` +
-        'AI 写章时一字不带：「人物/d.md」。',
+      `另有 1 份其他参考资料放不进去（最多带 ${SETTING_MAX_FILES} 份、合计 ${SETTING_TOTAL_MAX_CHARS} 字），` +
+        'AI 写章时一字不带：「时间线/d.md」。',
     );
+  });
+
+  it('explains character selection and full world rules without reporting them as truncated', async () => {
+    const warnings = await warn({
+      '大纲/总纲.md': '纲'.repeat(7056),
+      '人物/主要人物.md': '人'.repeat(6578),
+      '设定/世界规则.md': '规'.repeat(8000),
+    });
+    expect(warnings.join('\n')).toContain('世界规则每次全文读取');
+    expect(warnings.join('\n')).toContain('人物资料按本章目标');
+    expect(warnings.join('\n')).not.toContain('AI 写章时一字不带');
+    expect(warnings.filter((warning) => warning.includes('只带开头'))).toHaveLength(1);
   });
 
   it('adds the chapter-outline step only for outlines it cuts beyond what drafting cuts', async () => {

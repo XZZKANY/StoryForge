@@ -1,5 +1,6 @@
 import { compareChapterPaths, isUntouchedProjectGuide } from '@storyforge/project-core';
 import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../readPort';
+import { selectCharacterSources } from './characterFocus';
 import { isChapterOutlineCandidate } from './chapterOutline';
 import { FsToolError } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
@@ -10,7 +11,7 @@ import { ProjectTreeError } from './projectTree';
 import { pythonStrip } from './pythonText';
 import { redactSensitiveText, type SecretContext } from './redaction';
 
-/** 起草时整份带上的立项资料，按这个顺序排：先答「往哪去」，再「谁」「什么能做」。资料库不带。 */
+/** 资料呈现顺序；人物按需选整节、设定全文带入，二者不占其他资料的裁剪额度。 */
 const SOURCE_ORDER = ['outline', 'character', 'setting', 'timeline', 'foreshadowing'];
 const TEXT_SUFFIXES = new Set(['.md', '.markdown', '.txt']);
 export const SETTING_FILE_MAX_CHARS = 6000;
@@ -52,7 +53,7 @@ type Gathered = {
   readonly cuts: Cut[];
 };
 
-/** 按类目顺序读资料全文，每份、总量、份数都有上限；放不下的大纲按本章挑小节，其余照旧取开头。 */
+/** 人物与世界规则独立带入；其他资料按原有预算筛选，大纲按章挑小节。 */
 async function gather(
   reader: ProjectReader,
   root: string,
@@ -62,11 +63,12 @@ async function gather(
     fileMaxChars: number;
     totalMaxChars: number;
     ordinal: number | null;
+    mentionText?: string;
   },
 ): Promise<Gathered | null> {
   let candidates: Awaited<ReturnType<typeof projectKnowledgeCandidates>>;
   try {
-    candidates = await projectKnowledgeCandidates(reader, root);
+    candidates = await projectKnowledgeCandidates(reader, root, Number.MAX_SAFE_INTEGER);
   } catch (error) {
     if (optional(error)) return null;
     throw error;
@@ -88,21 +90,51 @@ async function gather(
   const omitted: string[] = [];
   const cuts: Cut[] = [];
   let used = 0;
+  let budgetUsed = 0;
+  let budgetFiles = 0;
+  const characterFiles: { path: string; text: string }[] = [];
+  const texts = new Map<string, string>();
   for (const item of ordered) {
-    const room = Math.min(options.fileMaxChars, options.totalMaxChars - used);
-    if (sections.length >= SETTING_MAX_FILES || room < SETTING_MIN_ROOM) {
-      omitted.push(item.path);
-      continue;
-    }
     let content: string;
     try {
       content = (await readProjectContextFile(reader, root, item.path)).content;
     } catch (error) {
+      if (item.source_type === 'setting' || item.source_type === 'character') throw error;
       if (optional(error)) continue;
       throw error;
     }
     const text = pythonStrip(redactSensitiveText(normalizeNewlines(content), options.secrets));
     if (!text || isUntouchedProjectGuide(item.path, text)) continue;
+    texts.set(item.path, text);
+    if (item.source_type === 'character') characterFiles.push({ path: item.path, text });
+  }
+  const characters = new Map(
+    selectCharacterSources(characterFiles, options.mentionText ?? '').map((item) => [
+      item.path,
+      item,
+    ]),
+  );
+  for (const item of ordered) {
+    const text = texts.get(item.path);
+    if (text === undefined) continue;
+    if (item.source_type === 'setting' || item.source_type === 'character') {
+      const character = characters.get(item.path);
+      if (item.source_type === 'character' && !character) continue;
+      const body = character?.body ?? text;
+      used += Array.from(body).length;
+      sections.push({
+        path: item.path,
+        body: character?.focused
+          ? '（人物资料按本章需要选取完整小节，通用规则与写作边界始终保留。）\n' + body
+          : body,
+      });
+      continue;
+    }
+    const room = Math.min(options.fileMaxChars, options.totalMaxChars - budgetUsed);
+    if (budgetFiles >= SETTING_MAX_FILES || room < SETTING_MIN_ROOM) {
+      omitted.push(item.path);
+      continue;
+    }
     const points = Array.from(text);
     const cut = points.length > room;
     const focused =
@@ -123,28 +155,38 @@ async function gather(
       });
     }
     used += Math.min(points.length, room);
+    budgetUsed += Math.min(points.length, room);
+    budgetFiles += 1;
     sections.push({ path: item.path, body });
   }
   return sections.length ? { sections, used, truncated, omitted, cuts } : null;
 }
 
 /**
- * 大纲 / 人物 / 设定 / 时间线 / 伏笔目录里的资料全文（每份、总量、份数都有上限）；各章细纲不在内（见 chapterOutline）。
- * 项目摘录只给每份开头 1200 字，设定文件后半的内容起草时一章都看不到。
+ * 世界规则全文带入，人物按本章需要取完整小节，公共写作边界保留。
+ * 大纲 / 时间线 / 伏笔继续使用有界投影，各章细纲另行读取（见 chapterOutline）。
  * ordinal 是在写的章号：总纲一份放不下时按它挑相关小节（见 outlineFocus），没有章号就按原顺序放并保留标题。
- * 读不到是「少一块加分上下文」，不挡起草：没有可用资料时返回 null。
+ * 没有可用资料时返回 null；已发现的人物或世界规则读失败时显式报错，不能静默漏读。
  */
 export async function collectSettingSources(
   reader: ProjectReader,
   root: string,
-  options: { secrets: SecretContext; capture?: GenerationSourceCapture; ordinal?: number | null },
+  options: {
+    secrets: SecretContext;
+    capture?: GenerationSourceCapture;
+    ordinal?: number | null;
+    mentionText?: string;
+    /** 章纲已有独立总纲通道，只需补人物与世界规则。 */
+    charactersAndSettingsOnly?: boolean;
+  },
 ): Promise<SettingSources | null> {
   const gathered = await gather(reader, root, {
     secrets: options.secrets,
-    types: SOURCE_ORDER,
+    types: options.charactersAndSettingsOnly ? ['character', 'setting'] : SOURCE_ORDER,
     fileMaxChars: SETTING_FILE_MAX_CHARS,
     totalMaxChars: SETTING_TOTAL_MAX_CHARS,
     ordinal: options.ordinal ?? null,
+    mentionText: options.mentionText,
   });
   if (gathered === null) return null;
   const { used, truncated, omitted } = gathered;
@@ -240,9 +282,27 @@ export async function settingSourcesWarnings(
   });
   if (draft === null) return [];
   const warnings = draft.cuts.map(cutWarning);
+  const characters = draft.sections.filter((section) =>
+    /^(人物|角色|characters?)\//iu.test(section.path),
+  );
+  if (characters.length)
+    warnings.push(
+      '人物资料按本章目标、章纲和上一章提及的人物选取完整小节，通用规则与写作边界始终保留；无法确定人物时完整带入：' +
+        namedList(characters.map((section) => section.path)) +
+        '。',
+    );
+  const worlds = draft.sections.filter((section) =>
+    /^(设定|世界观|settings?|world|worldbuilding)\//iu.test(section.path),
+  );
+  if (worlds.length)
+    warnings.push(
+      '世界规则每次全文读取，不占其他参考资料的字数和份数额度：' +
+        namedList(worlds.map((section) => section.path)) +
+        '。',
+    );
   if (draft.omitted.length)
     warnings.push(
-      `另有 ${draft.omitted.length} 份立项资料放不进去（每章最多带 ${SETTING_MAX_FILES} 份、` +
+      `另有 ${draft.omitted.length} 份其他参考资料放不进去（最多带 ${SETTING_MAX_FILES} 份、` +
         `合计 ${SETTING_TOTAL_MAX_CHARS} 字），AI 写章时一字不带：${namedList(draft.omitted)}。`,
     );
   const outline = await gather(reader, root, {

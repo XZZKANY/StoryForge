@@ -10,6 +10,7 @@ import { dumpJson, type Obj } from '../../kernel/json';
 import { llmContextSnapshotTraceSummary } from '../../kernel/llmContext';
 import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
 import { loadAvailableWritingStyles } from '../../kernel/availableWritingStyles';
+import { collectSettingSources } from '../../kernel/settingSources';
 import { cpLen } from '../../kernel/pythonText';
 import { writingSkillIndex, writingSkillsBlock } from '../../kernel/writingSkills';
 import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
@@ -46,6 +47,16 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
       payload.llm_context_snapshot as Parameters<typeof llmContextSnapshotTraceSummary>[0],
     );
     const skills = await styles(payload.project_root as string);
+    const materials = await collectSettingSources(deps.reader, payload.project_root as string, {
+      secrets: deps.secrets,
+      charactersAndSettingsOnly: true,
+      mentionText: [
+        context.userMessage,
+        dumpJson(seed, { ensureAscii: false }),
+        written?.previous?.[1] ?? '',
+        chapterOutlineFrom(payload.chapter_outline)?.text ?? '',
+      ].join('\n'),
+    });
     let parsed: Obj;
     try {
       const chat = await chatReply(context.services.assistant, {
@@ -58,7 +69,12 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
           chapterOutlineFrom(payload.chapter_outline),
           typeof payload.book_outline === 'string' ? payload.book_outline : null,
         ),
-        contextBlock: dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
+        contextBlock: [
+          dumpJson(payload.llm_prompt_context_bundle, { ensureAscii: false }),
+          materials?.block,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
         assistantSessionId: context.assistantSessionId,
         relatedRunId: context.run.id,
       });
@@ -146,12 +162,20 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
   const check: ToolHandler = async (context, payload) => {
     const confirmed = payload.brief as Obj;
     const content = payload.content as string;
+    const materials =
+      typeof payload.project_root === 'string'
+        ? await collectSettingSources(deps.reader, payload.project_root, {
+            secrets: deps.secrets,
+            charactersAndSettingsOnly: true,
+            mentionText: dumpJson(confirmed, { ensureAscii: false }) + '\n' + content,
+          })
+        : null;
     let raw: unknown = null;
     let providerFailed = false;
     try {
       const chat = await chatReply(context.services.assistant, {
         userMessage: checkPrompt(confirmed, content),
-        contextBlock: '',
+        contextBlock: materials?.block ?? '',
         assistantSessionId: context.assistantSessionId,
         relatedRunId: context.run.id,
       });
@@ -214,7 +238,12 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         assistant_session_id: context.assistantSessionId,
         context_bundle: prepared.contextBundle,
       },
-      { preparedContext: prepared, writtenFacts: true, relatedRunId: context.run.id },
+      {
+        preparedContext: prepared,
+        writtenFacts: true,
+        writingMaterials: true,
+        relatedRunId: context.run.id,
+      },
     );
     // 修复走修订链路，改到的行可能又写回半角；与起草一样统一成全角。
     const [repaired, punctuationNormalized] = fullwidthCjkPunctuation(response.after);

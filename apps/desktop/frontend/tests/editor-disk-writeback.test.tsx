@@ -446,3 +446,58 @@ it('接受改稿后编辑器停到第一处改动那一行，不跳回开头', a
   expect(__getLastEditor()?.revealedLine).toBe(3);
   expect(__getLastEditor()?.position).toEqual({ lineNumber: 3, column: 1 });
 });
+
+it('auto-accept waits for the newly opened target model instead of reading the detached editor', async () => {
+  await open('另一个文件的正文。');
+  const target = PROJECT + '/new-target.md';
+  const before = '# 第一章\n\n开场没有改动。\n\n旧段落。\n\n结尾。';
+  const after = before.replace('旧段落。', '新段落。');
+  files.set(target, before);
+  await act(async () => {
+    emitFileSuggestion({
+      id: 'auto-new-target',
+      filePath: target,
+      before,
+      after,
+      title: '改稿',
+      summary: '改稿',
+      note: '',
+      createdAt: 1,
+      requiresConfirmation: false,
+    });
+    root.render(
+      <Editor
+        projectPath={PROJECT}
+        filePath={target}
+        retainedFilePaths={[FILE, target]}
+        dialogs={dialogs}
+      />,
+    );
+  });
+  await observe(() => expect(files.get(target)).toBe(after));
+  expect(files.get(FILE)).toBe('另一个文件的正文。');
+  expect(writes.filter((path) => path === target)).toHaveLength(1);
+  expect(host.textContent).not.toContain('无法唯一确定位置');
+});
+
+it('pre-read rejects dirty inactive tabs instead of silently using stale disk content', async () => {
+  await open('磁盘原稿');
+  await act(async () => __getLastEditor()!.setValue('作者尚未保存的修改'));
+  const other = PROJECT + '/other.md';
+  files.set(other, '另一章');
+  await act(async () =>
+    root.render(
+      <Editor
+        projectPath={PROJECT}
+        filePath={other}
+        retainedFilePaths={[FILE, other]}
+        dialogs={dialogs}
+      />,
+    ),
+  );
+  await observe(() => expect(__getLastEditor()?.getValue()).toBe('另一章'));
+  const { flushActiveEditorToDisk } = await import('../src/lib/assistant-events');
+  await expect(flushActiveEditorToDisk(FILE)).rejects.toThrow('目标章节有未保存修改');
+  expect(files.get(FILE)).toBe('磁盘原稿');
+  expect(writes).not.toContain(FILE);
+});

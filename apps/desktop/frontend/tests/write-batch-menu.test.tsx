@@ -106,7 +106,7 @@ test('打 / 时指令一行在技能上面、默认选中，说明写清楚；En
   const order = [...menu.querySelectorAll('[role="option"]')].map(
     (node) => node.querySelector('span')!.textContent,
   );
-  expect(order).toEqual(['/写', '/立项流程', '/写法', '/写']);
+  expect(order).toEqual(['/写', '/改', '/立项流程', '/写法', '/写']);
   expect(command()!.getAttribute('aria-selected')).toBe('true');
   expect(command()!.textContent).toContain('批量写章：/写 4-10，写完直接写进文件，最后统一审');
   await press('Enter');
@@ -171,4 +171,62 @@ test('打的字对不上、或不是开头第一个点名时不出指令行', as
   await type('/立项流程 /');
   expect(command()).toBeNull();
   expect(rows().map((row) => row.lines[0])).toEqual(['/立项流程', '/写法', '/写']);
+});
+
+test('连续修改与写章并列，方向键与读屏高亮一致，Enter 只补全不发送', async () => {
+  await act(async () => root.render(<Harness />));
+  await type('/');
+  const commandRows = () => [
+    ...host.querySelectorAll<HTMLElement>('[data-testid="slash-command-option"]'),
+  ];
+  expect(textarea().getAttribute('aria-controls')).toBe('composer-skill-commands');
+  expect(textarea().getAttribute('aria-activedescendant')).toBe(commandRows()[0].id);
+  await press('ArrowDown');
+  expect(commandRows()[1].getAttribute('aria-selected')).toBe('true');
+  expect(commandRows()[1].textContent).toContain('/改 1-7 把世界规则融入情节');
+  expect(textarea().getAttribute('aria-activedescendant')).toBe(commandRows()[1].id);
+  expect(commandRows()[0].id).not.toBe(commandRows()[1].id);
+  await press('ArrowDown');
+  const firstSkill = host.querySelector<HTMLElement>('[data-testid="skill-command-option"]')!;
+  expect(firstSkill.getAttribute('aria-selected')).toBe('true');
+  expect(textarea().getAttribute('aria-activedescendant')).toBe(firstSkill.id);
+  await press('ArrowUp');
+  await press('Enter');
+  expect(textarea().value).toBe('/改 ');
+  expect(submitted).toEqual([]);
+  expect(textarea().hasAttribute('aria-activedescendant')).toBe(false);
+  await type('/改 1-7 把世界规则融入情节');
+  await press('Enter');
+  expect(submitted).toEqual(['/改 1-7 把世界规则融入情节']);
+});
+
+test('与改重名的技能不能替代指令，方向键跳过禁用项', async () => {
+  loadSkills.mockResolvedValue([skill('改'), skill('改稿口径')]);
+  await act(async () => root.render(<Harness />));
+  await type('/改');
+  expect(rows()).toEqual([
+    { lines: ['/改', '与指令重名，/改 会当成指令；要点名它请改名'], active: false, disabled: true },
+    { lines: ['/改稿口径', '改稿口径的时候'], active: false, disabled: false },
+  ]);
+  const conflicted = host.querySelector<HTMLElement>('[data-testid="skill-command-option"]')!;
+  await act(async () => conflicted.click());
+  expect(textarea().value).toBe('/改');
+  await press('ArrowDown');
+  expect(rows()[1].active).toBe(true);
+  expect(textarea().getAttribute('aria-activedescendant')).toBe('composer-skill-commands-1');
+  await press('ArrowDown');
+  expect(command()!.getAttribute('aria-selected')).toBe('true');
+  await press('Tab');
+  expect(textarea().value).toBe('/改 ');
+});
+
+test.each(['／改', '、改'])('中文输入符 %s 可补全为标准连续修改指令', async (value) => {
+  loadSkills.mockResolvedValue([skill('立项流程')]);
+  await act(async () => root.render(<Harness />));
+  await type(value);
+  expect(command()!.textContent).toContain('/改');
+  expect(host.querySelector('[data-testid="skill-command-note"]')).toBeNull();
+  await press('Tab');
+  expect(textarea().value).toBe('/改 ');
+  expect(submitted).toEqual([]);
 });

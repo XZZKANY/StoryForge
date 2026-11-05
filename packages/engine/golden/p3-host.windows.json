@@ -288,7 +288,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -681,7 +681,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -1027,7 +1027,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -1102,11 +1102,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -1368,7 +1368,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -1481,7 +1481,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 6
             },
@@ -1988,7 +1988,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -2101,7 +2101,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 6
         },
@@ -2388,7 +2388,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -2614,7 +2614,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -2703,8 +2703,8 @@
             "token_usage": 34,
             "cost_cny_estimated": 0.000145,
             "cost_breakdown": {
-              "input_cny": 6e-05,
-              "output_cny": 8.5e-05,
+              "input_cny": 0.00006,
+              "output_cny": 0.000085,
               "total_cny": 0.000145,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
@@ -3453,7 +3453,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -3650,7 +3650,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -3735,7 +3735,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -3927,7 +3927,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -4231,7 +4231,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -4344,7 +4344,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 6
             },
@@ -4797,7 +4797,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -4910,7 +4910,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 6
         },
@@ -5166,7 +5166,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -5392,7 +5392,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -5459,11 +5459,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -5677,7 +5677,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -6000,7 +6000,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -6294,7 +6294,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -6603,7 +6603,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -6723,7 +6723,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 6
             },
@@ -7220,7 +7220,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -7340,7 +7340,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 6
         },
@@ -7648,7 +7648,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -7874,7 +7874,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -8020,8 +8020,8 @@
             "token_usage": 34,
             "cost_cny_estimated": 0.000145,
             "cost_breakdown": {
-              "input_cny": 6e-05,
-              "output_cny": 8.5e-05,
+              "input_cny": 0.00006,
+              "output_cny": 0.000085,
               "total_cny": 0.000145,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
@@ -8281,7 +8281,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -8616,7 +8616,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -8878,7 +8878,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 11
             },
@@ -8932,7 +8932,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 13
             },
@@ -9720,7 +9720,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -9982,7 +9982,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 11
         },
@@ -10036,7 +10036,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 13
         },
@@ -10323,7 +10323,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -10571,7 +10571,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -10852,7 +10852,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -10942,11 +10942,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -11010,7 +11010,7 @@
             "token_usage": 51,
             "cost_cny_estimated": 0.0002175,
             "cost_breakdown": {
-              "input_cny": 9e-05,
+              "input_cny": 0.00009,
               "output_cny": 0.0001275,
               "total_cny": 0.0002175,
               "currency": "CNY",
@@ -11271,7 +11271,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -11606,7 +11606,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -11941,7 +11941,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -12565,7 +12565,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -13025,7 +13025,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -13082,11 +13082,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -13304,7 +13304,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -13602,7 +13602,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -14075,7 +14075,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -14417,7 +14417,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -14670,7 +14670,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -14940,7 +14940,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -15475,7 +15475,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -15879,7 +15879,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -16227,7 +16227,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -16585,7 +16585,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -17246,7 +17246,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -17753,7 +17753,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -17825,11 +17825,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -21433,7 +21433,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -21711,7 +21711,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -22119,7 +22119,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -22465,7 +22465,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -22540,11 +22540,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -22749,7 +22749,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -23027,7 +23027,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -23490,7 +23490,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -23853,7 +23853,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -23928,11 +23928,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -24141,7 +24141,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -24439,7 +24439,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -25018,7 +25018,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -25438,7 +25438,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -25904,7 +25904,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -25917,7 +25917,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 4
             },
@@ -26101,7 +26101,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 7
             },
@@ -26493,7 +26493,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -26522,7 +26522,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -26665,7 +26665,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -26678,7 +26678,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 4
         },
@@ -26862,7 +26862,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 3,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 7
         },
@@ -27179,7 +27179,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -27326,7 +27326,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -27550,7 +27550,7 @@
               {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -27875,16 +27875,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -27912,8 +27912,8 @@
             "token_usage": 34,
             "cost_cny_estimated": 0.000145,
             "cost_breakdown": {
-              "input_cny": 6e-05,
-              "output_cny": 8.5e-05,
+              "input_cny": 0.00006,
+              "output_cny": 0.000085,
               "total_cny": 0.000145,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
@@ -28344,7 +28344,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -28357,7 +28357,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 4
             },
@@ -28541,7 +28541,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 7
             },
@@ -28927,7 +28927,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -28956,7 +28956,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -29099,7 +29099,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -29112,7 +29112,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 4
         },
@@ -29296,7 +29296,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 3,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 7
         },
@@ -29610,7 +29610,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -29757,7 +29757,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -29981,7 +29981,7 @@
               {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -30306,16 +30306,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -30343,8 +30343,8 @@
             "token_usage": 34,
             "cost_cny_estimated": 0.000145,
             "cost_breakdown": {
-              "input_cny": 6e-05,
-              "output_cny": 8.5e-05,
+              "input_cny": 0.00006,
+              "output_cny": 0.000085,
               "total_cny": 0.000145,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
@@ -30625,7 +30625,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -30638,7 +30638,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 4
             },
@@ -30651,7 +30651,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 5
             },
@@ -31089,7 +31089,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -31111,7 +31111,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -31202,7 +31202,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -31215,7 +31215,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 4
         },
@@ -31228,7 +31228,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 3,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 5
         },
@@ -31596,7 +31596,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -31740,7 +31740,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -31884,7 +31884,7 @@
               {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -31940,11 +31940,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -34068,7 +34068,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 10
             },
@@ -34081,7 +34081,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 11
             },
@@ -34094,7 +34094,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 12
             },
@@ -35399,7 +35399,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -35421,7 +35421,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -35443,7 +35443,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -35819,7 +35819,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 10
         },
@@ -35832,7 +35832,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 11
         },
@@ -35845,7 +35845,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 3,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 12
         },
@@ -36770,7 +36770,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -36903,7 +36903,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -37036,7 +37036,7 @@
               {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -39586,7 +39586,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 5
             },
@@ -39599,7 +39599,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 6
             },
@@ -39612,7 +39612,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 7
             },
@@ -40455,7 +40455,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 5
             },
@@ -40468,7 +40468,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 6
             },
@@ -40481,7 +40481,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 7
             },
@@ -42127,7 +42127,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -42149,7 +42149,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -42171,7 +42171,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -42398,7 +42398,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 5
         },
@@ -42411,7 +42411,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 2,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 6
         },
@@ -42424,7 +42424,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 3,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 7
         },
@@ -43559,7 +43559,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -43692,7 +43692,7 @@
               {
                 "phase": "request_started",
                 "request_number": 2,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -43825,7 +43825,7 @@
               {
                 "phase": "request_started",
                 "request_number": 3,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -45824,8 +45824,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
-                  "length": 1229
+                  "sha256": "5f3f7cdfd471f3c0bfacd2d245d3622e8a172eda2843341dd742c84cc0b10ca7",
+                  "length": 1312
                 }
               }
             ],
@@ -45872,8 +45872,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "47f7f86e7ab8bec419c0052c1e1802d9bf8137e74a433d30c47b98550137bc63",
-                  "length": 1237
+                  "sha256": "67632a13d61f98020288072f15ec1d10dbd021081a4d3b4e67a0fc9120f621b0",
+                  "length": 1339
                 }
               }
             ],
@@ -46629,8 +46629,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
-                    "length": 1229
+                    "sha256": "5f3f7cdfd471f3c0bfacd2d245d3622e8a172eda2843341dd742c84cc0b10ca7",
+                    "length": 1312
                   }
                 }
               ],
@@ -46641,7 +46641,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6646f477e69ee4a57a4e3526575578439849739f58d5fd84847eddb5a7841a1a",
+            "request_digest": "e3fbe1c716605a4b0cfc2bb410e47d5d1e9d8d430c10ecf99bcb6f4bbe3e18a4",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -46658,8 +46658,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "68d9936d99cf7d1d7abad54e9d5ca3d66581aef937b96ff0189cba1ba91d382e",
-                "content_chars": 1229
+                "sha256": "be9f06a1ee97cb1cca7c93527077f261e1fb8cb64e61ec551df7625ccb813997",
+                "content_chars": 1312
               }
             ],
             "reconstruction": {
@@ -47023,8 +47023,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "47f7f86e7ab8bec419c0052c1e1802d9bf8137e74a433d30c47b98550137bc63",
-                    "length": 1237
+                    "sha256": "67632a13d61f98020288072f15ec1d10dbd021081a4d3b4e67a0fc9120f621b0",
+                    "length": 1339
                   }
                 }
               ],
@@ -47035,7 +47035,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6b9d225d924b5ae6b84380b56fb86070c4247ffe25aa252e4e4f9eeb7181e1a4",
+            "request_digest": "ea852717a0bd338e0100530941665672dc611cfb9993cd3d1690106075b7cf8a",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -47052,8 +47052,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "b61e864e02d177949dba2c0b33a5ab8c61e690095c938e5c3dd0c2d78ba424c2",
-                "content_chars": 1237
+                "sha256": "7f60f030d15d466037659391d1f0f0d1df4dc597b86e437e7025b68447e6449d",
+                "content_chars": 1339
               }
             ],
             "reconstruction": {
@@ -47256,7 +47256,7 @@
               "sha256": "6e89709510608df03b47da21bb155eb3707523b15bd84df1b4afe106030715e6",
               "length": 500
             },
-            "context_chars": 260
+            "context_chars": 343
           },
           "output_summary": {
             "reply_chars": 274,
@@ -47264,16 +47264,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -47530,16 +47530,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -47560,7 +47560,7 @@
               "sha256": "933fb17b4fea3be7f4362e314c2837ee40ddeee6d3be54d3e6244b9640f07dc5",
               "length": 500
             },
-            "context_chars": 0
+            "context_chars": 81
           },
           "output_summary": {
             "reply_chars": 209,
@@ -47568,16 +47568,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -48960,7 +48960,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -48971,8 +48971,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
-                  "length": 1229
+                  "sha256": "5f3f7cdfd471f3c0bfacd2d245d3622e8a172eda2843341dd742c84cc0b10ca7",
+                  "length": 1312
                 }
               }
             ],
@@ -49008,7 +49008,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -49019,8 +49019,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "c132f064e34e8dbe0b521ef8c974f01d9ab70bda9114618570a397128d272c8f",
-                  "length": 1242
+                  "sha256": "6bde52d3efc67c0f82133ef2dc2f0e6e7165badc4345d6a7a1927b11e832c29e",
+                  "length": 1344
                 }
               }
             ],
@@ -49776,8 +49776,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
-                    "length": 1229
+                    "sha256": "5f3f7cdfd471f3c0bfacd2d245d3622e8a172eda2843341dd742c84cc0b10ca7",
+                    "length": 1312
                   }
                 }
               ],
@@ -49788,7 +49788,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6646f477e69ee4a57a4e3526575578439849739f58d5fd84847eddb5a7841a1a",
+            "request_digest": "e3fbe1c716605a4b0cfc2bb410e47d5d1e9d8d430c10ecf99bcb6f4bbe3e18a4",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -49805,8 +49805,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "68d9936d99cf7d1d7abad54e9d5ca3d66581aef937b96ff0189cba1ba91d382e",
-                "content_chars": 1229
+                "sha256": "be9f06a1ee97cb1cca7c93527077f261e1fb8cb64e61ec551df7625ccb813997",
+                "content_chars": 1312
               }
             ],
             "reconstruction": {
@@ -49875,7 +49875,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -50170,8 +50170,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "c132f064e34e8dbe0b521ef8c974f01d9ab70bda9114618570a397128d272c8f",
-                    "length": 1242
+                    "sha256": "6bde52d3efc67c0f82133ef2dc2f0e6e7165badc4345d6a7a1927b11e832c29e",
+                    "length": 1344
                   }
                 }
               ],
@@ -50182,7 +50182,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "2e5c914a9045b3d8abd1c5fed5d949de7f6b04eb8e74b0f850fe9117d09298da",
+            "request_digest": "f6d31eab03d5bdaf25a7721741a11c3827b6b47cac3c519b1befca25b46efef9",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -50199,8 +50199,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "c576fe25f905e0c8ee058722fa16031499b6a36d18d7c194ddf7b8d28fc6bbee",
-                "content_chars": 1242
+                "sha256": "48486c8c0cdec94e90f52498b03b9ea735dfeb4f2114520d431ae22b42cc447b",
+                "content_chars": 1344
               }
             ],
             "reconstruction": {
@@ -50403,7 +50403,7 @@
               "sha256": "6e89709510608df03b47da21bb155eb3707523b15bd84df1b4afe106030715e6",
               "length": 500
             },
-            "context_chars": 260
+            "context_chars": 343
           },
           "output_summary": {
             "reply_chars": 279,
@@ -50411,16 +50411,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -50677,16 +50677,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -50707,7 +50707,7 @@
               "sha256": "933fb17b4fea3be7f4362e314c2837ee40ddeee6d3be54d3e6244b9640f07dc5",
               "length": 500
             },
-            "context_chars": 0
+            "context_chars": 81
           },
           "output_summary": {
             "reply_chars": 209,
@@ -50715,16 +50715,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -51981,7 +51981,7 @@
         {
           "url": "https://llm.example/v1/chat/completions",
           "method": "POST",
-          "timeout": 60.0,
+          "timeout": 60,
           "body": {
             "model": "m-1",
             "messages": [
@@ -51992,8 +51992,8 @@
               {
                 "role": "user",
                 "content": {
-                  "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
-                  "length": 1229
+                  "sha256": "5f3f7cdfd471f3c0bfacd2d245d3622e8a172eda2843341dd742c84cc0b10ca7",
+                  "length": 1312
                 }
               }
             ],
@@ -52465,8 +52465,8 @@
                 {
                   "role": "user",
                   "content": {
-                    "sha256": "a5d4edc404d81b17de9902422d60d73b8d824a56e85691f0857afb5fc31c0da1",
-                    "length": 1229
+                    "sha256": "5f3f7cdfd471f3c0bfacd2d245d3622e8a172eda2843341dd742c84cc0b10ca7",
+                    "length": 1312
                   }
                 }
               ],
@@ -52477,7 +52477,7 @@
               "reasoning_effort": null,
               "metadata": {}
             },
-            "request_digest": "6646f477e69ee4a57a4e3526575578439849739f58d5fd84847eddb5a7841a1a",
+            "request_digest": "e3fbe1c716605a4b0cfc2bb410e47d5d1e9d8d430c10ecf99bcb6f4bbe3e18a4",
             "redacted": false,
             "omissions": [],
             "prompt_version": "4bd5d0d1c7179d7aedd5bcce6a7b854ac07313d5e9c9f756df680961cdc9fe66",
@@ -52494,8 +52494,8 @@
                 "kind": "compiled_message",
                 "index": 1,
                 "role": "user",
-                "sha256": "68d9936d99cf7d1d7abad54e9d5ca3d66581aef937b96ff0189cba1ba91d382e",
-                "content_chars": 1229
+                "sha256": "be9f06a1ee97cb1cca7c93527077f261e1fb8cb64e61ec551df7625ccb813997",
+                "content_chars": 1312
               }
             ],
             "reconstruction": {
@@ -52564,7 +52564,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -52774,7 +52774,7 @@
               "sha256": "6e89709510608df03b47da21bb155eb3707523b15bd84df1b4afe106030715e6",
               "length": 500
             },
-            "context_chars": 260
+            "context_chars": 343
           },
           "output_summary": {
             "reply_chars": 274,
@@ -52782,16 +52782,16 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
               "currency": "CNY",
               "prompt_tokens": 12,
               "completion_tokens": 5,
               "cache_hit_tokens": null,
               "cache_miss_tokens": null,
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
               "cache_hit_input_cny_per_m_tokens": null,
@@ -53098,7 +53098,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -53491,7 +53491,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -53842,7 +53842,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -53917,11 +53917,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -54128,7 +54128,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -54522,7 +54522,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -54868,7 +54868,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -54943,11 +54943,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
@@ -55152,7 +55152,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -55430,7 +55430,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -55708,7 +55708,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -55986,7 +55986,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -56306,7 +56306,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -56626,7 +56626,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -56946,7 +56946,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -57266,7 +57266,7 @@
               "payload": {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               },
               "sequence": 3
             },
@@ -57788,7 +57788,7 @@
           "payload": {
             "phase": "request_started",
             "request_number": 1,
-            "timeout_seconds": 60.0
+            "timeout_seconds": 60
           },
           "sequence": 3
         },
@@ -58150,7 +58150,7 @@
               {
                 "phase": "request_started",
                 "request_number": 1,
-                "timeout_seconds": 60.0
+                "timeout_seconds": 60
               }
             ],
             "usage": {
@@ -58225,11 +58225,11 @@
             "prompt_tokens": 12,
             "completion_tokens": 5,
             "token_usage": 17,
-            "cost_cny_estimated": 7.25e-05,
+            "cost_cny_estimated": 0.0000725,
             "cost_breakdown": {
-              "input_cny": 3e-05,
-              "output_cny": 4.25e-05,
-              "total_cny": 7.25e-05,
+              "input_cny": 0.00003,
+              "output_cny": 0.0000425,
+              "total_cny": 0.0000725,
               "currency": "CNY",
               "input_cny_per_m_tokens": 2.5,
               "output_cny_per_m_tokens": 8.5,
