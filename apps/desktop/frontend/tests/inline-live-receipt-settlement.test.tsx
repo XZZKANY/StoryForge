@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { editor as monacoEditor, __getLastEditor, __resetMonacoStub } from 'monaco-editor';
 import { Editor } from '../src/components/editor/Editor';
+import { captureToasts } from './support/toast-log';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
@@ -45,6 +46,7 @@ let writes: string[];
 
 let root: Root;
 let host: HTMLDivElement;
+let toasts: ReturnType<typeof captureToasts>;
 const dialogs = { alert: async () => {}, confirm: async () => false, prompt: async () => null };
 
 beforeEach(async () => {
@@ -73,9 +75,11 @@ beforeEach(async () => {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
+  toasts = captureToasts();
 });
 afterEach(() => {
   act(() => root.unmount());
+  toasts.stop();
   host.remove();
   delete window.__STORYFORGE_MOCK_FS__;
   __resetMonacoStub();
@@ -283,7 +287,7 @@ it('cumulative: same-candidate retry after lost write and failed receipt read se
   await open(BEFORE);
   await generate();
   await approve();
-  await observe(() => expect(host.textContent).toContain('接受失败'));
+  await observe(() => expect(toasts.text()).toContain('接受失败'));
   expect(files.get(FILE)).toBe(AFTER);
   expect(__getLastEditor()?.getValue()).toBe(BEFORE);
   await trace('after initial unknown delivery');
@@ -324,7 +328,7 @@ async function failedAcceptance() {
   await open(BEFORE);
   await generate();
   await approve();
-  await observe(() => expect(host.textContent).toContain('接受失败'));
+  await observe(() => expect(toasts.text()).toContain('接受失败'));
   expect(files.get(FILE)).toBe(AFTER);
   return spies;
 }

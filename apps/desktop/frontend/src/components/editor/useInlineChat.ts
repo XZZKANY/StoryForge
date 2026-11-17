@@ -50,7 +50,6 @@ export function useInlineChat(params: UseInlineChatParams) {
     matchesSessionTarget,
     isSessionActive,
     teardown,
-    clearToast,
     flashStatus,
     qualifySession,
   } = sessionState;
@@ -311,9 +310,4 @@ export function useInlineChat(params: UseInlineChatParams) {
       contentSubscription?.dispose();
     };
   }, [editorReady, editorRef, matchesSessionTarget, qualifySession, sessionRef]);
-
-  // 卸载时清掉 toast 与其计时器。
-  useEffect(() => {
-    return () => clearToast();
-  }, [clearToast]);
 }

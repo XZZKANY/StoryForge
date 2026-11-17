@@ -5,10 +5,13 @@ import type * as monaco from 'monaco-editor';
 import { allowsAuthoringActions, readAgentPermissionProfile } from '../../lib/agent-permission';
 import { inlineSettleDurationMs } from '../../lib/inline-chat';
 import { prefersReducedMotion } from '../../lib/motion';
-import { buildInlineToast, type InlineMode } from './inline-chat-dom';
+import { emitToast } from '../../lib/toast';
+import type { InlineMode } from './inline-chat-dom';
 import type { InlineSession, WriteAcceptedSuggestion } from './inline-chat-session';
 
-// 行间会话的所有者：当前会话与会话 id、归属守卫、收场 teardown、右下角 toast、接受落位动效。
+// 行间会话的所有者：当前会话与会话 id、归属守卫、收场 teardown、状态通知、接受落位动效。
+
+const INLINE_STATUS_KEY = 'inline-status';
 
 export type UseInlineChatParams = {
   editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
@@ -18,15 +21,9 @@ export type UseInlineChatParams = {
   projectPathRef: MutableRefObject<string | null>;
   projectName: string | null;
   writeAcceptedSuggestion: WriteAcceptedSuggestion;
-  setSuggestionStatus: (status: string) => void;
 };
 
-export function useInlineSession({
-  editorRef,
-  filePathRef,
-  projectPathRef,
-  setSuggestionStatus,
-}: UseInlineChatParams) {
+export function useInlineSession({ editorRef, filePathRef, projectPathRef }: UseInlineChatParams) {
   const sessionRef = useRef<InlineSession | null>(null);
   const sessionIdRef = useRef<number | null>(null);
   // 会话 id 属于哪个项目：编辑器常驻、切项目不卸载，必须能识别旧项目的 id 并丢弃。
@@ -79,38 +76,11 @@ export function useInlineSession({
     }
   }, [matchesSessionTarget]);
 
-  // 行间的状态是「转瞬即逝的操作反馈」，不该像面板那样赖在编辑器顶栏（丑）。
-  // 改成编辑器右下角的小 toast，几秒自动消失。拿不到宿主时退回顶栏状态。
-  const statusTimerRef = useRef<number | null>(null);
-  const toastRef = useRef<HTMLDivElement | null>(null);
-  const clearToast = useCallback(() => {
-    if (statusTimerRef.current !== null) {
-      window.clearTimeout(statusTimerRef.current);
-      statusTimerRef.current = null;
-    }
-    toastRef.current?.remove();
+  // 行间的状态是「转瞬即逝的操作反馈」，和全站通知一起叠在左栏底部（作者 11-02：别压正文）；
+  // 同一个 key 一条顶一条，连按几次 Ctrl+K 不往上叠。失败会打断当前任务，走 error 让读屏抢读。
+  const flashStatus = useCallback((message: string, tone: 'polite' | 'assertive' = 'polite') => {
+    emitToast(message, { tone: tone === 'assertive' ? 'error' : 'info', key: INLINE_STATUS_KEY });
   }, []);
-  const flashStatus = useCallback(
-    (message: string, tone: 'polite' | 'assertive' = 'polite') => {
-      const host = editorRef.current?.getContainerDomNode?.()?.parentElement ?? null;
-      if (!host) {
-        setSuggestionStatus(message);
-        return;
-      }
-      // 每次建一个新元素（避免 mutate 从 ref 取出的旧节点）。
-      toastRef.current?.remove();
-      const toast = buildInlineToast(message, tone);
-      host.appendChild(toast);
-      toastRef.current = toast;
-      if (statusTimerRef.current !== null) window.clearTimeout(statusTimerRef.current);
-      statusTimerRef.current = window.setTimeout(() => {
-        toast.remove();
-        if (toastRef.current === toast) toastRef.current = null;
-        statusTimerRef.current = null;
-      }, 3200);
-    },
-    [editorRef, setSuggestionStatus],
-  );
 
   const qualifySession = useCallback(
     (session: InlineSession) => {
@@ -158,7 +128,6 @@ export function useInlineSession({
     matchesSessionTarget,
     isSessionActive,
     teardown,
-    clearToast,
     flashStatus,
     qualifySession,
     playAcceptSettle,

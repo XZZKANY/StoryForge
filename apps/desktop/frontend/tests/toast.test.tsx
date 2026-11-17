@@ -6,6 +6,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import { DialogSurface } from '../src/components/ui';
 import { MessageList } from '../src/components/chat-window/panels';
+import { SidePanel } from '../src/components/shell/SidePanel';
 import { ToastHost, toastStackPlacement } from '../src/components/shell/ToastHost';
 import { emitToast } from '../src/lib/toast';
 
@@ -49,7 +50,7 @@ function renderHost() {
   };
 }
 
-test('emitToast 后右下角出现通知，error 音调更久，超时自动消失', () => {
+test('emitToast 后出现通知，error 音调更久，超时自动消失', () => {
   const { container, cleanup } = renderHost();
   try {
     assert.equal(container.querySelector('[data-testid="toast-host"]'), null);
@@ -531,47 +532,64 @@ test('通知浮层 z-index 压过模态 backdrop（层系统内联 z 从 100 起
 const rect = (left: number, right: number, top: number, bottom: number) =>
   ({ left, right, top, bottom, width: right - left, height: bottom - top }) as DOMRect;
 
-test('对话栏在右时通知挪到编辑区右下角；对话占满时才抬到消息列表底边之上', () => {
-  const home = { right: 12, bottom: 36 };
-  // 作者窗口 1400×759：对话栏在右（左缘 1000）——挪到它左边，不压在对话上。
-  assert.deepEqual(toastStackPlacement([rect(1000, 1400, 40, 559)], 1400, 759), {
-    right: 412,
-    bottom: 36,
+test('通知叠在左栏底部；左栏收起时退到活动栏右边，压到对话才抬到消息列表底边之上', () => {
+  // 作者窗口 1400×759：左栏 48–268、对话栏在右——栈贴左栏内侧，宽随左栏，不压正文也不压对话。
+  assert.deepEqual(
+    toastStackPlacement(rect(48, 268, 36, 759), [rect(1022, 1400, 76, 622)], 1400, 759),
+    { left: 56, bottom: 8, width: 204 },
+  );
+  // 左栏拖得再宽，通知也不跟着无限变宽。
+  assert.deepEqual(toastStackPlacement(rect(48, 548, 36, 759), [], 1400, 759), {
+    left: 56,
+    bottom: 8,
+    width: 320,
   });
-  // 消息列表被下面的面板挤得只剩顶上一截时也一样（10-20 截图里通知被顶到对话最上面）。
-  assert.deepEqual(toastStackPlacement([rect(1000, 1400, 40, 120)], 1400, 759), {
-    right: 412,
-    bottom: 36,
+  // 左栏收起、隐藏（量出来全是 0）或窄到放不下：退到活动栏右边的窗口左下角。
+  const rail = { left: 56, bottom: 8, width: 320 };
+  assert.deepEqual(toastStackPlacement(null, [], 1400, 759), rail);
+  assert.deepEqual(toastStackPlacement(rect(0, 0, 0, 0), [], 1400, 759), rail);
+  assert.deepEqual(toastStackPlacement(rect(48, 180, 36, 759), [], 1400, 759), rail);
+  // 对话栏在右、没压到左下角：原地。
+  assert.deepEqual(toastStackPlacement(null, [rect(1022, 1400, 76, 622)], 1400, 759), rail);
+  // 对话占满窗口：抬到消息列表底边之上，避开输入框与权限按钮。
+  assert.deepEqual(toastStackPlacement(null, [rect(48, 1400, 76, 622)], 1400, 759), {
+    left: 56,
+    bottom: 145,
+    width: 320,
   });
-  // 不重叠、隐藏（量出来全是 0）、没有对话栏：原地右下角。
-  assert.deepEqual(toastStackPlacement([rect(0, 1000, 40, 559)], 1400, 759), home);
-  assert.deepEqual(toastStackPlacement([rect(0, 0, 0, 0)], 1400, 759), home);
-  assert.deepEqual(toastStackPlacement([], 1400, 759), home);
-  // 对话占满（左边放不下 320 宽的栈）：抬到消息列表底边之上，避开输入框与权限按钮。
-  assert.deepEqual(toastStackPlacement([rect(60, 1400, 40, 559)], 1400, 759), {
-    right: 12,
-    bottom: 208,
-  });
-  // 对话底部操作区比状态栏还矮时不往下压。
-  assert.deepEqual(toastStackPlacement([rect(60, 1400, 40, 740)], 1400, 759), home);
 });
 
-test('对话栏打开时通知挪到编辑区右下角，不压在对话上', () => {
+test('左栏在时通知叠在左栏底部，不压正文也不压对话', () => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
-  const width = window.innerWidth;
   const height = window.innerHeight;
   const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement,
   ) {
-    return this.hasAttribute('data-toast-floor')
-      ? rect(width - 400, width, 40, height - 200)
-      : rect(0, 0, 0, 0);
+    if (this.hasAttribute('data-toast-dock')) return rect(48, 268, 36, height);
+    if (this.hasAttribute('data-toast-floor')) return rect(1022, 1400, 76, height - 140);
+    return rect(0, 0, 0, 0);
   });
   act(() => {
     root.render(
       <>
+        <SidePanel
+          view="explorer"
+          projects={[]}
+          activeProject={null}
+          currentFile={null}
+          previewFile={null}
+          projectRefreshVersion={0}
+          onSelectProject={() => {}}
+          onRemoveProject={() => {}}
+          onOpenProject={() => {}}
+          onFileSelect={() => {}}
+          onFilePreview={() => {}}
+          width={220}
+          onWidthChange={() => {}}
+          onWidthReset={() => {}}
+        />
         <MessageList messages={[]} agentRun={null} agentRunRecovery={null} />
         <ToastHost />
       </>,
@@ -580,11 +598,43 @@ test('对话栏打开时通知挪到编辑区右下角，不压在对话上', ()
   try {
     act(() => emitToast('已写入「第005章.md」', { tone: 'success' }));
     const host = container.querySelector<HTMLElement>('[data-testid="toast-host"]')!;
-    assert.equal(host.style.bottom, '36px');
-    assert.equal(host.style.right, '412px');
+    assert.equal(host.style.left, '56px');
+    assert.equal(host.style.bottom, '8px');
+    assert.equal(host.style.width, '204px');
+    assert.equal(host.style.right, '');
   } finally {
     spy.mockRestore();
     act(() => root.unmount());
     container.remove();
+  }
+});
+
+test('同一个 key 的通知一条顶一条：行间改写连按几次不往上叠，别的通知不受影响', () => {
+  const { container, cleanup } = renderHost();
+  try {
+    act(() => {
+      emitToast('已删除「第002章.md」', { tone: 'info' });
+      emitToast('先选中要改的文字，再用 Ctrl+K 行间对话', { key: 'inline-status' });
+      emitToast('行间修订建议已就绪：+3 / -1', { key: 'inline-status' });
+    });
+    const texts = [...container.querySelectorAll('[data-testid="toast-item"]')].map(
+      (item) => item.textContent ?? '',
+    );
+    assert.equal(texts.length, 2);
+    assert.ok(texts[0].includes('已删除'));
+    assert.ok(texts[1].includes('行间修订建议已就绪'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('普通提示的竖条用中性色：紫色只给 AI', () => {
+  const { container, cleanup } = renderHost();
+  try {
+    act(() => emitToast('快照已保存'));
+    const item = container.querySelector('[data-testid="toast-item"]')!;
+    assert.equal(item.querySelector('.bg-agent'), null);
+  } finally {
+    cleanup();
   }
 });

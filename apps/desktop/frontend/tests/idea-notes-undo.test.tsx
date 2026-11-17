@@ -124,7 +124,7 @@ afterEach(() => {
   vi.mocked(TauriFileSystem.writeFile).mockReset();
 });
 
-test('删一条速记：写回删掉后的文件，右下角给「撤销」，点了把那一行放回原位', async () => {
+test('删一条速记：写回删掉后的文件，左下角给「撤销」，点了把那一行放回原位', async () => {
   await open();
   const target = note('十七楼那个人是刘哥的弟弟')!;
 

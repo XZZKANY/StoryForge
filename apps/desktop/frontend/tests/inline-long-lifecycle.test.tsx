@@ -9,6 +9,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { useInlineChat } from '../src/components/editor/useInlineChat';
 import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
+import { captureToasts } from './support/toast-log';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
@@ -52,8 +53,8 @@ let selectionEndLine: number | null;
 let frames: FrameRequestCallback[];
 let modelListeners: Set<() => void>;
 let contentListeners: Set<() => void>;
+let toasts: ReturnType<typeof captureToasts>;
 const writeback = vi.fn(async () => ({ writebackWarning: undefined }));
-const status = vi.fn();
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -90,7 +91,6 @@ function Harness({ file = FILE }: { file?: string }) {
     projectPathRef: projectRef,
     projectName: 'fixture',
     writeAcceptedSuggestion: writeback,
-    setSuggestionStatus: status,
   });
   return null;
 }
@@ -195,11 +195,12 @@ beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async () => sseDone());
   vi.stubGlobal('fetch', fetchMock);
   writeback.mockClear();
-  status.mockClear();
+  toasts = captureToasts();
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  toasts.stop();
   host.remove();
   delete window.__STORYFORGE_MOCK_FS__;
   invalidateFileSystemCache();
@@ -339,7 +340,7 @@ it.each([
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(writeback).not.toHaveBeenCalled();
     expect(model.getValue()).toBe(before);
-    expect(host.textContent).toContain(detail);
+    expect(toasts.text()).toContain(detail);
     const restored = zones.querySelector<HTMLTextAreaElement>('.sf-inline-chat__textarea');
     expect(restored).not.toBeNull();
     expect(restored?.value).toBe(instruction);
@@ -391,6 +392,7 @@ it.each(['cancel', 'new-file'] as const)(
     await act(async () => delayed.resolve(Response.json({ detail: 'A超时' }, { status: 504 })));
     expect(writeback).not.toHaveBeenCalled();
     expect(host.textContent).not.toContain('A超时');
+    expect(toasts.text()).not.toContain('A超时');
     if (kind === 'cancel') expect(zones.querySelector('textarea')).toBeNull();
     else {
       expect(newer!.isConnected).toBe(true);

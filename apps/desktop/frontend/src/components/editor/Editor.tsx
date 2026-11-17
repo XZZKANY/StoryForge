@@ -275,7 +275,6 @@ export function Editor({
     projectPathRef,
     projectName: null,
     writeAcceptedSuggestion,
-    setSuggestionStatus,
   });
 
   useReviewIssueMarkers({

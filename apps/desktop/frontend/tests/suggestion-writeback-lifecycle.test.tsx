@@ -641,7 +641,7 @@ test('面板可见时失败只进面板状态条，不再同文案补一条 toas
   await show(suggestion);
   const toastsBefore = effects.toast.mock.calls.length;
   await act(async () => handle.handleAcceptSuggestion());
-  // 失败落在补丁面板状态条（actionError），同一时刻右下角不再弹同文案 error toast。
+  // 失败落在补丁面板状态条（actionError），同一时刻左下角不再弹同文案 error toast。
   assert.match(handle.actionError ?? '', /snapshot unavailable/);
   assert.equal(
     effects.toast.mock.calls

@@ -87,7 +87,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 type Candidates = { project: string | null; chapters: UnrecordedChapter[] };
 const NO_CANDIDATES: Candidates = { project: null, chapters: [] };
 const CANON_WRITE_NOTE =
-  '会写进 .storyforge/canon/canon.json。写之前先存一版快照，写完右下角可以撤销。';
+  '会写进 .storyforge/canon/canon.json。写之前先存一版快照，写完左下角可以撤销。';
 
 export function useObservatory({
   activeProject,
@@ -357,7 +357,7 @@ export function useObservatory({
     },
     [activeProject, setProposalDismissed],
   );
-  // 作废不先问：一键可撤销胜过先确认（写前快照 + 右下角撤销）。写完 facts.json 会触发重扫。
+  // 作废不先问：一键可撤销胜过先确认（写前快照 + 左下角撤销）。写完 facts.json 会触发重扫。
   const retireFact = useCallback(
     async (fact: ObservatoryFact) => {
       if (!activeProject) return;

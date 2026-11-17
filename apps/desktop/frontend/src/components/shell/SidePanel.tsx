@@ -91,6 +91,7 @@ export function SidePanel(props: SidePanelProps) {
       }}
       data-testid="shell-side-panel"
       data-side-view={props.view}
+      data-toast-dock=""
     >
       {/* 右缘拖拽把手：命中区 7px（内收于面板内，overflow-hidden 会裁掉外凸部分），
           hover/焦点/拖拽时才显强调色。双击复位到默认比例。 */}

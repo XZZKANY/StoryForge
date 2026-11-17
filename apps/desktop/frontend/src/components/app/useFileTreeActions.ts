@@ -212,7 +212,7 @@ export function useFileTreeActions({
       }
       const picked = await dialogs.choose({
         title: `把「${name}」移到哪个文件夹？`,
-        message: '版本记录跟着走，已打开的页签换成新位置；移完右下角可以撤销。',
+        message: '版本记录跟着走，已打开的页签换成新位置；移完左下角可以撤销。',
         choices,
         noDefault: true,
       });
@@ -315,7 +315,7 @@ export function useFileTreeActions({
   );
 
   // 删除可撤销（作者 10-17 选的「应用内撤销」）：删前把内容读进内存、给每个文件留一条版本，
-  // 删完右下角给「撤销」；过后同名文件建回来，还能在它的版本记录里找回。
+  // 删完左下角给「撤销」；过后同名文件建回来，还能在它的版本记录里找回。
   // 快照和备份都从盘上读，所以未保存的修改要先问：存了才进得了撤销，放弃得由作者说。
   const onDelete = useCallback(
     async (path: string, isDir: boolean) => {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useInlineChat } from '../src/components/editor/useInlineChat';
 import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
 import { writeAgentPermissionProfile } from '../src/lib/agent-permission';
+import { captureToasts } from './support/toast-log';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
@@ -50,8 +51,8 @@ let frames: FrameRequestCallback[];
 let modelListeners: Set<() => void>;
 let contentListeners: Set<() => void>;
 let textFocus: boolean;
+let toasts: ReturnType<typeof captureToasts>;
 const writeback = vi.fn(async () => ({ writebackWarning: undefined }));
-const status = vi.fn();
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -88,7 +89,6 @@ function Harness({ file = FILE }: { file?: string }) {
     projectPathRef: projectRef,
     projectName: 'fixture',
     writeAcceptedSuggestion: writeback,
-    setSuggestionStatus: status,
   });
   return null;
 }
@@ -204,11 +204,12 @@ beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async () => sseDone());
   vi.stubGlobal('fetch', fetchMock);
   writeback.mockClear();
-  status.mockClear();
+  toasts = captureToasts();
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  toasts.stop();
   host.remove();
   delete window.__STORYFORGE_MOCK_FS__;
   invalidateFileSystemCache();
@@ -240,10 +241,9 @@ it('A01/A06 oversized author request is refused before fetch and remains editabl
   expect(writeback).not.toHaveBeenCalled();
   expect(input.isConnected).toBe(true);
   expect(input.value).toBe(instruction);
-  expect(host.textContent).toContain('指令过长');
-  expect(host.textContent).toContain('缩短');
-  expect(host.querySelector('[role="alert"]')).not.toBeNull();
-  expect(status).not.toHaveBeenCalled();
+  expect(toasts.text()).toContain('指令过长');
+  expect(toasts.text()).toContain('缩短');
+  expect(toasts.latest()?.tone).toBe('error');
   fetchMock.mockResolvedValueOnce(
     Response.json({ after: BEFORE, model: 'fixture', assistant_session_id: 71 }),
   );
@@ -653,7 +653,7 @@ it('late writeback completion cannot move the cursor or announce success in anot
     completed.resolve({ writebackWarning: undefined });
   });
   expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
-  expect(host.textContent).not.toContain('已写进');
+  expect(toasts.text()).not.toContain('已写进');
 });
 
 it('interactive input, loading and diff expose the Monaco zone host until dismissal', async () => {
@@ -738,10 +738,10 @@ it('pending write locks decisions; acknowledged model updates do not report fals
   });
   expect(accept.isConnected).toBe(true);
   expect(writeback).toHaveBeenCalledTimes(1);
-  expect(host.textContent).not.toContain('文件已变化');
+  expect(toasts.text()).not.toContain('文件已变化');
   await act(async () => completion.resolve({ writebackWarning: undefined }));
   expect(accept.isConnected).toBe(false);
-  expect(host.textContent).toContain('已写进');
+  expect(toasts.text()).toContain('已写进');
 });
 
 it('typing during a failed write invalidates the proposal rather than offering stale retry', async () => {
@@ -974,7 +974,9 @@ it('empty document Ctrl+A is empty selection and Ctrl+K makes no request', async
   expect(zones.querySelector('textarea')).toBeNull();
   expect(fetchMock).not.toHaveBeenCalled();
   expect(writeback).not.toHaveBeenCalled();
-  expect(host.textContent).toContain('先选中要改的文字');
+  expect(toasts.text()).toContain('先选中要改的文字');
+  // 行间状态带同一个 key 发出，连按几次在通知栈里一条顶一条。
+  expect(toasts.latest()?.key).toBe('inline-status');
 });
 
 it('partial-character selection retains existing touched-line authorization rather than claiming character-exact scope', async () => {
@@ -1061,6 +1063,7 @@ it('旧写回延迟失败不会关闭新文件输入框', async () => {
   expect(newInput.disabled).toBe(false);
   expect(model.getValue()).toBe('新文件正文。');
   expect(host.textContent).not.toContain('old snapshot failed');
+  expect(toasts.text()).not.toContain('old snapshot failed');
 });
 
 it('切文件中止请求且迟到响应不能替换新输入框', async () => {
@@ -1103,7 +1106,7 @@ it('模型替换后的迟到写回成功不会移动新光标', async () => {
     completed.resolve({ writebackWarning: undefined });
   });
   expect(editorRef.current!.setPosition).not.toHaveBeenCalled();
-  expect(host.textContent).not.toContain('已写进');
+  expect(toasts.text()).not.toContain('已写进');
 });
 
 function pressK(target: EventTarget, shift = false) {

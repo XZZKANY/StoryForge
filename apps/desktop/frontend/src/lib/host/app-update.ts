@@ -4,7 +4,7 @@ import { emitToast } from '../toast';
 import { checkForUpdate, currentAppVersion } from './update-check';
 
 /**
- * 自动更新的进度，启动时的右下角提示与设置页「关于」共用一份：检查 → 下载（宿主 `app_update_download`，
+ * 自动更新的进度，启动时的左下角提示与设置页「关于」共用一份：检查 → 下载（宿主 `app_update_download`，
  * 下载完用公钥核对签名）→ 作者点「重启安装」（宿主照点 × 关窗：先问未保存、走完退出握手，最后一步才装）。
  */
 
@@ -65,7 +65,7 @@ export async function checkAppUpdate(currentVersion: string | null): Promise<App
   return state;
 }
 
-/** 下载好就在右下角给「重启安装」；失败时抛出（提示条的按钮就地显示原因），状态退回可以重下。 */
+/** 下载好就在左下角给「重启安装」；失败时抛出（提示条的按钮就地显示原因），状态退回可以重下。 */
 export async function downloadAppUpdate(): Promise<void> {
   if (state.phase !== 'available') return;
   const { update } = state;
@@ -97,7 +97,7 @@ export async function restartToInstall(): Promise<void> {
   }
 }
 
-/** 打开 8 秒后静默检查一次：有新版在右下角提示并给「下载」，失败不打扰。只在打包版里查。 */
+/** 打开 8 秒后静默检查一次：有新版在左下角提示并给「下载」，失败不打扰。只在打包版里查。 */
 export function useStartupUpdateCheck() {
   useEffect(() => {
     if (!import.meta.env.PROD) return;

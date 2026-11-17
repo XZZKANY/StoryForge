@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { useInlineChat } from '../src/components/editor/useInlineChat';
 import { invalidateFileSystemCache } from '../src/lib/host/tauri-fs';
+import { captureToasts } from './support/toast-log';
 
 // 后端用可编排的 fetch 替身（产品里是进程内引擎；这里测的是界面怎么走）。
 vi.mock('../src/lib/api/assistant', async (importOriginal) => ({
@@ -51,10 +52,10 @@ let selectionEndLine: number | null;
 let frames: FrameRequestCallback[];
 let modelListeners: Set<() => void>;
 let contentListeners: Set<() => void>;
+let toasts: ReturnType<typeof captureToasts>;
 const writeback = vi.fn(async (..._args: unknown[]) => ({
   writebackWarning: undefined as string | undefined,
 }));
-const status = vi.fn();
 
 function makeModel(value = BEFORE) {
   let version = 1;
@@ -85,7 +86,6 @@ function Harness({ file = FILE }: { file?: string }) {
     projectPathRef: projectRef,
     projectName: 'fixture',
     writeAcceptedSuggestion: writeback,
-    setSuggestionStatus: status,
   });
   return null;
 }
@@ -186,11 +186,12 @@ beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async () => sseDone());
   vi.stubGlobal('fetch', fetchMock);
   writeback.mockReset().mockResolvedValue({ writebackWarning: undefined });
-  status.mockClear();
+  toasts = captureToasts();
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  toasts.stop();
   host.remove();
   delete window.__STORYFORGE_MOCK_FS__;
   invalidateFileSystemCache();
@@ -284,7 +285,7 @@ it('independent: unknown receipt is never rewritten when the preserved candidate
   expect(nativeWrites).toBe(1);
   expect(ids[0]).toBe(ids[1]);
   expect(model.getValue()).toBe(BEFORE);
-  expect(host.textContent).toContain('未知');
+  expect(toasts.text()).toContain('未知');
 });
 
 it('independent: lost response with applied receipt settles once and does not offer another apply', async () => {
@@ -326,7 +327,7 @@ it('independent: post-commit audit warning settles and never presents candidate 
   await send(await open());
   await acceptCurrent();
   expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
-  expect(host.textContent).toContain('正文已写入');
+  expect(toasts.text()).toContain('正文已写入');
   expect(writeback).toHaveBeenCalledTimes(1);
 });
 
@@ -349,6 +350,7 @@ it('independent: pending write cancellation cannot resurrect old proposal over a
   expect(newer.isConnected).toBe(true);
   expect(zones.querySelector('.sf-inline-btn-accept')).toBeNull();
   expect(host.textContent).not.toContain('late write failure');
+  expect(toasts.text()).not.toContain('late write failure');
 });
 
 it('independent: typing after a failed write invalidates preserved candidate instead of overwriting edits', async () => {
