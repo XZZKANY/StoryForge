@@ -3,7 +3,14 @@ import { Tooltip } from './Tooltip';
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 
 export type ButtonSize = 'mini' | 'compact' | 'xs' | 'sm' | 'md' | 'lg';
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'agent' | 'agent-subtle';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'ghost'
+  | 'danger'
+  | 'danger-solid'
+  | 'agent'
+  | 'agent-subtle';
 export type ButtonProps = ComponentPropsWithoutRef<'button'> & {
   size?: ButtonSize;
   variant?: ButtonVariant;

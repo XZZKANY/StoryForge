@@ -126,6 +126,53 @@ test('Choice 渲染每个选项，点击 resolve 成对应 id；首个选项拿�
   }
 });
 
+test('删改类确认的主按钮是实心红；三选一里的删改选项排在最前、单独靠左', () => {
+  const confirm = renderDialog(
+    {
+      kind: 'confirm',
+      title: '删除文件？',
+      message: '将删除「灵感.md」。',
+      confirmLabel: '删除',
+      cancelLabel: '取消',
+      tone: 'danger',
+      resolve: () => {},
+    },
+    () => {},
+  );
+  try {
+    const primary = document.querySelector('[data-testid="app-dialog-primary"]');
+    assert.equal(primary?.getAttribute('data-variant'), 'danger-solid');
+  } finally {
+    confirm.cleanup();
+  }
+
+  const choice = renderDialog(
+    {
+      kind: 'choice',
+      title: '「第001章.md」还没保存',
+      message: '关闭文件前要先保存吗？',
+      cancelLabel: '继续编辑',
+      choices: [
+        { id: 'save', label: '保存并关闭文件' },
+        { id: 'discard', label: '放弃修改', tone: 'danger' },
+      ],
+      resolve: () => {},
+    },
+    () => {},
+  );
+  try {
+    const labels = [
+      ...document.querySelectorAll<HTMLButtonElement>('[data-testid="app-dialog-actions"] button'),
+    ].map((button) => button.textContent);
+    assert.deepEqual(labels, ['放弃修改', '继续编辑', '保存并关闭文件']);
+    const discard = document.querySelector('[data-testid="app-dialog-choice-discard"]');
+    assert.equal(discard?.getAttribute('data-variant'), 'danger');
+    assert.ok(discard?.parentElement?.classList.contains('mr-auto'));
+  } finally {
+    choice.cleanup();
+  }
+});
+
 test('Choice 按 Escape 等价于取消（resolve null），不落到任何一个选项上', () => {
   const results: Array<boolean | string | null | undefined> = [];
   const rendered = renderDialog(

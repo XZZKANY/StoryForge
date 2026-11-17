@@ -21,6 +21,7 @@
   --accent: 236 236 236; /* 单色强调：深色模式用前景色；作者可在「外观」换成彩色 */
   --accent-foreground: 16 16 16;
   --error: 229 91 91;
+  --error-foreground: 24 24 27; /* 实心红按钮上的字：深色主题的红偏浅，配深字才过 AA */
   --warning: 235 201 126;
   --success: 115 202 128;
   --agent: 146 153 234; /* 鸢尾紫：只用于 agent 相关（召唤/思考/advisory/发送键聚焦态），当金子省着用 */
@@ -104,6 +105,7 @@
   --accent: 26 26 26; /* 单色强调：浅色模式用前景色 */
   --accent-foreground: 255 255 255;
   --error: 200 56 56;
+  --error-foreground: 255 255 255;
   /* P1 / P2-E：浅色主题下旧色（#b07a11 / #2a8c54）在 bg / panel / surface / elevated 四种底均
    * 不达 WCAG AA 4.5:1（最差 3.04:1）。新值按「最严底 surface #e8e8ea」设计：
    * warning #a14607 最差 5.06:1，success #166534 最差 5.83:1。语义色段位不变。
@@ -1150,6 +1152,11 @@ button:disabled[aria-busy='true'] {
     border-color: rgb(var(--error) / 0.6);
     color: rgb(var(--error));
   }
+  /* 删改类确认框的主动作：实心红，一眼看出回车会做什么；描边红留给并列的次要删改选项。 */
+  .sf-button[data-variant='danger-solid'] {
+    background: rgb(var(--error));
+    color: rgb(var(--error-foreground));
+  }
   .sf-button:not(:disabled):hover {
     background: rgb(var(--elevated));
     color: rgb(var(--foreground));
@@ -1169,6 +1176,10 @@ button:disabled[aria-busy='true'] {
   .sf-button[data-variant='danger']:not(:disabled):hover {
     background: rgb(var(--error) / 0.1);
     color: rgb(var(--error));
+  }
+  .sf-button[data-variant='danger-solid']:not(:disabled):hover {
+    background: rgb(var(--error) / 0.9);
+    color: rgb(var(--error-foreground));
   }
   .sf-button:disabled {
     opacity: 0.5;

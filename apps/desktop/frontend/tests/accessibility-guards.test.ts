@@ -353,5 +353,11 @@ test('正文/次级/提示文本在各常用表面及主按钮达到普通文字
       contrastRatio(agentForeground, agent) >= 4.5,
       `${theme} 主按钮文字对比度 ${contrastRatio(agentForeground, agent).toFixed(2)} < 4.5`,
     );
+    const error = parseToken(css, 'error', theme);
+    const errorForeground = parseToken(css, 'error-foreground', theme);
+    assert.ok(
+      contrastRatio(errorForeground, error) >= 4.5,
+      `${theme} 实心红按钮文字对比度 ${contrastRatio(errorForeground, error).toFixed(2)} < 4.5`,
+    );
   }
 });

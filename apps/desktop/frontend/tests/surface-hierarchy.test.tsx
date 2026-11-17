@@ -289,6 +289,7 @@ test('深色使用近黑画布与递进表面，保留控件描边；浅色 toke
     accent: '26 26 26',
     'accent-foreground': '255 255 255',
     error: '200 56 56',
+    'error-foreground': '255 255 255',
     // P2-E 浅色语义色按最严底（surface #e8e8ea）达 AA 4.5:1 重选：
     // warning 旧 #b07a11 最差 3.04:1 → 新 #a14607 最差 5.06:1；
     // success 旧 #2a8c54 最差 3.45:1 → 新 #166534 最差 5.83:1。

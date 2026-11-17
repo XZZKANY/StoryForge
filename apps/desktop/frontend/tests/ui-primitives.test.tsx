@@ -167,7 +167,15 @@ it('JSX <button> 只写在 components/ui 里', () => {
 
 it('Button 的每个变体与尺寸在 index.css 里都有样式（sm 是默认，不另写）', () => {
   const css = readFileSync('src/index.css', 'utf8');
-  for (const variant of ['primary', 'secondary', 'ghost', 'danger', 'agent', 'agent-subtle'])
+  for (const variant of [
+    'primary',
+    'secondary',
+    'ghost',
+    'danger',
+    'danger-solid',
+    'agent',
+    'agent-subtle',
+  ])
     expect(css, variant).toContain(`.sf-button[data-variant='${variant}'] {`);
   for (const size of ['mini', 'compact', 'xs', 'md', 'lg'])
     expect(css, size).toContain(`.sf-button[data-size='${size}'] {`);

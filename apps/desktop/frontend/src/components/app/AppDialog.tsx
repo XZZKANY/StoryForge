@@ -202,6 +202,33 @@ export function AppDialogHost({
   const isConfirm = dialog.kind === 'confirm';
   const isChoice = dialog.kind === 'choice';
   const choiceWithoutDefault = dialog.kind === 'choice' && dialog.noDefault === true;
+  const indexedChoices = isChoice ? dialog.choices.map((choice, index) => ({ choice, index })) : [];
+  const dangerChoices = indexedChoices.filter(({ choice }) => choice.tone === 'danger');
+  const otherChoices = indexedChoices.filter(({ choice }) => choice.tone !== 'danger');
+  const renderChoice = ({ choice, index }: (typeof indexedChoices)[number]) => (
+    <Button
+      // 首个选项是主动作：拿 primaryRef 才能继承既有的「打开即聚焦 → Enter 确认」。
+      ref={index === 0 && !choiceWithoutDefault ? primaryRef : undefined}
+      key={choice.id}
+      type="button"
+      size="sm"
+      variant={
+        choice.tone === 'danger'
+          ? 'danger'
+          : index === 0 && !choiceWithoutDefault
+            ? 'primary'
+            : 'secondary'
+      }
+      onClick={() => onClose(choice.id)}
+      data-testid={
+        index === 0 && !choiceWithoutDefault
+          ? 'app-dialog-primary'
+          : `app-dialog-choice-${choice.id}`
+      }
+    >
+      {choice.label}
+    </Button>
+  );
 
   return (
     <ModalDialog
@@ -246,6 +273,10 @@ export function AppDialogHost({
         className="mt-5 flex shrink-0 flex-wrap justify-end gap-2"
         data-testid="app-dialog-actions"
       >
+        {dangerChoices.length > 0 && (
+          // 删改类选项靠最左、和其余按钮隔开，手滑点不到；排在 DOM 最前，Tab 顺序与看到的一致。
+          <div className="mr-auto flex gap-2">{dangerChoices.map(renderChoice)}</div>
+        )}
         {(isConfirm || isPrompt || isChoice) && (
           <Button
             type="button"
@@ -258,35 +289,12 @@ export function AppDialogHost({
           </Button>
         )}
         {isChoice ? (
-          dialog.choices.map((choice, index) => (
-            <Button
-              // 首个选项是主动作：拿 primaryRef 才能继承既有的「打开即聚焦 → Enter 确认」。
-              ref={index === 0 && !choiceWithoutDefault ? primaryRef : undefined}
-              key={choice.id}
-              type="button"
-              size="sm"
-              variant={
-                choice.tone === 'danger'
-                  ? 'danger'
-                  : index === 0 && !choiceWithoutDefault
-                    ? 'primary'
-                    : 'secondary'
-              }
-              onClick={() => onClose(choice.id)}
-              data-testid={
-                index === 0 && !choiceWithoutDefault
-                  ? 'app-dialog-primary'
-                  : `app-dialog-choice-${choice.id}`
-              }
-            >
-              {choice.label}
-            </Button>
-          ))
+          otherChoices.map(renderChoice)
         ) : (
           <Button
             ref={primaryRef}
             type="button"
-            variant={isConfirm && dialog.tone === 'danger' ? 'danger' : 'primary'}
+            variant={isConfirm && dialog.tone === 'danger' ? 'danger-solid' : 'primary'}
             onClick={() => onClose(isPrompt ? dialog.value : true)}
             data-testid="app-dialog-primary"
           >
