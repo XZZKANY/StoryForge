@@ -1,0 +1,22 @@
+## 2026-10-30 磁盘写回测试每条用例换项目根，上一条的闭环记录晚到不再串进下一条
+
+- 问题：`apps/desktop/frontend/tests/editor-disk-writeback.test.tsx` 的「missing file cannot replace externally created ""」在一次 pre-push（前端全套 vitest）里红过：期望「磁盘内容已变化」，实际是「操作失败：接受失败: 原写回回执缺失，结果未知；审计记录不能授权再次写入，可重试」。单跑、整套复跑都绿。
+- 根因（测试 fixture 的时序假设，产品代码这里没有竞态）：
+  - 接受流程先 `readSuggestionAcceptance` 按 `[相对路径, operationKey]` 找本补丁的闭环审计；找到了就当「这份补丁已经接受过」，走恢复分支，`validate` 抛「原写回回执缺失」，根本走不到写盘时的覆盖校验。
+  - 前一条用例「a second accept while the first is still writing…」等文件写进去就结束了，它的闭环记录（`recordRevisionLoop` → 写 `.storyforge/author-loop/<id>.md`）还在路上。带时间戳的追踪：记录开始后 3 ms 下一条用例的 `beforeEach` 就跑了，记录 200 ms 后才写进去。
+  - fixture 的 `files` / `writes` 是模块级变量，每条用例重新赋值；`TauriFileSystem` 每次操作现取 `window.__STORYFORGE_MOCK_FS__`。所以晚到的记录写进了下一条用例刚建的新盘。两条用例都从 `disk-patch-0` 起编号，项目根、文件也相同，operationId 完全一样，于是下一条用例把它当成了自己这份补丁的「已接受」证据。只有 `""` 这一档红，因为它紧跟在会写记录的那条后面；`"external creation"` 前面那条（就是 `""`）不写记录。
+  - 产品里 patch id 是 `file-revision-<随机 hex>` 这类随机值（`packages/engine/src/loop/tools/patchHandlers.ts`），新提案不会有别人的审计。`knowledge-patch-<sha256>` 由同一提案、同一基线、同一结果决定，同 id 本来就是同一个决定，而且不走编辑器的补丁面板。真机满载不会出这条错误提示。
+- 改动（只改这个测试文件，被测代码和断言都没动）：`beforeEach` 里每条用例换一个项目根 `D:/disk-contract-<序号>`；盘（Map）和写入日志由这条用例自己的闭包持有；盘只收本项目下的路径，别的路径直接抛错。上一条用例晚到的尾巴要么写进它自己那份旧盘，要么带着旧项目路径被新盘拒掉，进不了下一条用例的 `files` 和 `writes`。`PROJECT` / `FILE` 从常量改成每条用例赋值。
+- 验证：
+  - 复现手段（脚本在 `output/disk-writeback-leak/make-gate.mjs`，不入库；做法是在测试文件末尾追加钩子生成一份临时用例，原用例和断言不动）：
+    - gate（确定性）：把「a second accept…」的闭环记录拖住，等下一条用例接受时读审计（fixture 的 `pathExists` 读口）才放行，这个读口等那份晚到的记录写完再返回。
+    - slow（概率性，模拟满载）：所有审计路径的 `pathExists` 读口放慢 200 ms。
+  - 改前（master `e31b6ab0`）：gate 3/3 红，红的正是这一条，面板文案与现场一字不差；slow 6 次红 3 次。
+  - 改后用同样的手段：gate 3/3 绿，slow 6/6 绿，没有未处理异常。另加探针，把越界路径打到 stderr：gate 下只截到一条，是上一条用例（`disk-contract-3`）的 `author-loop/…md` 撞进 `disk-contract-4` 的盘被拒；不加 gate 正常跑两遍，越界为零，说明本条用例自己的操作没有撞上这道闸。
+  - 变异：项目根改回常量 `'D:/disk-contract'`，其余改动保留，gate 2/2 重新红，文案同上。变异做在临时副本上，原文件没动。
+  - 前端全套 `npx vitest run`（`apps/desktop/frontend` 下）连跑两遍：两遍都是 251 个文件、2537 passed，EXIT=0。
+  - `pnpm verify`（PATH 上没有 pnpm，用 corepack 缓存的 pnpm 9.15.4 做临时 shim）EXIT=0：lint 0 error（2 条 warning 在 `tests/independent-claim-history.test.ts`，原有）、前端类型检查、project-core 34 passed、引擎 14061 passed + 2 skipped、前端 251 个文件 2537 passed，行间续写、浏览器冒烟、Agent 对话三个浏览器回归都通过。
+  - 行尾：文件是纯 CRLF（460 行，没有 CRCRLF）；`git diff --numstat` 与 `--ignore-all-space --numstat` 都是 20 增 8 删。
+- 未覆盖：
+  - 没查同类 fixture（模块级 `files` 加固定项目根，用例结束时写回尾巴还没跑完）在别的测试文件里是否也有，本次只修这一个文件。
+  - 没改宿主，没跑 Rust 测试和 Tauri 冒烟。
