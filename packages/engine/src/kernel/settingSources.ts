@@ -3,7 +3,7 @@ import { normalizeNewlines, ProjectReadError, type ProjectReader } from '../read
 import { isChapterOutlineCandidate } from './chapterOutline';
 import { FsToolError } from './fsTools';
 import type { GenerationSourceCapture } from './generationSources';
-import { focusOutline, outlineFocusNote } from './outlineFocus';
+import { chapterOutlineNode, focusOutline, outlineFocusNote } from './outlineFocus';
 import { projectKnowledgeCandidates } from './projectKnowledge';
 import { readProjectContextFile, suffixOf } from './projectKnowledgeFiles';
 import { ProjectTreeError } from './projectTree';
@@ -21,6 +21,10 @@ const SETTING_MIN_ROOM = 500;
 const OMITTED_NAMED = 8;
 /** 章纲那一步带的全书总纲（只取大纲目录，不含各章细纲）的总额度。 */
 export const BOOK_OUTLINE_MAX_CHARS = SETTING_FILE_MAX_CHARS;
+/** 检查对照的总纲本章那段：一个节点写成几千字的很少见，超出只截开头。 */
+export const CHAPTER_OUTLINE_NODE_MAX_CHARS = 3000;
+
+export type ChapterOutlineNode = { readonly path: string; readonly text: string };
 
 export type SettingSources = {
   /** 原样放进起草提示词的整段文字。 */
@@ -52,6 +56,35 @@ type Gathered = {
   readonly cuts: Cut[];
 };
 
+type Candidate = Awaited<ReturnType<typeof projectKnowledgeCandidates>>[number];
+
+/** 这几类目录里的文本资料（各章细纲除外），按类目顺序、同类按章序；列不出目录时为 null。 */
+async function orderedCandidates(
+  reader: ProjectReader,
+  root: string,
+  types: readonly string[],
+): Promise<Candidate[] | null> {
+  let candidates: Candidate[];
+  try {
+    candidates = await projectKnowledgeCandidates(reader, root);
+  } catch (error) {
+    if (optional(error)) return null;
+    throw error;
+  }
+  return candidates
+    .filter(
+      (item) =>
+        types.includes(item.source_type) &&
+        TEXT_SUFFIXES.has(suffixOf(item.path)) &&
+        !isChapterOutlineCandidate(item),
+    )
+    .sort(
+      (a, b) =>
+        SOURCE_ORDER.indexOf(a.source_type) - SOURCE_ORDER.indexOf(b.source_type) ||
+        compareChapterPaths(a.path, b.path),
+    );
+}
+
 /** 按类目顺序读资料全文，每份、总量、份数都有上限；放不下的大纲按本章挑小节，其余照旧取开头。 */
 async function gather(
   reader: ProjectReader,
@@ -64,25 +97,8 @@ async function gather(
     ordinal: number | null;
   },
 ): Promise<Gathered | null> {
-  let candidates: Awaited<ReturnType<typeof projectKnowledgeCandidates>>;
-  try {
-    candidates = await projectKnowledgeCandidates(reader, root);
-  } catch (error) {
-    if (optional(error)) return null;
-    throw error;
-  }
-  const ordered = candidates
-    .filter(
-      (item) =>
-        options.types.includes(item.source_type) &&
-        TEXT_SUFFIXES.has(suffixOf(item.path)) &&
-        !isChapterOutlineCandidate(item),
-    )
-    .sort(
-      (a, b) =>
-        SOURCE_ORDER.indexOf(a.source_type) - SOURCE_ORDER.indexOf(b.source_type) ||
-        compareChapterPaths(a.path, b.path),
-    );
+  const ordered = await orderedCandidates(reader, root, options.types);
+  if (ordered === null) return null;
   const sections: { path: string; body: string }[] = [];
   const truncated: string[] = [];
   const omitted: string[] = [];
@@ -203,6 +219,40 @@ export async function collectBookOutline(
   return (
     gathered.sections.map((section) => `【${section.path}】\n${section.body}`).join('\n\n') + tail
   );
+}
+
+/**
+ * 章节检查对照用的「总纲本章那段」：大纲目录里第一份写了本章节点的资料，取那一节原文。
+ * 章纲把总纲场景删掉时，检查只对照章纲就发现不了（10-31 实验书第 14–17 章的主线被一步步删空）。
+ */
+export async function collectChapterOutlineNode(
+  reader: ProjectReader,
+  root: string,
+  options: { secrets: SecretContext; ordinal: number | null },
+): Promise<ChapterOutlineNode | null> {
+  if (options.ordinal === null) return null;
+  const ordered = await orderedCandidates(reader, root, ['outline']);
+  for (const item of ordered ?? []) {
+    let content: string;
+    try {
+      content = (await readProjectContextFile(reader, root, item.path)).content;
+    } catch (error) {
+      if (optional(error)) continue;
+      throw error;
+    }
+    const text = redactSensitiveText(normalizeNewlines(content), options.secrets);
+    const node = chapterOutlineNode(text, options.ordinal);
+    if (node === null) continue;
+    const points = Array.from(node);
+    return {
+      path: item.path,
+      text:
+        points.length > CHAPTER_OUTLINE_NODE_MAX_CHARS
+          ? `${points.slice(0, CHAPTER_OUTLINE_NODE_MAX_CHARS).join('')}……`
+          : node,
+    };
+  }
+  return null;
 }
 
 const namedList = (paths: readonly string[]) =>

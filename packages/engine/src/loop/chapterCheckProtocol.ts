@@ -27,8 +27,11 @@ const MODEL_RULES = new Set([
   'setting_violation',
   'advisory',
 ]);
+/** 只有检查时带了总纲本章那段才认的规则；不带时提示词与校验都和从前一字不差。 */
+export const OUTLINE_RULE = 'outline_violation';
 const REPAIRABLE_RULES = new Set([
   ...[...MODEL_RULES].filter((rule) => rule !== 'advisory'),
+  OUTLINE_RULE,
   'draft_truncated',
   'word_count_out_of_range',
 ]);
@@ -89,8 +92,36 @@ export function factExtractionPrompt(content: string): string {
   );
 }
 
-export function checkPrompt(brief: Obj, content: string): string {
+/** 总纲本章那段：章纲删掉或改轻了总纲的安排，只对照章纲的检查看不出来。 */
+export type CheckOutline = { readonly path: string; readonly text: string };
+
+/** 工具载荷里的总纲本章那段；形状不对或正文为空当没有。 */
+export function checkOutlineFrom(value: unknown): CheckOutline | null {
+  if (!isJsonObject(value as JsonValue)) return null;
+  const { path, text } = value as Obj;
+  if (typeof path !== 'string' || typeof text !== 'string' || !pythonStrip(text)) return null;
+  return { path, text };
+}
+
+function outlineRule(outline: CheckOutline | null): string {
+  if (outline === null) return '';
+  return (
+    '另对照下面「总纲本章那段」（作者在全书总纲里给这一章定的安排）：' +
+    '正文没写到其中的本章事件，或把它写成了相反的结果，用 outline_violation，severity 为 hard；' +
+    '本章事件写到了，只是场景的人物、地点或经过和总纲不同，用 outline_violation，severity 为 advisory。' +
+    'message 写明总纲原本怎么安排、正文哪里不同。' +
+    'brief 里明确写了另一种安排（goal、required_beats 或 fact_adjustments 写明了不同走向）的，以 brief 为准，不算违反；' +
+    'brief 只是没提到的，照总纲查。'
+  );
+}
+
+export function checkPrompt(
+  brief: Obj,
+  content: string,
+  outline: CheckOutline | null = null,
+): string {
   const contract: Obj = Object.fromEntries(CONTRACT_KEYS.map((key) => [key, brief[key] ?? null]));
+  const rules = outline === null ? [...MODEL_RULES] : [...MODEL_RULES, OUTLINE_RULE];
   // 章纲按已写内容调整过计划时，检查器也要知道：否则照调整写的稿子会被判成漏了节拍，修复又改回去。
   const adjustments = Array.isArray(brief.fact_adjustments)
     ? (brief.fact_adjustments as Obj[])
@@ -110,7 +141,7 @@ export function checkPrompt(brief: Obj, content: string): string {
     '必须逐字复制检查源的 protocol_version,content_sha256,brief_sha256，并添加 findings 数组；' +
     '无明确问题必须返回 findings:[]，不得省略字段。' +
     '每个 finding 必须包含 rule,severity,message,line,evidence；rule 只允许 ' +
-    [...MODEL_RULES].sort().join(', ') +
+    rules.sort().join(', ') +
     '。severity 只允许 hard/advisory。' +
     '只有明确违反才用 hard；不确定的一律 advisory，advisory 规则永远只是建议。' +
     'hard 必须提供原样正文引用 evidence 和其起始行 line（从1开始，CRLF算一行）。' +
@@ -118,9 +149,13 @@ export function checkPrompt(brief: Obj, content: string): string {
     '纯建议可用 null 引用和行号。' +
     `最多 ${MAX_CHECK_FINDINGS} 条；不能完整检查时不要返回空数组冒充通过。` +
     `另输出 ${NEW_FACTS_SPEC}` +
-    `${adjustmentRule}\n` +
+    `${adjustmentRule}${outlineRule(outline)}\n` +
     `检查源：${dumpJson(checkSource(content, brief), { ensureAscii: false })}\n` +
-    `brief：${dumpJson(contract, { ensureAscii: false })}\n正文：\n${content}`
+    `brief：${dumpJson(contract, { ensureAscii: false })}\n` +
+    (outline === null
+      ? ''
+      : `总纲本章那段（${outline.path}）：\n<<<BOOK_OUTLINE_CHAPTER\n${outline.text}\nBOOK_OUTLINE_CHAPTER>>>\n`) +
+    `正文：\n${content}`
   );
 }
 
@@ -189,14 +224,19 @@ function quoteLocation(content: string, evidence: string, line: number | null): 
   return location;
 }
 
-function validateFinding(item: unknown, content: string, index: number): Obj {
+function validateFinding(
+  item: unknown,
+  content: string,
+  index: number,
+  outlineSupplied: boolean,
+): Obj {
   const keys = ['rule', 'severity', 'message', 'line', 'evidence'];
   if (!isJsonObject(item as JsonValue) || !keys.every((key) => key in (item as Obj)))
     throw new InvalidCheck(`第${index}条不是完整 finding。`);
   const { rule, severity, message, line, evidence } = item as Obj;
   if (
     typeof rule !== 'string' ||
-    !MODEL_RULES.has(rule) ||
+    !(MODEL_RULES.has(rule) || (outlineSupplied && rule === OUTLINE_RULE)) ||
     !['hard', 'advisory'].includes(severity as string)
   )
     throw new InvalidCheck('未知规则或严重性。');
@@ -284,9 +324,10 @@ export function buildCheck(
   content: string,
   brief: Obj,
   raw: unknown,
-  options: { providerFailed?: boolean } = {},
+  options: { providerFailed?: boolean; outlineSupplied?: boolean } = {},
 ): Obj {
   const providerFailed = options.providerFailed ?? false;
+  const outlineSupplied = options.outlineSupplied ?? false;
   const source = checkSource(content, brief);
   const findings: Obj[] = [];
   const length = codePoints(content).length;
@@ -335,7 +376,9 @@ export function buildCheck(
     if (items.length > MAX_CHECK_FINDINGS)
       throw new IncompleteCheck('检查结果超过协议条数上限，不能作为完整检查通过。');
     // 整份结果先全部校验，再承认任何可修复的模型结论。
-    const verified = items.map((item, index) => validateFinding(item, content, index + 1));
+    const verified = items.map((item, index) =>
+      validateFinding(item, content, index + 1, outlineSupplied),
+    );
     findings.push(...verified);
     coverage.findings_validated = verified.length;
     coverage.result_complete = true;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { codePoints } from './pythonText';
-import { focusOutline, outlineFocusNote } from './outlineFocus';
+import { chapterOutlineNode, focusOutline, outlineFocusNote } from './outlineFocus';
 
 const filler = (label: string, chars: number) =>
   `${label}。`.repeat(Math.ceil(chars / (label.length + 1)));
@@ -201,6 +201,31 @@ describe('focusOutline on an outline that restarts chapter numbers in every volu
     for (const room of [1500, 3000, 6000])
       for (let ordinal = 1; ordinal <= 102; ordinal += 1)
         expect(codePoints(focusOutline(text, ordinal, room)!).length).toBeLessThanOrEqual(room);
+  });
+});
+
+describe('chapterOutlineNode', () => {
+  it('returns the heading and body of the chapter node, with the book number when volumes restart', () => {
+    const text = perVolumeOutline();
+    expect(chapterOutlineNode(text, 19)).toBe(
+      `### 第1章\u3000承1（全书第19章）\n${filler('承卷第1章场景', 150)}`,
+    );
+    expect(chapterOutlineNode(text, 5)).toBe(
+      `### 第5章\u3000起5（全书第5章）\n${filler('起卷第5章场景', 150)}`,
+    );
+  });
+
+  it('keeps the heading as written when volumes number on, and reads chapter ranges', () => {
+    expect(chapterOutlineNode(bookOutline(), 5)).toBe(
+      `### 第五章：节点5\n${filler('节点5内容', 110)}`,
+    );
+    const ranged = `# 总纲\n\n## 第11—20章：入京\n入京安排。`;
+    expect(chapterOutlineNode(ranged, 15)).toBe('## 第11—20章：入京\n入京安排。');
+  });
+
+  it('returns null when no node falls on the chapter or the outline has no headings', () => {
+    expect(chapterOutlineNode(bookOutline(), 11)).toBeNull();
+    expect(chapterOutlineNode(filler('没有标题', 300), 1)).toBeNull();
   });
 });
 

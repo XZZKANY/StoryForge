@@ -526,6 +526,32 @@ describe('下一步：规则 2 修订要作者处理就停在那一章', () => {
     expect((await h.saved())!.chapters[0].check?.verdict).toBe('unchecked');
   });
 
+  it('says the chapter is still off the book outline when that is why it waits for the author', async () => {
+    const h = harness({ history: true });
+    const batch = await started(h, 2, 4);
+    await h.writeChapter(batch, 2, {
+      patch: 'confirm',
+      check: {
+        ...PASS,
+        status: 'repairable',
+        manuscript_hard_failure_count: 2,
+        hard_failure_count: 2,
+        repair_count: 1,
+        outline_deviation: true,
+      },
+      written: false,
+    });
+    const step = await h.next(batch);
+    expect(step).toMatchObject({ action: 'stop', code: 'needs_confirmation', ordinal: 2 });
+    expect(step.action === 'stop' && step.message).toContain(
+      '的修订要你点接受才写进文件（修过一次仍有 2 处和总纲本章那段对不上）',
+    );
+    expect((await h.saved())!.chapters[0].check).toMatchObject({
+      verdict: 'repairable',
+      summary: '修过一次仍有 2 处和总纲本章那段对不上',
+    });
+  });
+
   it('stops even if the author already accepted that revision', async () => {
     const h = harness({ history: true });
     const batch = await started(h, 2, 4);

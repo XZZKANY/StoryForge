@@ -7,8 +7,8 @@ import { pythonStrip } from '../kernel/pythonText';
 import { newChapterTruncationWarning } from '../kernel/revisionTruncation';
 import { buildPlan } from '../kernel/serialPlan';
 import { chapterFileOrdinal, findChapterOutline } from '../kernel/chapterOutline';
-import { collectBookOutline } from '../kernel/settingSources';
-import { PROGRAM_ADVISORY_RULES } from './chapterCheckProtocol';
+import { collectBookOutline, collectChapterOutlineNode } from '../kernel/settingSources';
+import { OUTLINE_RULE, PROGRAM_ADVISORY_RULES } from './chapterCheckProtocol';
 import { assertChapterSources, captureChapterSources } from './chapterSourceGuard';
 import {
   BRIEF_READY_PREFIX,
@@ -49,6 +49,24 @@ export function programAdvisoryNote(check: Obj): string {
     .filter((item) => PROGRAM_ADVISORY_RULES.has(String(item.rule)))
     .map((item) => String(item.message));
   return messages.length ? `程序提示：${messages.join(' ')}` : '';
+}
+
+/** 检查完整、硬问题全是偏离总纲本章那段时返回这些问题，否则空数组。 */
+function offOutlineFindings(check: Obj): Obj[] {
+  if (check.execution_status !== 'completed' || check.status === 'pass') return [];
+  const findings = Array.isArray(check.findings) ? (check.findings as Obj[]) : [];
+  const hard = findings.filter((item) => isObj(item) && item.severity === 'hard');
+  return hard.length && hard.every((item) => item.rule === OUTLINE_RULE) ? hard : [];
+}
+
+function offOutlineSummary(relative: string, ordinal: unknown, findings: readonly Obj[]): string {
+  const chapter = positiveInt(ordinal) !== null ? `第 ${ordinal} 章的草稿` : '章节草稿';
+  const shown = findings.slice(0, 3).map((item) => String(item.message));
+  return (
+    `${chapter}修过一次，仍有 ${findings.length} 处和总纲本章那段对不上：` +
+    `${shown.join('；')}${findings.length > shown.length ? ' 等' : ''}。` +
+    `生成了 ${relative} 的修订，没有直接写进文件，请看过对比再决定是否接受。`
+  );
 }
 
 function requiredProjectRoot(args: Obj): string {
@@ -399,9 +417,19 @@ async function draftFromBrief(
   };
   const draft = await execute('chapter.draft', writer);
   let content = String(draft.output.content);
+  // 总纲本章那段与章纲同一个章号；章纲之后总纲改了，来源守卫在起草前就已拦下。
+  const outlineNode = await collectChapterOutlineNode(host.reader, root, {
+    secrets: host.secrets,
+    ordinal: chapterFileOrdinal(relative),
+  });
   // 检查器没给出可用结果（不是稿件结论）时同一份正文再查一次。
   const checkChapter = async (attempt: number): Promise<Obj> => {
-    const checkInput = { brief: confirmed, content, attempt };
+    const checkInput = {
+      brief: confirmed,
+      content,
+      attempt,
+      ...(outlineNode !== null ? { outline_node: outlineNode } : {}),
+    };
     let check = await execute('chapter.check', checkInput);
     if ((check.output.check as Obj).execution_status !== 'completed')
       check = await execute('chapter.check', { ...checkInput, recheck: true });
@@ -457,7 +485,10 @@ async function draftFromBrief(
   // 重查后检查器仍失败，说明不了稿件好坏：稿子照给，但一律要作者确认；程序查出的空稿仍拦下。
   const unchecked =
     executionStatus !== 'completed' && finalCheck.manuscript_hard_failure_count === 0;
-  if (finalCheck.status !== 'pass' && !unchecked) {
+  // 修过一次仍和总纲本章那段对不上：不拦稿，照出修订但一律要作者确认（作者 11-17 拍板）。
+  const offOutline = offOutlineFindings(finalCheck);
+  if (offOutline.length) checkEvidence.outline_deviation = true;
+  if (finalCheck.status !== 'pass' && !unchecked && !offOutline.length) {
     const detail =
       executionStatus === 'completed'
         ? `章节检查已完成：发现 ${finalCheck.manuscript_hard_failure_count} 个正文硬失败。`
@@ -498,7 +529,10 @@ async function draftFromBrief(
   const truncation = newChapterTruncationWarning(content);
   if (truncation !== null) checkEvidence.truncation_warning = truncation;
   const requiresConfirmation =
-    unchecked || truncation !== null || patchRequiresConfirmation(run.permission_profile);
+    unchecked ||
+    offOutline.length > 0 ||
+    truncation !== null ||
+    patchRequiresConfirmation(run.permission_profile);
   const proposedPatch = {
     id: `chapter-writing-${host.newHex()}`,
     kind: 'file_revision',
@@ -518,8 +552,10 @@ async function draftFromBrief(
   const summary = unchecked
     ? '章节检查重查一次后仍未取得可用结果，这章正文未经检查。' +
       `已生成 ${relative} 的待审阅修订，请通读后再决定是否接受。`
-    : passedSummary(relative, confirmed.chapter_ordinal, requiresConfirmation) +
-      programAdvisoryNote(finalCheck);
+    : offOutline.length
+      ? offOutlineSummary(relative, confirmed.chapter_ordinal, offOutline)
+      : passedSummary(relative, confirmed.chapter_ordinal, requiresConfirmation) +
+        programAdvisoryNote(finalCheck);
   return response({
     plan: unchecked
       ? completedPlan(authorConfirmed, 'failed', 'completed', checkerFailureDetail(executionStatus))

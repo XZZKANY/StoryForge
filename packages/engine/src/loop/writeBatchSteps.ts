@@ -355,6 +355,13 @@ export function checkSummary(artifact: ArtifactRecord | null): WriteBatchCheck |
         (issues ? `，有 ${issues} 条建议` : ''),
     };
   }
+  // 修过一次仍偏离总纲本章那段的，修订照出、要作者确认，不是拦下（记录格式不变，仍记 repairable）。
+  if (payload.outline_deviation === true)
+    return {
+      verdict: 'repairable',
+      issue_count: issues,
+      summary: `修过一次仍有 ${hard} 处和总纲本章那段对不上`,
+    };
   return {
     verdict: status as 'repairable' | 'blocked',
     issue_count: issues,
@@ -556,6 +563,7 @@ async function previousChapterProblem(
       message:
         `${label}的修订要你点接受才写进文件` +
         (chapter.check?.verdict === 'unchecked' ? '（检查器重查后仍没给出结果）' : '') +
+        (chapter.check?.verdict === 'repairable' ? `（${chapter.check.summary}）` : '') +
         '：先在编辑器里通读、处理完再续写。',
     };
   if (chapter.state !== 'written')

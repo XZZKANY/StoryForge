@@ -235,6 +235,22 @@ export function focusOutline(text: string, ordinal: number | null, room: number)
   return parts.join('\n\n');
 }
 
+/**
+ * 总纲里写给这一章的节点原文（标题加正文），给章节检查对照用；章号按全书算（见 bookNumbering）。
+ * 没有 Markdown 标题、或没有节点落在本章时为 null。
+ */
+export function chapterOutlineNode(text: string, ordinal: number): string | null {
+  const chunks = parseChunks(text);
+  const numbering = bookNumbering(chunks);
+  const parts = chunks.flatMap((item, index) => {
+    const node = numbering.nodes[index];
+    if (item.heading === null || node === null || !overlaps(node, ordinal, ordinal)) return [];
+    const heading = displayHeading(item, node, numbering.renumbered)!;
+    return [item.body ? `${heading}\n${item.body}` : heading];
+  });
+  return parts.length ? parts.join('\n\n') : null;
+}
+
 /** 放进起草或章纲时注在挑过的大纲前面，说明怎么挑的、只有标题的小节是什么意思。 */
 export function outlineFocusNote(totalChars: number, ordinal: number | null): string {
   const how =
