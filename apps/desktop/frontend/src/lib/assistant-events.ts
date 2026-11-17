@@ -240,15 +240,25 @@ export function nextChapterWriteRequest(
  */
 let pendingFileSuggestion: AssistantFileSuggestion | null = null;
 
-export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
+const authorRequestedSuggestionEvents = new WeakSet<Event>();
+
+function dispatchFileSuggestion(suggestion: AssistantFileSuggestion, authorRequested: boolean) {
   pendingFileSuggestion = suggestion;
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent<AssistantFileSuggestion>(APPLY_FILE_SUGGESTION_EVENT, {
-        detail: suggestion,
-      }),
-    );
-  }
+  if (typeof window === 'undefined') return;
+  const event = new CustomEvent<AssistantFileSuggestion>(APPLY_FILE_SUGGESTION_EVENT, {
+    detail: suggestion,
+  });
+  if (authorRequested) authorRequestedSuggestionEvents.add(event);
+  window.dispatchEvent(event);
+}
+
+export function emitFileSuggestion(suggestion: AssistantFileSuggestion): void {
+  dispatchFileSuggestion(suggestion, false);
+}
+
+/** 这次派发是作者自己要看（点了接受、点了通知里的「打开」）：界面不管作者正在读什么都要打开目标。 */
+export function isAuthorRequestedSuggestion(event: Event): boolean {
+  return authorRequestedSuggestionEvents.has(event);
 }
 
 /**
@@ -318,7 +328,7 @@ export function reofferPendingFileSuggestion(target: FileSuggestionTarget): bool
   const pending = pendingFileSuggestion;
   if (!pending || pending.id !== target.patchId || pending.filePath !== target.filePath)
     return false;
-  emitFileSuggestion(pending);
+  dispatchFileSuggestion(pending, true);
   return true;
 }
 
