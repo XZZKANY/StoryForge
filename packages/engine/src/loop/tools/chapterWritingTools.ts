@@ -12,7 +12,7 @@ import { fullwidthCjkPunctuation } from '../../kernel/punctuation';
 import { loadAvailableWritingStyles } from '../../kernel/availableWritingStyles';
 import { cpLen } from '../../kernel/pythonText';
 import { writingSkillIndex, writingSkillsBlock } from '../../kernel/writingSkills';
-import { buildCheck, checkPrompt } from '../chapterCheckProtocol';
+import { buildCheck, checkOutlineFrom, checkPrompt } from '../chapterCheckProtocol';
 import { prepareChapterWritingContext } from '../chapterSourceGuard';
 import {
   briefPrompt,
@@ -146,11 +146,12 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
   const check: ToolHandler = async (context, payload) => {
     const confirmed = payload.brief as Obj;
     const content = payload.content as string;
+    const outline = checkOutlineFrom(payload.outline_node);
     let raw: unknown = null;
     let providerFailed = false;
     try {
       const chat = await chatReply(context.services.assistant, {
-        userMessage: checkPrompt(confirmed, content),
+        userMessage: checkPrompt(confirmed, content, outline),
         contextBlock: '',
         assistantSessionId: context.assistantSessionId,
         relatedRunId: context.run.id,
@@ -163,7 +164,10 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
         throw error;
       providerFailed = true;
     }
-    const result = buildCheck(content, confirmed, raw, { providerFailed });
+    const result = buildCheck(content, confirmed, raw, {
+      providerFailed,
+      outlineSupplied: outline !== null,
+    });
     // 通用的步骤词表没有「未完成」：精确状态留在摘要里，未完成的检查绝不显示成通过。
     const status = result.execution_status === 'completed' ? 'completed' : 'failed';
     return {
@@ -176,6 +180,7 @@ export function chapterWritingToolHandlers(deps: ToolDeps): Record<string, ToolH
           brief_id: confirmed.brief_id,
           attempt: payload.attempt,
           recheck: payload.recheck ?? false,
+          ...(outline !== null ? { outline_path: outline.path } : {}),
         },
         output_summary: {
           status: result.status,

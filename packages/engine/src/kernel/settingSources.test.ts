@@ -5,7 +5,9 @@ import { GenerationSourceCapture } from './generationSources';
 import { memoryProject } from './memoryProject.test-support';
 import {
   BOOK_OUTLINE_MAX_CHARS,
+  CHAPTER_OUTLINE_NODE_MAX_CHARS,
   collectBookOutline,
+  collectChapterOutlineNode,
   collectSettingSources,
   SETTING_FILE_MAX_CHARS,
   SETTING_MAX_FILES,
@@ -230,6 +232,38 @@ describe('collectBookOutline', () => {
     expect([...outline!].length).toBeLessThanOrEqual(BOOK_OUTLINE_MAX_CHARS + 200);
     expect(outline).toContain('节点5安排');
     expect(outline).toContain('按第 5 章挑');
+  });
+});
+
+describe('collectChapterOutlineNode', () => {
+  const node = (files: Record<string, string>, ordinal: number | null) =>
+    collectChapterOutlineNode(readerOf(files), ROOT, { secrets: SECRETS, ordinal });
+
+  it('takes the node of the chapter from the first outline that has one, with its path', async () => {
+    const files = {
+      '大纲/00-说明.md': '只是说明，没有章节点。',
+      '大纲/总纲.md': `# 总纲\n\n## 第一卷\n\n### 第1章\u3000起\n起的安排。\n\n### 第2章\u3000承\n承的安排，${SECRETS.values[0]}。`,
+      '大纲/第2章细纲.md': '### 第2章\n细纲不在这里取。',
+      '人物/主角.md': '### 第2章\n人物不是大纲。',
+    };
+    expect(await node(files, 2)).toEqual({
+      path: '大纲/总纲.md',
+      text: '### 第2章　承\n承的安排，[REDACTED]。',
+    });
+  });
+
+  it('returns null without a chapter number, an outline, or a node for the chapter', async () => {
+    const outline = { '大纲/总纲.md': '### 第1章　起\n起的安排。' };
+    expect(await node(outline, null)).toBeNull();
+    expect(await node(outline, 7)).toBeNull();
+    expect(await node({ '人物/主角.md': '### 第1章\n主角。' }, 1)).toBeNull();
+  });
+
+  it('cuts a node longer than the limit', async () => {
+    const long = `### 第1章\u3000长\n${'安排。'.repeat(CHAPTER_OUTLINE_NODE_MAX_CHARS)}`;
+    const result = await node({ '大纲/总纲.md': long }, 1);
+    expect([...result!.text].length).toBe(CHAPTER_OUTLINE_NODE_MAX_CHARS + 2);
+    expect(result!.text.endsWith('……')).toBe(true);
   });
 });
 
