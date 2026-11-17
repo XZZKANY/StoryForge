@@ -43,6 +43,7 @@ export function AssistantPanelFrame({
         minWidth: compact ? 0 : wide ? WORKSPACE_PRIMARY_MIN_WIDTH : ASSISTANT_PANEL_MIN_WIDTH,
       }}
       data-testid="assistant-panel"
+      data-floating-column=""
       data-wide={wide ? 'true' : 'false'}
       hidden={!visible}
     >

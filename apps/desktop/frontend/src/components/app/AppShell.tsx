@@ -349,6 +349,7 @@ export function AppShell({
         <main
           className={`${workspaceVisible && shell.layoutMode === 'chat' ? 'hidden' : 'flex'} min-w-0 flex-1 flex-col bg-background`}
           data-testid="shell-center"
+          data-floating-column=""
           style={
             workspaceVisible
               ? { minWidth: shell.compact ? 0 : WORKSPACE_PRIMARY_MIN_WIDTH }
