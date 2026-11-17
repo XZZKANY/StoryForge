@@ -3,11 +3,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { executeIdeCommand } from '../../lib/api-client';
 import {
   APPLY_FILE_SUGGESTION_EVENT,
+  emitOpenFileRequest,
   flushActiveEditorToDisk,
+  isAuthorRequestedSuggestion,
   REQUEST_OPEN_FILE_EVENT,
+  reofferPendingFileSuggestion,
   type OpenFileRequest,
 } from '../../lib/assistant-events';
 import type { AssistantFileSuggestion } from '../../lib/assistant-suggestions';
+import { isReadingFile, noteEditorActivity } from '../../lib/editor-reading';
 import {
   createNewBookProject,
   createSampleStoryProject,
@@ -25,6 +29,9 @@ import type { AppDialogApi } from './AppDialog';
 import { useBookBreakdown } from './useBookBreakdown';
 import { useNewProject } from './useNewProject';
 import { normalizePathForMatch, normalizeRoot } from '../../lib/project/path';
+
+/** 滚轮翻页、点正文或拖滚动条、按键移动光标或打字，都算作者在读手头这份。 */
+const EDITOR_ACTIVITY_EVENTS = ['wheel', 'pointerdown', 'keydown'] as const;
 
 type UseProjectCommandsOptions = {
   activeProject: string | null;
@@ -181,17 +188,51 @@ export function useProjectCommands({
 
   useEffect(() => registerSmokeFileLoader((path) => void openFile(path)), [openFile]);
 
+  useEffect(() => {
+    if (!currentFile) return;
+    const onActivity = (event: Event) => {
+      if (event.target instanceof Element && event.target.closest('.monaco-editor'))
+        noteEditorActivity(currentFile);
+    };
+    const options = { capture: true, passive: true };
+    for (const type of EDITOR_ACTIVITY_EVENTS) document.addEventListener(type, onActivity, options);
+    return () => {
+      for (const type of EDITOR_ACTIVITY_EVENTS)
+        document.removeEventListener(type, onActivity, options);
+    };
+  }, [currentFile]);
+
   // 补丁可指向未打开或尚不存在的文件；先打开目标，再由 Editor 领取待确认补丁。
   useEffect(() => {
     const normalize = (path: string) => path.replace(/\\/g, '/');
     const onSuggestion = (event: Event) => {
       const suggestion = (event as CustomEvent<AssistantFileSuggestion>).detail;
       if (!suggestion?.filePath || !activeProject) return;
-      if (relativePathInsideProject(activeProject, suggestion.filePath) === null) return;
+      const relative = relativePathInsideProject(activeProject, suggestion.filePath);
+      if (relative === null) return;
       // P1：补丁到达即确保中栏可见（对话聚焦 Ctrl+3 态隐藏中栏，补丁面板挂在里面看不见）；
       // 须在「已是当前文件」早返回之前调用，覆盖补丁指向当前打开文件的情形。
       onShowEditor();
       if (currentFile && normalize(currentFile) === normalize(suggestion.filePath)) return;
+      // 作者正在读别的文件、这份修订又要等作者点头：不切走，留一条通知让作者读完自己点开。
+      // 免确认的修订（自动档、/写）照旧打开——写进文件只在编辑器里发生。
+      if (
+        currentFile &&
+        suggestion.requiresConfirmation !== false &&
+        !isAuthorRequestedSuggestion(event) &&
+        isReadingFile(currentFile)
+      ) {
+        const target = { patchId: suggestion.id, filePath: suggestion.filePath };
+        emitToast(`${relative} 的修订好了，没切过去打断你`, {
+          action: {
+            label: '打开',
+            run: () => {
+              if (!reofferPendingFileSuggestion(target)) emitOpenFileRequest(target.filePath);
+            },
+          },
+        });
+        return;
+      }
       void openFile(suggestion.filePath);
     };
     window.addEventListener(APPLY_FILE_SUGGESTION_EVENT, onSuggestion);
