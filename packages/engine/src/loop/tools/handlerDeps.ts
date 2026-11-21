@@ -3,6 +3,7 @@ import type { ProposalEnvironment } from '../../kernel/knowledgeProposals';
 import type { SecretContext } from '../../kernel/redaction';
 import type { ProjectReader } from '../../readPort';
 import type { ProjectWriter } from '../../writePort';
+import type { WebSearchPort } from './webSearch';
 
 /** 已落库的 artifact 查询（P4 前由内存存储实现）。 */
 export interface ToolArtifactQuery {
@@ -14,6 +15,8 @@ export interface ToolArtifactQuery {
 
 /** 工具处理器的外部依赖；处理器本身无状态，依赖在注册时绑定。 */
 export type ToolDeps = {
+  /** 作者在本机设置中显式开启后注入的联网搜索口。 */
+  readonly webSearch?: WebSearchPort;
   readonly reader: ProjectReader;
   readonly writer: ProjectWriter;
   readonly platform: 'windows' | 'posix';

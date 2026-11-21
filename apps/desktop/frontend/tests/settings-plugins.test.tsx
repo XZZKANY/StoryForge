@@ -141,12 +141,19 @@ async function importFrom(description: PluginDescription, stage = staged()) {
 }
 const groupTitle = (testid: string) => $(testid, dialog()!)!.querySelector('h3')!.textContent;
 
-test('「插件」排在模型服务之后：导航锚点 plugins、分组在模型服务与外观之间', async () => {
+test('「联网搜索」与「插件」排在模型服务之后，导航和分组顺序一致', async () => {
   await mountSettings();
   const links = [...host.querySelectorAll('nav a')].map((link) => link.getAttribute('href'));
-  expect(links).toEqual(['#provider', '#plugins', '#appearance', '#editor', '#about']);
+  expect(links).toEqual([
+    '#provider',
+    '#web-search',
+    '#plugins',
+    '#appearance',
+    '#editor',
+    '#about',
+  ]);
   const groups = [...host.querySelectorAll('section.sf-settings-group')].map((group) => group.id);
-  expect(groups.slice(0, 3)).toEqual(['provider', 'plugins', 'appearance']);
+  expect(groups.slice(0, 4)).toEqual(['provider', 'web-search', 'plugins', 'appearance']);
   expect($('plugins-section')!.textContent).toContain(
     '插件装在本机；每本书在对话头「上下文」里自己选用。只收文本，StoryForge 不运行插件里的程序。',
   );

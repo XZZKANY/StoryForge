@@ -15,6 +15,8 @@ import { ModelProfilesSection } from './ModelProfilesSection';
 import { AppearanceSection } from './AppearanceSection';
 import { SettingsSearchContext, settingsTextMatches, useSettingsQuery } from './search-context';
 import { usePlugins } from './usePlugins';
+import { useWebSearch } from './useWebSearch';
+import { WebSearchSection } from './WebSearchSection';
 import { PluginsSection } from './PluginsSection';
 import { takeRequestedSettingsSection } from '../../lib/settings-section';
 import { AboutRows } from './AboutRows';
@@ -40,7 +42,7 @@ type SettingsViewProps = {
  * 设置左栏锚点导航（纯锚点列表，「返回」不在里面）。整章润色用哪套模型并进了
  * 「模型服务」的「高级」，不再单列一组。
  */
-const settingsNav = ['模型服务', '插件', '外观', '编辑器', '关于'] as const;
+const settingsNav = ['模型服务', '联网搜索', '插件', '外观', '编辑器', '关于'] as const;
 
 const LINE_NUMBER_OPTIONS: ReadonlyArray<{ value: EditorLineNumbersMode; label: string }> = [
   { value: 'auto', label: '智能（正文隐藏）' },
@@ -63,6 +65,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
   const [searchQuery, setSearchQuery] = useState('');
   const models = useModelProfiles();
   const plugins = usePlugins();
+  const webSearch = useWebSearch();
   // 同一事件里连着改两项时，第二项要叠在第一项之上，不能都从同一份旧 props 出发。
   const latestRef = useRef(safeSettings);
   useLayoutEffect(() => {
@@ -91,7 +94,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
     // 模型配置第一次读完会撑高上面那组，读完再滚一次就收手。
     if (modelsLoaded) scrollPendingRef.current = null;
   }, [modelsLoaded]);
-  const hasUnsaved = models.draftDirty;
+  const hasUnsaved = models.draftDirty || webSearch.dirty;
   // 关闭守卫：模型配置有未保存草稿时先确认，避免 Esc/点遮罩/返回静默丢草稿。
   const requestClose = () => {
     if (!hasUnsaved) {
@@ -101,7 +104,7 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
     void confirmDialog
       .confirm({
         title: '放弃未保存的更改？',
-        message: '正在编辑的模型配置还没点「保存」，关闭后这份草稿会丢掉；已经保存的配置不受影响。',
+        message: '正在编辑的配置还没点「保存」，关闭后这份草稿会丢掉；已经保存的配置不受影响。',
         confirmLabel: '放弃并关闭',
         cancelLabel: '继续编辑',
         tone: 'danger',
@@ -214,6 +217,18 @@ export function SettingsView({ settings, onChange, onClose, fallbackFocusRef }: 
                   <SettingCard>
                     <ModelProfilesSection model={models} confirm={confirmDialog.confirm} />
                     <ProviderRuntimeEnvNotice />
+                  </SettingCard>
+                </SettingGroup>
+
+                <SettingGroup
+                  id="web-search"
+                  title="联网搜索"
+                  badge={
+                    <UnsavedBadge visible={webSearch.dirty} testId="settings-unsaved-web-search" />
+                  }
+                >
+                  <SettingCard>
+                    <WebSearchSection search={webSearch} confirm={confirmDialog.confirm} />
                   </SettingCard>
                 </SettingGroup>
 
@@ -373,6 +388,7 @@ function ProviderRuntimeEnvNotice() {
 
 function navAnchor(label: (typeof settingsNav)[number]): string {
   if (label === '模型服务') return 'provider';
+  if (label === '联网搜索') return 'web-search';
   if (label === '插件') return 'plugins';
   if (label === '外观') return 'appearance';
   if (label === '编辑器') return 'editor';
@@ -383,7 +399,7 @@ function navAnchor(label: (typeof settingsNav)[number]): string {
  *  且与全站唯一图标源 shell-icons 割裂 —— 那个模块的存在理由就是「取代旧的 Unicode/字形图标」）。 */
 function NavIcon({ label }: { label: string }) {
   const Icon =
-    label === '模型服务'
+    label === '模型服务' || label === '联网搜索'
       ? Sparkles
       : label === '插件'
         ? Puzzle

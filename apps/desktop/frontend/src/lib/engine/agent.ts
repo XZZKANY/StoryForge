@@ -1,3 +1,4 @@
+import { readWebPage } from '../api/web-read';
 import { getVersion } from '@tauri-apps/api/app';
 import {
   createAgentToolRegistry,
@@ -10,8 +11,10 @@ import {
   type ProjectWriter,
   type RunReadDeps,
   type SqlAssistantStore,
+  type WebSearchPort,
 } from '@storyforge/engine';
 import { pluginLibraryDir } from '../host/plugin-library';
+import { getWebSearchConfig, searchWeb, webSearchReady } from '../api/web-search';
 import { clock, platform, wait } from './assistant';
 import { nativeHttpPort, nativeLlmSource } from './llm';
 import { nativeProjectReader } from './reader';
@@ -44,13 +47,16 @@ export async function engineReadDeps(): Promise<RunReadDeps> {
  * ts 档的会话、消息、工具调用与标题都在引擎库（会话放哪个库跟着 `engine.agentLoop` 走）。
  */
 export async function engineAgentDeps(): Promise<AgentHostDeps> {
-  const [{ main, polish, secrets }, appVersion, runs, pluginLibraryRoot] = await Promise.all([
-    slots(),
-    getVersion(),
-    engineRuns(),
-    // 取不到插件库只是这一轮没有插件技能，对话照常。
-    pluginLibraryDir().catch(() => null),
-  ]);
+  const [{ main, polish, secrets }, appVersion, runs, pluginLibraryRoot, searchConfig] =
+    await Promise.all([
+      slots(),
+      getVersion(),
+      engineRuns(),
+      // 取不到插件库只是这一轮没有插件技能，对话照常。
+      pluginLibraryDir().catch(() => null),
+      // 未配置或宿主不支持时保持普通写作可用；设置页负责显示配置读取错误。
+      getWebSearchConfig().catch(() => null),
+    ]);
   return hostDeps({
     ...runs,
     sessions: await engineSessions(secrets),
@@ -61,6 +67,10 @@ export async function engineAgentDeps(): Promise<AgentHostDeps> {
     http: nativeHttpPort,
     wait,
     pluginLibraryRoot,
+    webSearch:
+      searchConfig?.enabled && webSearchReady(searchConfig)
+        ? { search: searchWeb, read: readWebPage }
+        : undefined,
   });
 }
 
@@ -77,6 +87,8 @@ export function hostDeps(parts: {
   wait: (seconds: number) => Promise<void>;
   /** 本机插件库根目录；不给就是没有插件。 */
   pluginLibraryRoot?: string | null;
+  /** 仅作者在本机显式启用且已配置密钥时提供；影子运行默认不出网。 */
+  webSearch?: WebSearchPort;
 }): AgentHostDeps {
   const { store, sessions, reader, writer } = parts;
   const { main, polish, secrets } = parts.slots;
@@ -92,6 +104,7 @@ export function hostDeps(parts: {
     regex,
     clock,
     newHex: hex,
+    webSearch: parts.webSearch,
     pluginLibraryRoot,
   });
   return {

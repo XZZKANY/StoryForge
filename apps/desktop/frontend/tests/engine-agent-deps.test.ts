@@ -132,3 +132,105 @@ describe('engineAssistantDeps', () => {
     expect((await engineAssistantDeps()).pluginLibraryRoot).toBeNull();
   });
 });
+
+describe('optional web search port', () => {
+  it.each([
+    { enabled: false, hasApiKey: true, provider: 'tavily' },
+    { enabled: true, hasApiKey: false, provider: 'tavily' },
+  ])('does not expose external search without both enabled and configured: %j', async (config) => {
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'web_search_get_config' ? config : null,
+    );
+    const deps = await engineAgentDeps();
+    expect(deps.tools.all().some((tool) => tool.name === 'web.search')).toBe(false);
+    expect(invoke).not.toHaveBeenCalledWith('web_search_execute', expect.anything());
+  });
+
+  it('binds configured search to the native fixed endpoint and refreshes enablement each run', async () => {
+    let enabled = true;
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'web_search_get_config')
+        return { enabled, hasApiKey: true, provider: 'tavily' };
+      if (command === 'web_search_execute')
+        return {
+          query: '公开资料',
+          provider: 'tavily',
+          searchedAt: '2026-11-20T00:00:00Z',
+          results: [{ title: '来源', url: 'https://example.com/reference', snippet: '参考摘要' }],
+        };
+      return null;
+    });
+    const deps = await engineAgentDeps();
+    const tool = deps.tools.get('web.search');
+    expect(tool.risk_level).toBe('network');
+    expect(tool.network_search_authorized).toBe(true);
+    const result = await tool.handler({ services: { checkInterruption: vi.fn() } } as never, {
+      query: '公开资料',
+      max_results: 2,
+    });
+    expect(invoke).toHaveBeenCalledWith('web_search_execute', {
+      request: { query: '公开资料', maxResults: 2 },
+    });
+    expect(result.trace.output_summary).toMatchObject({ result_count: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    enabled = false;
+    expect((await engineAgentDeps()).tools.all().some((tool) => tool.name === 'web.search')).toBe(
+      false,
+    );
+  });
+});
+
+it('offers OpenAI search with active model credentials even without a Tavily key, and withdraws it when the model is unavailable', async () => {
+  let ready = true;
+  vi.mocked(invoke).mockImplementation(async (command) =>
+    command === 'web_search_get_config'
+      ? {
+          enabled: true,
+          hasApiKey: false,
+          provider: 'openai',
+          openaiReady: ready,
+          openaiModel: ready ? 'main-model' : null,
+        }
+      : null,
+  );
+  expect((await engineAgentDeps()).tools.all().some((tool) => tool.name === 'web.search')).toBe(
+    true,
+  );
+  ready = false;
+  expect((await engineAgentDeps()).tools.all().some((tool) => tool.name === 'web.search')).toBe(
+    false,
+  );
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('binds page reading to native IPC only when search is enabled', async () => {
+  let enabled = true;
+  vi.mocked(invoke).mockImplementation(async (command) =>
+    command === 'web_search_get_config'
+      ? { enabled, hasApiKey: true, provider: 'tavily' }
+      : command === 'web_read_execute'
+        ? {
+            requestedUrl: 'https://example.com/',
+            url: 'https://example.com/',
+            title: '正文',
+            text: '公开页面',
+            links: [],
+            truncated: false,
+            linksTruncated: false,
+            fetchedAt: '2026-11-21T00:00:00Z',
+          }
+        : null,
+  );
+  const tool = (await engineAgentDeps()).tools.get('web.read');
+  const result = await tool.handler(
+    { run: { public_id: 'read-run' }, services: { checkInterruption: vi.fn() } } as never,
+    { url: 'https://example.com/' },
+  );
+  expect(result.output.text).toBe('公开页面');
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(invoke).toHaveBeenCalledWith('web_read_execute', {
+    request: { url: 'https://example.com/' },
+  });
+  enabled = false;
+  expect((await engineAgentDeps()).tools.all().some((t) => t.name === 'web.read')).toBe(false);
+});

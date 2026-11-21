@@ -1,4 +1,5 @@
 import type { AgentPlanStep } from '../../lib/api-client';
+import { traceWebSources } from './web-search-sources';
 import { traceLookup, traceReadSources, traceSkillRead } from './context-panel';
 import { formatElapsed } from './RunElapsed';
 import type {
@@ -42,6 +43,8 @@ const TOOL_LABELS: Record<string, string> = {
   'fs.list': '查看目录',
   'fs.read': '读取',
   'fs.search': '搜索',
+  'web.search': '联网搜索',
+  'web.read': '读取网页',
   'skill.read': '读技能',
   'project.knowledge': '查创作资料',
   'knowledge.propose': '提议记入创作资料',
@@ -147,6 +150,7 @@ export function toolTraceDetail(trace: ChatWindowAgentToolTrace): string {
   if (typeof output.latency_ms === 'number') parts.push(formatLatency(output.latency_ms));
   if (typeof output.context_file_count === 'number')
     parts.push(`上下文 ${output.context_file_count} 个`);
+  if (typeof output.result_count === 'number') parts.push(`网页来源 ${output.result_count} 个`);
   if (typeof output.issue_count === 'number') parts.push(`问题 ${output.issue_count} 个`);
   if (typeof output.suggested_action_count === 'number')
     parts.push(`建议 ${output.suggested_action_count} 条`);
@@ -160,6 +164,9 @@ export function toolTraceMetrics(trace: ChatWindowAgentToolTrace): string[] {
   if (trace.error_message) return [];
   const output = trace.output_summary ?? {};
   const metrics: string[] = [];
+  if (typeof output.result_count === 'number') metrics.push(`网页来源 ${output.result_count} 个`);
+  if (typeof output.link_count === 'number') metrics.push(`发现链接 ${output.link_count} 个`);
+  if (output.truncated === true) metrics.push('正文已截断');
   if (typeof output.issue_count === 'number') metrics.push(`问题 ${output.issue_count} 个`);
   if (typeof output.suggested_action_count === 'number')
     metrics.push(`建议 ${output.suggested_action_count} 条`);
@@ -209,6 +216,7 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
   const lookup = traceLookup(trace);
   const model = toolTraceModel(trace);
   const skill = traceSkillRead(trace);
+  const webSources = traceWebSources(trace);
   return {
     id: `tool-${index}-${trace.tool_name}`,
     title: toolStepTitle(trace),
@@ -220,6 +228,7 @@ export function stepFromToolTraceEvent(index: number, trace: ChatWindowAgentTool
     ...(sources.length ? { sources } : {}),
     ...(lookup !== undefined ? { lookup } : {}),
     ...(skill ? { skill } : {}),
+    ...(webSources.length ? { webSources } : {}),
   };
 }
 

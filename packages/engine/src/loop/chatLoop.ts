@@ -1,3 +1,4 @@
+import { WEB_READ_PROMPT } from './tools/webRead';
 import type { AssistantStore } from '../assistant/service';
 import type { JsonObject, Obj } from '../kernel/json';
 import type { SecretContext } from '../kernel/redaction';
@@ -42,6 +43,7 @@ import { ToolCallingRuntime } from './sdkLoop';
 import { runtimeLimits } from './sdkState';
 import type { TextObserver } from './textStream';
 import type { ToolDefinition } from './tools/execution';
+import { webSearchPrompt } from './tools/webSearch';
 
 export const LOOP_MAX_ROUNDS = 8;
 export const LOOP_MAX_DURATION_SECONDS = RUN_MAX_DURATION_SECONDS;
@@ -150,22 +152,31 @@ export async function runChatLoop(
   const initialSources =
     input.run.current_step === 'resumed' ? null : await sourceVersions(deps, [], recoveryMessage);
   const skillUse = { pluginSkills: false };
-  const messages = messagesFromOpenai(
-    (await storyforgeMessages(
-      deps,
-      {
-        assistantSessionId: input.assistantSessionId,
-        userMessage: input.userMessage,
-        projectPath: input.projectPath,
-        currentFile: input.currentFile,
-        authorView: input.authorView ?? null,
-        pinnedContext: input.pinnedContext ?? null,
-        setupNote: input.setupNote ?? null,
-      },
-      provenance,
-      skillUse,
-    )) as JsonObject[],
+  const messageRows = await storyforgeMessages(
+    deps,
+    {
+      assistantSessionId: input.assistantSessionId,
+      userMessage: input.userMessage,
+      projectPath: input.projectPath,
+      currentFile: input.currentFile,
+      authorView: input.authorView ?? null,
+      pinnedContext: input.pinnedContext ?? null,
+      setupNote: input.setupNote ?? null,
+    },
+    provenance,
+    skillUse,
   );
+  const searchPrompt = webSearchPrompt(
+    input.definitions.some(
+      (definition) =>
+        definition.name === 'web.search' && definition.network_search_authorized === true,
+    ),
+    input.userMessage,
+  );
+  if (searchPrompt) messageRows.splice(1, 0, { role: 'system', content: searchPrompt });
+  if (input.definitions.some((d) => d.name === 'web.read' && d.network_search_authorized))
+    messageRows.splice(1, 0, { role: 'system', content: WEB_READ_PROMPT });
+  const messages = messagesFromOpenai(messageRows as JsonObject[]);
   const outcome = new ChatLoopOutcome('');
   const context = new StoryForgeRuntimeContext({
     assistant: deps.assistant,

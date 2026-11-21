@@ -65,6 +65,8 @@ export type AgentStep = {
   patchId?: string;
   /** 这次工具调用读过的文件（引擎记的原样路径），给对话栏「上下文」列出来。 */
   sources?: string[];
+  /** 搜索服务实际返回的网页来源，不混入作品文件列表。 */
+  webSources?: { title: string; url: string }[];
   /** fs.search 的检索词 / fs.list 的子目录（根目录为空串）。 */
   lookup?: string;
   /** skill.read 读过的技能；plugin 为插件 id，作品技能为 null。 */

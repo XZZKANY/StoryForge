@@ -732,3 +732,13 @@ export {
   type FactBackfillDeps,
   type FactModel,
 } from './loop/factBackfill';
+
+// 本机显式配置后可选的公开网页检索端口。
+export type {
+  WebSearchPort,
+  WebSearchRequest,
+  WebSearchResponse,
+  WebSearchResult,
+} from './loop/tools/webSearch';
+
+export type { WebReadRequest, WebReadResponse } from './loop/tools/webRead';
