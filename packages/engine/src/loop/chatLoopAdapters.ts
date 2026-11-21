@@ -1,3 +1,4 @@
+import { WEB_READ_TOOL_SPEC } from './tools/webRead';
 import { GenerationDeliveryCapture } from '../kernel/generationDelivery';
 import {
   dumpJson,
@@ -49,6 +50,7 @@ import { completeWithTextStream } from './textStream';
 import { mergeCostBreakdown, serializeToolOutput, toolOutputSummary } from './toolFeedback';
 import { listLoopToolSpecs, llmToolName, loopPatchToolSpecs } from './tools/catalog';
 import type { ToolResult } from './tools/execution';
+import { WEB_SEARCH_TOOL_SPEC } from './tools/webSearch';
 import { sanitizeLoopToolArguments } from './tools/runtimeArguments';
 import type { AgentToolTrace } from './traces';
 import type { TokenUsage } from '../llm/contracts';
@@ -57,7 +59,10 @@ const PATCH_TOOL_NAMES: ReadonlySet<string> = new Set(
   loopPatchToolSpecs().map((spec) => spec.name),
 );
 const LLM_TO_REGISTRY = new Map(
-  listLoopToolSpecs().map((spec) => [llmToolName(spec.name), spec.name]),
+  [...listLoopToolSpecs(), WEB_SEARCH_TOOL_SPEC, WEB_READ_TOOL_SPEC].map((spec) => [
+    llmToolName(spec.name),
+    spec.name,
+  ]),
 );
 const SINGLE_PATCH_ERROR =
   '这一轮已经生成过一个待确认修订，一轮只出一个：先停下，跟作者说清已经出了哪份修订；作者下一句话时可以再发起新的修订或起草。';
@@ -438,12 +443,24 @@ async function executeLoopTool(
 
 /** 这一轮交给模型的循环工具：skill.read 只在可用技能里有插件技能时才给。 */
 const offeredLoopToolSpecs = (context: StoryForgeRuntimeContext) =>
-  listLoopToolSpecs().filter((spec) => spec.name !== 'skill.read' || context.pluginSkills);
+  [
+    ...listLoopToolSpecs(),
+    ...(context.definitions.get('web.search')?.network_search_authorized
+      ? [WEB_SEARCH_TOOL_SPEC]
+      : []),
+    ...(context.definitions.get('web.read')?.network_search_authorized ? [WEB_READ_TOOL_SPEC] : []),
+  ].filter((spec) => spec.name !== 'skill.read' || context.pluginSkills);
 
 /** 没交给模型的工具当未知工具处理，与它不存在时一样。 */
 function exposedRegistryName(context: StoryForgeRuntimeContext, llmName: string): string | null {
   const registryName = LLM_TO_REGISTRY.get(llmName) ?? null;
-  return registryName === 'skill.read' && !context.pluginSkills ? null : registryName;
+  if (registryName === 'skill.read' && !context.pluginSkills) return null;
+  if (
+    (registryName === 'web.search' || registryName === 'web.read') &&
+    !context.definitions.get(registryName)?.network_search_authorized
+  )
+    return null;
+  return registryName;
 }
 
 /** 循环工具按声明顺序装进 SDK 注册表；漏注册的处理器启动即报错。 */

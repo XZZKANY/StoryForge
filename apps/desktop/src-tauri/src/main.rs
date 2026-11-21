@@ -20,6 +20,9 @@ mod secret_protection;
 mod shadow_git;
 mod smoke_ui;
 mod update_smoke;
+mod web_read;
+mod web_search;
+mod web_search_smoke;
 
 use anyhow::{Context, Result};
 use runtime_paths::is_smoke_mode;
@@ -436,6 +439,11 @@ fn run_smoke_probe<R: tauri::Runtime>(window: tauri::WebviewWindow<R>, app: taur
         println!(
             "Desktop native navigation evidence: phase=project-library-startup state={initial}"
         );
+
+        if let Err(error) = web_search_smoke::verify(&window) {
+            eprintln!("Smoke 失败: {error}");
+            fail_smoke!();
+        }
 
         // The library deliberately hides ActivityBar. Use the existing isolated
         // project-selection seam, then test visible workspace navigation below.
@@ -1325,6 +1333,11 @@ fn main() {
             close_guard::acknowledge_close_request,
             close_guard::resolve_close_request,
             host_close::read_host_close_diagnostic,
+            // 联网搜索与网页读取：本机加密配置和原生出网口
+            web_search::web_search_get_config,
+            web_search::web_search_save_config,
+            web_search::web_search_execute,
+            web_read::web_read_execute,
             // 模型服务：多套配置的增删改切；「获取模型」用未保存的草稿探一次列表（不落盘）
             llm_config::list_llm_profiles,
             llm_config::save_llm_profile,

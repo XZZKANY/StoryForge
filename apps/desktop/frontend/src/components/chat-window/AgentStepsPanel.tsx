@@ -227,6 +227,23 @@ function StepRow({ step }: { step: AgentStep }) {
         // 避免全局 button:disabled{cursor:not-allowed} 让静态行挂着禁用光标。
         <div className={rowClass}>{rowContent}</div>
       )}
+      {step.webSources && step.webSources.length > 0 && (
+        <ul className="ml-5 space-y-0.5 text-2xs" aria-label="联网搜索来源">
+          {step.webSources.map((source) => (
+            <li key={source.url} className="truncate">
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-agent hover:underline"
+                title={source.url}
+              >
+                {source.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

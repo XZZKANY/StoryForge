@@ -103,7 +103,12 @@ export function patchRequiresConfirmation(profile: unknown): boolean {
   return decideStage(canonicalPermissionProfile(profile), 'writeback').status !== 'allow';
 }
 
-export type ToolRisk = { risk_level: string; execution_mode: string };
+export type ToolRisk = {
+  risk_level: string;
+  execution_mode: string;
+  name?: string;
+  network_search_authorized?: boolean;
+};
 
 export function decideTool(
   profile: unknown,
@@ -112,6 +117,13 @@ export function decideTool(
 ): PermissionDecision {
   const canonical = normalizePermissionProfile(profile, false).profile;
   const risk = tool.risk_level;
+  // 设置中的联网开关仅授权公开检索和网页读取工具；其余网络工具仍要求原有确认。
+  if (
+    risk === 'network' &&
+    (tool.name === 'web.search' || tool.name === 'web.read') &&
+    tool.network_search_authorized === true
+  )
+    return decision('allow', 'configured_public_web_search');
   if (risk === 'read' || risk === 'analyze') return decideStage(canonical, 'explore');
   if (canonical === 'read') return decision('deny', `read_profile_blocks_${risk}`);
   if (risk === 'write_pending') {

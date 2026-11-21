@@ -90,6 +90,8 @@ export type ToolExecutionContext = {
 export type ToolHandler = (context: ToolExecutionContext, payload: Obj) => Promise<ToolResult>;
 
 export type ToolDefinition = {
+  /** 仅本机注册器授予web.search/web.read，模型参数不能设置。 */
+  readonly network_search_authorized?: boolean;
   readonly name: string;
   readonly description: string;
   readonly allowed_roles: readonly string[];
